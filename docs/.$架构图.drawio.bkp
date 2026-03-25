@@ -1,0 +1,63 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/28.0.6 Chrome/138.0.7204.100 Electron/37.2.3 Safari/537.36" version="28.0.6">
+  <diagram name="Page-1" id="xMcq2P-wNylxxy-3rJ3_">
+    <mxGraphModel dx="2260" dy="945" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="TkA6CWUO938EkWVW6nJJ-1" target="TkA6CWUO938EkWVW6nJJ-2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-1" value="前端（Web/Moblie）" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="170" width="460" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-25" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" source="TkA6CWUO938EkWVW6nJJ-2">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="270" y="620" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-2" value="" style="rounded=0;whiteSpace=wrap;html=1;dashed=1;dashPattern=8 8;" vertex="1" parent="1">
+          <mxGeometry x="-130" y="320" width="800" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-5" value="REST API" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="280" y="260" width="80" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-8" value=".NET 8 Web API" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="205" y="330" width="130" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-21" value="" style="group;dashed=1;dashPattern=12 12;strokeColor=default;fillColor=default;" vertex="1" connectable="0" parent="1">
+          <mxGeometry x="-95" y="620" width="730" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-20" value="" style="group" vertex="1" connectable="0" parent="TkA6CWUO938EkWVW6nJJ-21">
+          <mxGeometry x="60" y="30" width="590" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-14" value="&lt;b&gt;PostgresSQL&lt;/b&gt;&lt;div&gt;设备&lt;/div&gt;&lt;div&gt;项目&lt;/div&gt;&lt;div&gt;任务主表&lt;/div&gt;&lt;div&gt;用户&lt;/div&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;" vertex="1" parent="TkA6CWUO938EkWVW6nJJ-20">
+          <mxGeometry width="80" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-17" value="MongoDB&lt;div&gt;方案模板&lt;/div&gt;&lt;div&gt;定制方案&lt;/div&gt;&lt;div&gt;执行记录&lt;/div&gt;&lt;div&gt;任务数据&lt;/div&gt;&lt;div&gt;报告数据&lt;/div&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;" vertex="1" parent="TkA6CWUO938EkWVW6nJJ-20">
+          <mxGeometry x="250" width="80" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-18" value="OSS文件存储&lt;div&gt;&lt;br&gt;&lt;div&gt;报告PDF&lt;/div&gt;&lt;div&gt;报告Word&lt;/div&gt;&lt;div&gt;附件图片&lt;/div&gt;&lt;/div&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;" vertex="1" parent="TkA6CWUO938EkWVW6nJJ-20">
+          <mxGeometry x="510" width="80" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-22" value="" style="group" vertex="1" connectable="0" parent="1">
+          <mxGeometry x="-90" y="380" width="710" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-7" value="设备管理" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="TkA6CWUO938EkWVW6nJJ-22">
+          <mxGeometry width="120" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-9" value="项目管理" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="TkA6CWUO938EkWVW6nJJ-22">
+          <mxGeometry x="150" width="120" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-10" value="方案管理" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="TkA6CWUO938EkWVW6nJJ-22">
+          <mxGeometry x="290" width="120" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-11" value="任务管理" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="TkA6CWUO938EkWVW6nJJ-22">
+          <mxGeometry x="440" width="120" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-13" value="报告服务" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="TkA6CWUO938EkWVW6nJJ-22">
+          <mxGeometry x="590" width="120" height="70" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

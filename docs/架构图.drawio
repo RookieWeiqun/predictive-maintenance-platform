@@ -1,0 +1,118 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/28.0.6 Chrome/138.0.7204.100 Electron/37.2.3 Safari/537.36" version="28.0.6">
+  <diagram name="Page-1" id="xMcq2P-wNylxxy-3rJ3_">
+    <mxGraphModel dx="2260" dy="945" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-47" value="" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="-300" y="180" width="910" height="590" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="TkA6CWUO938EkWVW6nJJ-1" target="TkA6CWUO938EkWVW6nJJ-2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-1" value="客户端（Web）" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="190" width="220" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-25" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" source="TkA6CWUO938EkWVW6nJJ-2">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="150" y="560" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-2" value="" style="rounded=0;whiteSpace=wrap;html=1;dashed=1;dashPattern=8 8;" vertex="1" parent="1">
+          <mxGeometry x="-300" y="310" width="900" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-5" value="REST API" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="160" y="250" width="80" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-8" value=".NET 8 Web API" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="85" y="320" width="130" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-21" value="" style="group;dashed=1;dashPattern=12 12;strokeColor=default;fillColor=default;" vertex="1" connectable="0" parent="1">
+          <mxGeometry x="-210" y="560" width="730" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-20" value="" style="group" vertex="1" connectable="0" parent="TkA6CWUO938EkWVW6nJJ-21">
+          <mxGeometry x="60" y="30" width="590" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-14" value="&lt;b&gt;PostgresSQL&lt;/b&gt;&lt;div&gt;设备&lt;/div&gt;&lt;div&gt;项目&lt;/div&gt;&lt;div&gt;任务主表&lt;/div&gt;&lt;div&gt;用户&lt;/div&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;" vertex="1" parent="TkA6CWUO938EkWVW6nJJ-20">
+          <mxGeometry width="80" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-17" value="&lt;b&gt;MongoDB&lt;/b&gt;&lt;div&gt;&lt;b&gt;&lt;br&gt;&lt;/b&gt;&lt;div&gt;方案模板&lt;/div&gt;&lt;div&gt;定制模板&lt;/div&gt;&lt;div&gt;任务数据&lt;/div&gt;&lt;div&gt;报告数据&lt;/div&gt;&lt;/div&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;" vertex="1" parent="TkA6CWUO938EkWVW6nJJ-20">
+          <mxGeometry x="250" width="80" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-18" value="&lt;b&gt;OSS文件存储&lt;/b&gt;&lt;div&gt;&lt;br&gt;&lt;div&gt;报告PDF&lt;/div&gt;&lt;div&gt;报告Word&lt;/div&gt;&lt;div&gt;附件图片&lt;/div&gt;&lt;/div&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;" vertex="1" parent="TkA6CWUO938EkWVW6nJJ-20">
+          <mxGeometry x="510" width="80" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-22" value="" style="group" vertex="1" connectable="0" parent="1">
+          <mxGeometry x="-280" y="370" width="710" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-7" value="设备管理" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="TkA6CWUO938EkWVW6nJJ-22">
+          <mxGeometry width="120" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-9" value="项目管理" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="TkA6CWUO938EkWVW6nJJ-22">
+          <mxGeometry x="150" width="120" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-10" value="方案管理" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="TkA6CWUO938EkWVW6nJJ-22">
+          <mxGeometry x="290" width="120" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-11" value="任务引擎" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="TkA6CWUO938EkWVW6nJJ-22">
+          <mxGeometry x="440" width="120" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-13" value="报告服务" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="TkA6CWUO938EkWVW6nJJ-22">
+          <mxGeometry x="590" width="120" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-27" value="待确认：&lt;div&gt;&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; 1.每个实体字段澄清&lt;/span&gt;&lt;div&gt;&lt;div&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp;2. 方案模板&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;white-space: pre;&quot;&gt;&#x9;&lt;/span&gt;&lt;span style=&quot;white-space: pre;&quot;&gt;&#x9;&lt;/span&gt;&lt;span style=&quot;white-space: pre;&quot;&gt;&#x9;&lt;/span&gt;&lt;span style=&quot;white-space: pre;&quot;&gt;&#x9;&lt;/span&gt;&lt;span style=&quot;white-space: pre;&quot;&gt;&#x9;&lt;/span&gt;&amp;nbsp; &amp;nbsp;3. 每个任务他的正常与否判断逻辑&lt;/div&gt;&lt;div&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp;4. 用户角色&lt;/div&gt;&lt;div&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp;5. 报告样式&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="-135" y="860" width="350" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-33" value="用户及权限" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="450" y="370" width="120" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-45" value="" style="group" vertex="1" connectable="0" parent="1">
+          <mxGeometry x="630" y="180" width="770" height="590" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-43" value="" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="TkA6CWUO938EkWVW6nJJ-45">
+          <mxGeometry width="770" height="590" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-50" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="TkA6CWUO938EkWVW6nJJ-45" source="TkA6CWUO938EkWVW6nJJ-34" target="TkA6CWUO938EkWVW6nJJ-36">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-34" value="从服务器下载任务&lt;div&gt;生成JSON文件包含全部所需数据&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=default;dashed=1;dashPattern=8 8;" vertex="1" parent="TkA6CWUO938EkWVW6nJJ-45">
+          <mxGeometry x="63.29166666666671" y="134.78448275862067" width="180.83333333333334" height="96.63793103448275" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-35" value="【有网络时 - 出发前】" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="TkA6CWUO938EkWVW6nJJ-45">
+          <mxGeometry x="56.83333333333337" y="96.63793103448273" width="193.75" height="30.51724137931034" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-36" value="本地JSON文件&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;task-001.json&lt;/div&gt;&lt;div&gt;task-002.json&lt;/div&gt;&lt;div&gt;task-003.json&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;syncStatus:&lt;/div&gt;&lt;div&gt;1.未上传&lt;/div&gt;&lt;div&gt;2.上传中&lt;/div&gt;&lt;div&gt;3.已上传&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;dashed=1;dashPattern=8 8;" vertex="1" parent="TkA6CWUO938EkWVW6nJJ-45">
+          <mxGeometry x="56.83333333333337" y="274.6551724137931" width="193.75" height="233.9655172413793" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-37" value="1. 上传所有现场图片&lt;div&gt;（按照taskId+nodeId命名）&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;2. 上传Json文件&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;3. 服务器解析Json文件后生产报告&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;dashed=1;dashPattern=8 8;align=left;" vertex="1" parent="TkA6CWUO938EkWVW6nJJ-45">
+          <mxGeometry x="565.8316666666667" y="132.2413793103448" width="155" height="183.10344827586206" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-38" value="【恢复网络 - 回来后】" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="TkA6CWUO938EkWVW6nJJ-45">
+          <mxGeometry x="539.9983333333333" y="96.63793103448273" width="193.75" height="30.51724137931034" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-39" value="【无网络时-现场】" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="TkA6CWUO938EkWVW6nJJ-45">
+          <mxGeometry x="320" y="96.64" width="170" height="33.36" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-53" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="TkA6CWUO938EkWVW6nJJ-45" source="TkA6CWUO938EkWVW6nJJ-51" target="TkA6CWUO938EkWVW6nJJ-36">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="410" y="392" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-51" value="工程师填写真是测量值以及拍摄现场图片" style="rounded=0;whiteSpace=wrap;html=1;dashed=1;dashPattern=8 8;" vertex="1" parent="TkA6CWUO938EkWVW6nJJ-45">
+          <mxGeometry x="340" y="134.78" width="140" height="175.22" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-54" value="" style="group" vertex="1" connectable="0" parent="TkA6CWUO938EkWVW6nJJ-45">
+          <mxGeometry x="259.99833333333333" y="20.002413793103447" width="251.875" height="55.948275862068954" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-46" value="" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="TkA6CWUO938EkWVW6nJJ-54">
+          <mxGeometry width="251.87500000000003" height="55.94827586206896" as="geometry" />
+        </mxCell>
+        <mxCell id="TkA6CWUO938EkWVW6nJJ-30" value="移动端（IPad）" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="TkA6CWUO938EkWVW6nJJ-54">
+          <mxGeometry x="61.87666666666672" y="12.718620689655157" width="142.08333333333334" height="30.51724137931034" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
