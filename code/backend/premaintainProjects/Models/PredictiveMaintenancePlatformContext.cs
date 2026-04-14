@@ -23,23 +23,20 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
 
     public virtual DbSet<InspectionItem> InspectionItems { get; set; }
 
+    public virtual DbSet<InspectionTask> InspectionTasks { get; set; }
+
     public virtual DbSet<InspectionTemplate> InspectionTemplates { get; set; }
 
     public virtual DbSet<Product> Products { get; set; }
 
     public virtual DbSet<Project> Projects { get; set; }
 
-    public virtual DbSet<Task> Tasks { get; set; }
-
     public virtual DbSet<Taskitem> Taskitems { get; set; }
 
     public virtual DbSet<User> Users { get; set; }
 
-    /*
-    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-#warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
-        => optionsBuilder.UseNpgsql("Host=36.110.89.30;Port=54321;Database=PredictiveMaintenancePlatform;Username=PredictiveMaintenance;Password=PsmDig@2026");
-    */
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder) {}
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Company>(entity =>
@@ -101,7 +98,9 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
                 .HasMaxLength(100)
                 .HasColumnName("name");
             entity.Property(e => e.ParentId).HasColumnName("parent_id");
-            entity.Property(e => e.SortOrder).HasColumnName("sort_order");
+            entity.Property(e => e.SortOrder)
+                .HasDefaultValue(1)
+                .HasColumnName("sort_order");
             entity.Property(e => e.Templateid).HasColumnName("templateid");
         });
 
@@ -124,9 +123,12 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
                 .HasColumnName("priority");
             entity.Property(e => e.RuleType)
                 .HasMaxLength(50)
+                .HasDefaultValueSql("'number_range'::character varying")
                 .HasComment("number_range,select_include, boolean_equal")
                 .HasColumnName("rule_type");
-            entity.Property(e => e.SortOrder).HasColumnName("sort_order");
+            entity.Property(e => e.SortOrder)
+                .HasDefaultValue(1)
+                .HasColumnName("sort_order");
             entity.Property(e => e.Templateid).HasColumnName("templateid");
             entity.Property(e => e.Threshold)
                 .HasComment("number_range: {\"min\":340,\"max\":400,\"unit\":\"V\"} \r\nselect_include: {\"normal_values\":[\"清洁\",\"轻微污渍\"]}\r\nboolean_equal: {\"normal_value\":false}")
@@ -134,8 +136,36 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
                 .HasColumnName("threshold");
             entity.Property(e => e.ValueType)
                 .HasMaxLength(50)
+                .HasDefaultValueSql("'number'::character varying")
                 .HasComment("number\r\nboolean\r\nselect")
                 .HasColumnName("value_type");
+        });
+
+        modelBuilder.Entity<InspectionTask>(entity =>
+        {
+            entity.HasKey(e => e.Taskid).HasName("inspection_tasks_pkey");
+
+            entity.ToTable("inspection_tasks");
+
+            entity.HasIndex(e => e.Assigneduserid, "inspection_tasks_assigneduserid_idx");
+
+            entity.HasIndex(e => new { e.Projectid, e.Templateid, e.Productid }, "inspection_tasks_projectid_idx");
+
+            entity.Property(e => e.Taskid).HasColumnName("taskid");
+            entity.Property(e => e.Assigneduserid).HasColumnName("assigneduserid");
+            entity.Property(e => e.Completetime)
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("completetime");
+            entity.Property(e => e.Productid).HasColumnName("productid");
+            entity.Property(e => e.Projectid).HasColumnName("projectid");
+            entity.Property(e => e.Status)
+                .HasDefaultValue(1)
+                .HasComment("1、进行中/2、完成/3、未开始")
+                .HasColumnName("status");
+            entity.Property(e => e.TaskNo)
+                .HasMaxLength(100)
+                .HasColumnName("task_no");
+            entity.Property(e => e.Templateid).HasColumnName("templateid");
         });
 
         modelBuilder.Entity<InspectionTemplate>(entity =>
@@ -200,7 +230,7 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
             entity.Property(e => e.Assigneduserid).HasColumnName("assigneduserid");
             entity.Property(e => e.Companyid).HasColumnName("companyid");
             entity.Property(e => e.Createdate)
-                .HasDefaultValueSql("now()")
+                .HasDefaultValueSql("CURRENT_DATE")
                 .HasColumnName("createdate");
             entity.Property(e => e.Managerid).HasColumnName("managerid");
             entity.Property(e => e.Projectname)
@@ -210,33 +240,6 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
                 .HasDefaultValue(1)
                 .HasComment("1. 进行中\r\n2. 已完成\r\n3. 已关闭")
                 .HasColumnName("projectstatus");
-        });
-
-        modelBuilder.Entity<Task>(entity =>
-        {
-            entity.HasKey(e => e.Taskid).HasName("inspection_tasks_pkey");
-
-            entity.ToTable("tasks");
-
-            entity.HasIndex(e => e.Assigneduserid, "inspection_tasks_assigneduserid_idx");
-
-            entity.HasIndex(e => new { e.Projectid, e.Templateid, e.Productid }, "inspection_tasks_projectid_idx");
-
-            entity.Property(e => e.Taskid).HasColumnName("taskid");
-            entity.Property(e => e.Assigneduserid).HasColumnName("assigneduserid");
-            entity.Property(e => e.Completetime)
-                .HasColumnType("timestamp without time zone")
-                .HasColumnName("completetime");
-            entity.Property(e => e.Productid).HasColumnName("productid");
-            entity.Property(e => e.Projectid).HasColumnName("projectid");
-            entity.Property(e => e.Status)
-                .HasMaxLength(50)
-                .HasComment("进行中/完成/未开始")
-                .HasColumnName("status");
-            entity.Property(e => e.TaskNo)
-                .HasMaxLength(100)
-                .HasColumnName("task_no");
-            entity.Property(e => e.Templateid).HasColumnName("templateid");
         });
 
         modelBuilder.Entity<Taskitem>(entity =>

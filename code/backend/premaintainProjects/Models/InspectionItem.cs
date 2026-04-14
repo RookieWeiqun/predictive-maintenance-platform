@@ -7,7 +7,7 @@ public partial class InspectionItem
 {
     public int Itemid { get; set; }
 
-    public int? Templateid { get; set; }
+    public int Templateid { get; set; }
 
     public int? Categoryid { get; set; }
 
@@ -32,7 +32,7 @@ public partial class InspectionItem
     /// </summary>
     public string? Threshold { get; set; }
 
-    public int? SortOrder { get; set; }
+    public int SortOrder { get; set; }
 
     /// <summary>
     /// High

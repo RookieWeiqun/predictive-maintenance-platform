@@ -1,0 +1,30 @@
+
+dotnet ef dbcontext scaffold "Host=36.110.89.30;Port=54321;Database=PredictiveMaintenancePlatform;Username=PredictiveMaintenance;Password=PsmDig@2026" Npgsql.EntityFrameworkCore.PostgreSQL -o Models --force
+
+
+dotnet ef dbcontext scaffold "Host=...;Port=...;Database=...;Username=...;Password=..." Npgsql.EntityFrameworkCore.PostgreSQL -o Models --force
+
+git@code.siemens.com:cs-psm-dig/predictive-maintenance-platform.git
+
+git@code.siemens.com:cs-psm-dig/predictive-maintenance-platform.git
+
+
+
+mkdir code\backend
+Move-Item * code\backend -Force
+Move-Item .* code\backend -Force
+
+（如有报错，可手动移动 .gitignore、README.md 等文件，不要移动 .git 目录）
+
+C:\Users\z002azfr\source\repos\premaintainProjects
+└─ code
+   └─ backend
+      ├─ premaintainProjects
+      ├─ Dockerfile
+         ├─ ...（其它项目文件）
+
+
+在项目根目录下执行：	 
+git add .
+git commit -m "Move project to code/backend"
+git push origin master		 

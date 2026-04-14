@@ -7,11 +7,11 @@ public partial class InspectionCategory
 {
     public int Categoryid { get; set; }
 
-    public int? Templateid { get; set; }
+    public int Templateid { get; set; }
 
-    public int? ParentId { get; set; }
+    public int ParentId { get; set; }
 
-    public string? Name { get; set; }
+    public string Name { get; set; } = null!;
 
-    public int? SortOrder { get; set; }
+    public int SortOrder { get; set; }
 }

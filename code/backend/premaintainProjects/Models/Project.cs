@@ -9,7 +9,7 @@ public partial class Project
 
     public string? Projectname { get; set; }
 
-    public int? Companyid { get; set; }
+    public int Companyid { get; set; }
 
     public int? Managerid { get; set; }
 

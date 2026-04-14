@@ -7,7 +7,7 @@ public partial class Equipment
 {
     public int Equipid { get; set; }
 
-    public int? Companyid { get; set; }
+    public int Companyid { get; set; }
 
     public string? Factory { get; set; }
 

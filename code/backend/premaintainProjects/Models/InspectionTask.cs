@@ -7,14 +7,14 @@ public partial class InspectionTask
 {
     public int Taskid { get; set; }
 
-    public int? Projectid { get; set; }
+    public int Projectid { get; set; }
 
-    public int? Templateid { get; set; }
+    public int Templateid { get; set; }
 
     /// <summary>
-    /// 进行中/完成/未开始
+    /// 1、进行中/2、完成/3、未开始
     /// </summary>
-    public string? Status { get; set; }
+    public int Status { get; set; }
 
     public string? TaskNo { get; set; }
 
@@ -22,5 +22,5 @@ public partial class InspectionTask
 
     public DateTime? Completetime { get; set; }
 
-    public int? Productid { get; set; }
+    public int Productid { get; set; }
 }
