@@ -1,0 +1,25 @@
+name: predictive-maintenance
+
+services:
+  backend:
+    build:
+      context: ../backend
+      dockerfile: premaintainProjects/Dockerfile
+      args:
+        BUILD_CONFIGURATION: Release
+    image: predictive-maintenance-backend:latest
+    container_name: predictive-maintenance-backend
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=PredictiveMaintenancePlatform;Username=PredictiveMaintenance;Password=PsmDig@2026;
+    ports:
+      - "8080:8080"
+    networks:
+      - predictive-maintenance-network
+
+networks:
+  predictive-maintenance-network:
+    external: true
+    name: predictive-maintenance-network

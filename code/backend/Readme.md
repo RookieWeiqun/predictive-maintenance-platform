@@ -1,18 +1,27 @@
-## PostgreSQL 测试库部署说明
+## 部署说明
 
-这个目录下提供了一套基于 Docker Compose 的 PostgreSQL 测试环境，方便你和同事直接连库、建库、建表和查看数据。
+部署相关的 Docker Compose 文件已经统一放到 `../deploy` 目录，方便直接在部署目录里执行。
 
 ### 文件说明
 
-- `docker-compose.postgres.yml`：PostgreSQL 编排文件
+- `../deploy/docker-compose.postgres.yml`：PostgreSQL 编排文件
+- `../deploy/docker-compose.backend.yml`：后端服务编排文件
 - `initdb/01-init-role.sql`：数据库首次初始化时自动执行的 SQL
 
 ### 启动方式
 
-在 Linux 测试服务器进入当前目录后执行：
+先启动 PostgreSQL：
 
 ```bash
+cd deploy
 docker compose -f docker-compose.postgres.yml up -d
+```
+
+再启动后端：
+
+```bash
+cd deploy
+docker compose -f docker-compose.backend.yml up -d --build
 ```
 
 ### PostgreSQL 连接信息
@@ -48,6 +57,7 @@ docker compose -f docker-compose.postgres.yml up -d
 如果只是普通重启，不需要删卷：
 
 ```bash
+cd deploy
 docker compose -f docker-compose.postgres.yml down
 docker compose -f docker-compose.postgres.yml up -d
 ```
@@ -55,6 +65,7 @@ docker compose -f docker-compose.postgres.yml up -d
 如果你明确要重新初始化数据库并重新执行 `initdb` 脚本，需要删除数据卷：
 
 ```bash
+cd deploy
 docker compose -f docker-compose.postgres.yml down -v
 docker compose -f docker-compose.postgres.yml up -d
 ```
@@ -74,5 +85,6 @@ docker compose -f docker-compose.postgres.yml up -d
 ### 停止服务
 
 ```bash
+cd deploy
 docker compose -f docker-compose.postgres.yml down
 ```
