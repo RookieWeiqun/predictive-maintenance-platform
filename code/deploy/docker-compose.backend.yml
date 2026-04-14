@@ -11,7 +11,7 @@ services:
     container_name: predictive-maintenance-backend
     restart: unless-stopped
     environment:
-      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_ENVIRONMENT: Testing
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=PredictiveMaintenancePlatform;Username=PredictiveMaintenance;Password=PsmDig@2026;
     ports:

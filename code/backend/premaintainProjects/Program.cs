@@ -21,7 +21,7 @@ Console.WriteLine($"实际使用的连接字符串: {connectionString}");
 var app = builder.Build();
 
 
-if (app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing"))
 {
     app.UseSwagger();
     app.UseSwaggerUI();
