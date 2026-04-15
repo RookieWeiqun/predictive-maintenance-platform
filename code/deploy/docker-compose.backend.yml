@@ -13,7 +13,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Testing
       ASPNETCORE_URLS: http://+:8080
-      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=PredictiveMaintenancePlatform;Username=PredictiveMaintenance;Password=PsmDig@2026;
+      ConnectionStrings__DefaultConnection: Host=predictive-maintenance-postgres;Port=5432;Database=PredictiveMaintenancePlatform;Username=PredictiveMaintenance;Password=PsmDig@2026;
     ports:
       - "8765:8080"
     networks:
