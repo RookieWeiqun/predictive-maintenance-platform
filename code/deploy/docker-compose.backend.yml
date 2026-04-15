@@ -15,7 +15,7 @@ services:
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=PredictiveMaintenancePlatform;Username=PredictiveMaintenance;Password=PsmDig@2026;
     ports:
-      - "8080:8080"
+      - "8765:8080"
     networks:
       - predictive-maintenance-network
 
