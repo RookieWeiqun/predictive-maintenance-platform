@@ -11,7 +11,8 @@ REMOTE_PASSWORD="psmdig"
 REMOTE_REPO_DIR="/home/ezan/envapp/PredictiveMaintenancePlatform/code"
 REMOTE_DEPLOY_DIR="/home/ezan/envapp/PredictiveMaintenancePlatform/code/deploy"
 TARGET_BRANCH="master"
-COMMIT_MESSAGE="${1:-deploy: $(date '+%Y-%m-%d %H:%M:%S')}"
+DEFAULT_COMMIT_MESSAGE="deploy: $(date '+%Y-%m-%d %H:%M:%S')"
+COMMIT_MESSAGE="${1:-}"
 
 CURRENT_BRANCH="$(git -C "${REPO_ROOT}" branch --show-current)"
 
@@ -28,6 +29,11 @@ created_commit=false
 if git -C "${REPO_ROOT}" diff --cached --quiet; then
   echo "No local changes to commit."
 else
+  if [[ -z "${COMMIT_MESSAGE}" ]]; then
+    read -r -p "Enter commit message [${DEFAULT_COMMIT_MESSAGE}]: " COMMIT_MESSAGE
+    COMMIT_MESSAGE="${COMMIT_MESSAGE:-${DEFAULT_COMMIT_MESSAGE}}"
+  fi
+
   echo "==> Creating commit: ${COMMIT_MESSAGE}"
   git -C "${REPO_ROOT}" commit -m "${COMMIT_MESSAGE}"
   created_commit=true
@@ -38,9 +44,19 @@ git -C "${REPO_ROOT}" fetch origin "${TARGET_BRANCH}"
 
 read -r behind_count ahead_count < <(git -C "${REPO_ROOT}" rev-list --left-right --count "origin/${TARGET_BRANCH}...HEAD")
 
-if [[ "${behind_count}" -gt 0 && "${ahead_count}" -gt 0 ]]; then
-  echo "Local branch has diverged from origin/${TARGET_BRANCH}. Reconcile it before deploying." >&2
-  exit 1
+if [[ "${behind_count}" -gt 0 ]]; then
+  echo "==> Pulling origin/${TARGET_BRANCH} into local ${TARGET_BRANCH}"
+  if ! git -C "${REPO_ROOT}" pull --no-rebase origin "${TARGET_BRANCH}"; then
+    echo "git pull failed, likely due to merge conflicts. Resolve conflicts locally before deploying." >&2
+    exit 1
+  fi
+
+  read -r behind_count ahead_count < <(git -C "${REPO_ROOT}" rev-list --left-right --count "origin/${TARGET_BRANCH}...HEAD")
+
+  if [[ "${behind_count}" -gt 0 ]]; then
+    echo "Local branch is still behind origin/${TARGET_BRANCH} after pull. Resolve it manually before deploying." >&2
+    exit 1
+  fi
 fi
 
 if [[ "${ahead_count}" -eq 0 ]]; then
