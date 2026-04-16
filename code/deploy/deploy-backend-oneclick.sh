@@ -1,5 +1,30 @@
 #!/usr/bin/env bash
 
+# 后端一键部署脚本。
+#
+# 用法：
+#   bash deploy/deploy-backend-oneclick.sh
+#   bash deploy/deploy-backend-oneclick.sh "你的提交说明"
+#
+# 部署流程：
+# 1. 检查当前本地分支是否为 master。
+# 2. 使用 git add -A 暂存所有本地变更。
+# 3. 如果存在需要提交的改动，提示输入 commit message。
+#    直接回车时，默认使用带时间戳的提交说明。
+# 4. 拉取 origin/master 的最新状态。
+# 5. 如果远端有新提交，先执行 git pull origin master。
+#    如果 pull 过程中出现合并冲突，脚本会退出，等待手动解决。
+# 6. 如果本地存在领先于 origin/master 的提交，则执行 git push origin master。
+#    如果本地已经和远端一致，则跳过 git push。
+# 7. 通过 ezan@36.110.89.30:2201 连接远端服务器。
+# 8. 远端进入 /home/ezan/envapp/PredictiveMaintenancePlatform/code，
+#    先执行 git pull origin master，然后进入 deploy 目录执行：
+#    docker compose -f docker-compose.backend.yml up -d --build
+#
+# 说明：
+# - 远端部署目录：/home/ezan/envapp/PredictiveMaintenancePlatform/code/deploy
+# - 如果已安装 sshpass，则会使用非交互方式输入密码；否则会回退到 ssh 手动输入。
+
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
