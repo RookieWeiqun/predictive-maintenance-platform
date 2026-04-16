@@ -6,6 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 REMOTE_HOST="36.110.89.30"
+REMOTE_PORT="2201"
 REMOTE_USER="ezan"
 REMOTE_PASSWORD="psmdig"
 REMOTE_REPO_DIR="/home/ezan/envapp/PredictiveMaintenancePlatform/code"
@@ -78,13 +79,13 @@ cd /home/ezan/envapp/PredictiveMaintenancePlatform/code/deploy
 docker compose -f docker-compose.backend.yml up -d --build
 EOF
 
-echo "==> Deploying on ${REMOTE_USER}@${REMOTE_HOST}"
+echo "==> Deploying on ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PORT}"
 
 if command -v sshpass >/dev/null 2>&1; then
-  sshpass -p "${REMOTE_PASSWORD}" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" "${REMOTE_COMMAND}"
+  sshpass -p "${REMOTE_PASSWORD}" ssh -p "${REMOTE_PORT}" -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" "${REMOTE_COMMAND}"
 else
   echo "sshpass is not installed. Falling back to interactive ssh login." >&2
-  ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" "${REMOTE_COMMAND}"
+  ssh -p "${REMOTE_PORT}" -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" "${REMOTE_COMMAND}"
 fi
 
 echo "==> Deployment completed"
