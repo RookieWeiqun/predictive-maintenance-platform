@@ -1,0 +1,175 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "C:\\Users\\z002azfr\\source\\repos\\premaintainProjects\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{11F65E50-75E0-7A0F-6DA8-667698EF0811}|premaintainProjects\\premaintainProjects.csproj|c:\\users\\z002azfr\\source\\repos\\premaintainprojects\\premaintainprojects\\dockerfile||{8B382828-6202-11D1-8870-0000F87579D2}",
+      "RelativeMoniker": "D:0:0:{11F65E50-75E0-7A0F-6DA8-667698EF0811}|premaintainProjects\\premaintainProjects.csproj|solutionrelative:premaintainprojects\\dockerfile||{8B382828-6202-11D1-8870-0000F87579D2}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{11F65E50-75E0-7A0F-6DA8-667698EF0811}|premaintainProjects\\premaintainProjects.csproj|c:\\users\\z002azfr\\source\\repos\\premaintainprojects\\premaintainprojects\\premaintainprojects.http||{5703B403-55E7-4C63-8C88-A8F52C7A45C5}",
+      "RelativeMoniker": "D:0:0:{11F65E50-75E0-7A0F-6DA8-667698EF0811}|premaintainProjects\\premaintainProjects.csproj|solutionrelative:premaintainprojects\\premaintainprojects.http||{5703B403-55E7-4C63-8C88-A8F52C7A45C5}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{11F65E50-75E0-7A0F-6DA8-667698EF0811}|premaintainProjects\\premaintainProjects.csproj|c:\\users\\z002azfr\\source\\repos\\premaintainprojects\\premaintainprojects\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{11F65E50-75E0-7A0F-6DA8-667698EF0811}|premaintainProjects\\premaintainProjects.csproj|solutionrelative:premaintainprojects\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{11F65E50-75E0-7A0F-6DA8-667698EF0811}|premaintainProjects\\premaintainProjects.csproj|c:\\users\\z002azfr\\source\\repos\\premaintainprojects\\premaintainprojects\\models\\predictivemaintenanceplatformcontext.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{11F65E50-75E0-7A0F-6DA8-667698EF0811}|premaintainProjects\\premaintainProjects.csproj|solutionrelative:premaintainprojects\\models\\predictivemaintenanceplatformcontext.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{11F65E50-75E0-7A0F-6DA8-667698EF0811}|premaintainProjects\\premaintainProjects.csproj|c:\\users\\z002azfr\\source\\repos\\premaintainprojects\\premaintainprojects\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "RelativeMoniker": "D:0:0:{11F65E50-75E0-7A0F-6DA8-667698EF0811}|premaintainProjects\\premaintainProjects.csproj|solutionrelative:premaintainprojects\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{11F65E50-75E0-7A0F-6DA8-667698EF0811}|premaintainProjects\\premaintainProjects.csproj|c:\\users\\z002azfr\\source\\repos\\premaintainprojects\\premaintainprojects\\appsettings.development.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "RelativeMoniker": "D:0:0:{11F65E50-75E0-7A0F-6DA8-667698EF0811}|premaintainProjects\\premaintainProjects.csproj|solutionrelative:premaintainprojects\\appsettings.development.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{11F65E50-75E0-7A0F-6DA8-667698EF0811}|premaintainProjects\\premaintainProjects.csproj|c:\\users\\z002azfr\\source\\repos\\premaintainprojects\\premaintainprojects\\weatherforecast.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{11F65E50-75E0-7A0F-6DA8-667698EF0811}|premaintainProjects\\premaintainProjects.csproj|solutionrelative:premaintainprojects\\weatherforecast.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{11F65E50-75E0-7A0F-6DA8-667698EF0811}|premaintainProjects\\premaintainProjects.csproj|c:\\users\\z002azfr\\source\\repos\\premaintainprojects\\.dockerignore||{3B902123-F8A7-4915-9F01-361F908088D0}",
+      "RelativeMoniker": "D:0:0:{11F65E50-75E0-7A0F-6DA8-667698EF0811}|premaintainProjects\\premaintainProjects.csproj|solutionrelative:.dockerignore||{3B902123-F8A7-4915-9F01-361F908088D0}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 245,
+          "SelectedChildIndex": -1,
+          "Children": [
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{d78612c7-9962-4b83-95d9-268046dad23a}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{34e76e81-ee4a-11d0-ae2e-00a0c90fffc3}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{0ad07096-bba9-4900-a651-0598d26f6d24}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:1:0:{d212f56b-c48a-434c-a121-1c5d80b59b9f}"
+            }
+          ]
+        },
+        {
+          "DockedWidth": 155,
+          "SelectedChildIndex": 1,
+          "Children": [
+            {
+              "$type": "Bookmark",
+              "Name": "ST:1:0:{e8b06f52-6d01-11d2-aa7d-00c04f990343}"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "Dockerfile",
+              "DocumentMoniker": "C:\\Users\\z002azfr\\source\\repos\\premaintainProjects\\premaintainProjects\\Dockerfile",
+              "RelativeDocumentMoniker": "premaintainProjects\\Dockerfile",
+              "ToolTip": "C:\\Users\\z002azfr\\source\\repos\\premaintainProjects\\premaintainProjects\\Dockerfile",
+              "RelativeToolTip": "premaintainProjects\\Dockerfile",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABMAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
+              "WhenOpened": "2026-04-01T07:29:58.725Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "premaintainProjects.http",
+              "DocumentMoniker": "C:\\Users\\z002azfr\\source\\repos\\premaintainProjects\\premaintainProjects\\premaintainProjects.http",
+              "RelativeDocumentMoniker": "premaintainProjects\\premaintainProjects.http",
+              "ToolTip": "C:\\Users\\z002azfr\\source\\repos\\premaintainProjects\\premaintainProjects\\premaintainProjects.http",
+              "RelativeToolTip": "premaintainProjects\\premaintainProjects.http",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003502|",
+              "WhenOpened": "2026-04-10T08:11:19.947Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "PredictiveMaintenancePlatformContext.cs",
+              "DocumentMoniker": "C:\\Users\\z002azfr\\source\\repos\\premaintainProjects\\premaintainProjects\\Models\\PredictiveMaintenancePlatformContext.cs",
+              "RelativeDocumentMoniker": "premaintainProjects\\Models\\PredictiveMaintenancePlatformContext.cs",
+              "ToolTip": "C:\\Users\\z002azfr\\source\\repos\\premaintainProjects\\premaintainProjects\\Models\\PredictiveMaintenancePlatformContext.cs",
+              "RelativeToolTip": "premaintainProjects\\Models\\PredictiveMaintenancePlatformContext.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAYAAABFAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-10T06:51:52.732Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "appsettings.json",
+              "DocumentMoniker": "C:\\Users\\z002azfr\\source\\repos\\premaintainProjects\\premaintainProjects\\appsettings.json",
+              "RelativeDocumentMoniker": "premaintainProjects\\appsettings.json",
+              "ToolTip": "C:\\Users\\z002azfr\\source\\repos\\premaintainProjects\\premaintainProjects\\appsettings.json",
+              "RelativeToolTip": "premaintainProjects\\appsettings.json",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAkAAAAEAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2026-04-10T06:52:50.432Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "appsettings.Development.json",
+              "DocumentMoniker": "C:\\Users\\z002azfr\\source\\repos\\premaintainProjects\\premaintainProjects\\appsettings.Development.json",
+              "RelativeDocumentMoniker": "premaintainProjects\\appsettings.Development.json",
+              "ToolTip": "C:\\Users\\z002azfr\\source\\repos\\premaintainProjects\\premaintainProjects\\appsettings.Development.json",
+              "RelativeToolTip": "premaintainProjects\\appsettings.Development.json",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAcAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2026-04-10T06:17:47.535Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "Program.cs",
+              "DocumentMoniker": "C:\\Users\\z002azfr\\source\\repos\\premaintainProjects\\premaintainProjects\\Program.cs",
+              "RelativeDocumentMoniker": "premaintainProjects\\Program.cs",
+              "ToolTip": "C:\\Users\\z002azfr\\source\\repos\\premaintainProjects\\premaintainProjects\\Program.cs",
+              "RelativeToolTip": "premaintainProjects\\Program.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAA0AAABXAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-10T06:57:31.472Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 7,
+              "Title": ".dockerignore",
+              "DocumentMoniker": "C:\\Users\\z002azfr\\source\\repos\\premaintainProjects\\.dockerignore",
+              "RelativeDocumentMoniker": ".dockerignore",
+              "ToolTip": "C:\\Users\\z002azfr\\source\\repos\\premaintainProjects\\.dockerignore",
+              "RelativeToolTip": ".dockerignore",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
+              "WhenOpened": "2026-04-01T07:07:02.142Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "WeatherForecast.cs",
+              "DocumentMoniker": "C:\\Users\\z002azfr\\source\\repos\\premaintainProjects\\premaintainProjects\\WeatherForecast.cs",
+              "RelativeDocumentMoniker": "premaintainProjects\\WeatherForecast.cs",
+              "ToolTip": "C:\\Users\\z002azfr\\source\\repos\\premaintainProjects\\premaintainProjects\\WeatherForecast.cs",
+              "RelativeToolTip": "premaintainProjects\\WeatherForecast.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAA0AAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-01T07:02:15.182Z"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
