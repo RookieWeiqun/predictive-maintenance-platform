@@ -20,4 +20,6 @@ public partial class Equipment
     public string? Productgroup { get; set; }
 
     public int? Number { get; set; }
+
+    public string? Mlfb { get; set; }
 }

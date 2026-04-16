@@ -20,7 +20,5 @@ public partial class InspectionTask
 
     public int? Assigneduserid { get; set; }
 
-    public DateTime? Completetime { get; set; }
-
     public int Productid { get; set; }
 }

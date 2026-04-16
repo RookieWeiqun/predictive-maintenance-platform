@@ -19,7 +19,7 @@ public partial class Taskitem
 
     public bool Isrecheck { get; set; }
 
-    public string? Recheckresult { get; set; }
-
     public string? Photopath { get; set; }
+
+    public DateTime? Createtime { get; set; }
 }

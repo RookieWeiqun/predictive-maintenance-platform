@@ -31,12 +31,15 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
 
     public virtual DbSet<Project> Projects { get; set; }
 
+    public virtual DbSet<ProjectEquipment> ProjectEquipments { get; set; }
+
+    public virtual DbSet<Report> Reports { get; set; }
+
     public virtual DbSet<Taskitem> Taskitems { get; set; }
 
     public virtual DbSet<User> Users { get; set; }
 
-    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder) {}
-
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder) { }
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Company>(entity =>
@@ -73,6 +76,9 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
             entity.Property(e => e.Factory)
                 .HasMaxLength(100)
                 .HasColumnName("factory");
+            entity.Property(e => e.Mlfb)
+                .HasMaxLength(50)
+                .HasColumnName("mlfb");
             entity.Property(e => e.Number).HasColumnName("number");
             entity.Property(e => e.Productcategory)
                 .HasMaxLength(100)
@@ -153,9 +159,6 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
 
             entity.Property(e => e.Taskid).HasColumnName("taskid");
             entity.Property(e => e.Assigneduserid).HasColumnName("assigneduserid");
-            entity.Property(e => e.Completetime)
-                .HasColumnType("timestamp without time zone")
-                .HasColumnName("completetime");
             entity.Property(e => e.Productid).HasColumnName("productid");
             entity.Property(e => e.Projectid).HasColumnName("projectid");
             entity.Property(e => e.Status)
@@ -242,6 +245,37 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
                 .HasColumnName("projectstatus");
         });
 
+        modelBuilder.Entity<ProjectEquipment>(entity =>
+        {
+            entity.HasKey(e => e.Peid).HasName("projectequips_pk");
+
+            entity.ToTable("project_equipments");
+
+            entity.HasIndex(e => e.Projectid, "project_equipments_projectid_idx");
+
+            entity.Property(e => e.Peid).HasColumnName("peid");
+            entity.Property(e => e.Equipmentid).HasColumnName("equipmentid");
+            entity.Property(e => e.Projectid).HasColumnName("projectid");
+        });
+
+        modelBuilder.Entity<Report>(entity =>
+        {
+            entity.HasKey(e => e.Reportid).HasName("reports_pk");
+
+            entity.ToTable("reports");
+
+            entity.HasIndex(e => e.Projectid, "reports_projectid_idx").IsUnique();
+
+            entity.Property(e => e.Reportid).HasColumnName("reportid");
+            entity.Property(e => e.Createdate)
+                .HasDefaultValueSql("CURRENT_DATE")
+                .HasColumnName("createdate");
+            entity.Property(e => e.Path)
+                .HasMaxLength(200)
+                .HasColumnName("path");
+            entity.Property(e => e.Projectid).HasColumnName("projectid");
+        });
+
         modelBuilder.Entity<Taskitem>(entity =>
         {
             entity.HasKey(e => e.Itemid).HasName("taskitems_pk");
@@ -254,6 +288,10 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
             entity.Property(e => e.Categorypath)
                 .HasMaxLength(200)
                 .HasColumnName("categorypath");
+            entity.Property(e => e.Createtime)
+                .HasDefaultValueSql("CURRENT_DATE")
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("createtime");
             entity.Property(e => e.Isnormal)
                 .HasDefaultValue(true)
                 .HasColumnName("isnormal");
@@ -264,9 +302,6 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
             entity.Property(e => e.Photopath)
                 .HasMaxLength(200)
                 .HasColumnName("photopath");
-            entity.Property(e => e.Recheckresult)
-                .HasMaxLength(100)
-                .HasColumnName("recheckresult");
             entity.Property(e => e.Result)
                 .HasColumnType("character varying")
                 .HasColumnName("result");
