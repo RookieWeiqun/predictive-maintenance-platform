@@ -1,0 +1,26 @@
+{
+  "statusList": [
+    {
+      "value": "pending",
+      "label": "待执行"
+    },
+    {
+      "value": "in-progress",
+      "label": "执行中"
+    },
+    {
+      "value": "completed",
+      "label": "已完成"
+    },
+    {
+      "value": "synced",
+      "label": "已同步"
+    }
+  ],
+  "statusMap": {
+    "pending": "待执行",
+    "in-progress": "执行中",
+    "completed": "已完成",
+    "synced": "已同步"
+  }
+}

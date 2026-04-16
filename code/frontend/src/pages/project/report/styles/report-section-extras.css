@@ -1,0 +1,25 @@
+/* 编辑区与正文区的衔接、目录锚点、辅助色 */
+
+.report-sheet--editor .sheet-h2 {
+  margin-bottom: 0.75rem;
+}
+
+.eval-object-list {
+  margin: 0.5rem 0 0;
+  padding-left: 1.25rem;
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.muted {
+  color: var(--theme-color-weak-text);
+}
+
+.eval-anchor-list {
+  height: 0;
+  overflow: hidden;
+}
+
+.eval-anchor {
+  height: 0;
+}

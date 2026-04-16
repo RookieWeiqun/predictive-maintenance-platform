@@ -1,0 +1,209 @@
+/* 问题卡片、严重度徽标、对象标签、星级 */
+
+.problem-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+  margin-top: 0.75rem;
+}
+
+.problem-card {
+  position: relative;
+  border: 1px solid var(--theme-color-soft-border);
+  border-radius: 0.5rem;
+  background: var(--theme-color-surface, #fff);
+  overflow: hidden;
+}
+
+.problem-card__accent {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: #e74c3c;
+}
+
+.problem-card__inner {
+  padding: 0.85rem 0.85rem 0.85rem 1rem;
+}
+
+.problem-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 0.65rem;
+}
+
+.problem-card__title {
+  font-weight: 700;
+  font-size: 0.9375rem;
+  color: var(--theme-color-text);
+}
+
+.problem-card__desc {
+  margin: 0.25rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--theme-color-weak-text);
+  line-height: 1.45;
+}
+
+.severity-badge {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 0.25rem;
+  border: 1px solid transparent;
+}
+
+.severity-badge--critical {
+  color: #c0392b;
+  background: rgba(231, 76, 60, 0.12);
+  border-color: rgba(231, 76, 60, 0.45);
+}
+
+.severity-badge--high {
+  color: #c0392b;
+  background: rgba(231, 76, 60, 0.1);
+  border-color: rgba(231, 76, 60, 0.35);
+}
+
+.severity-badge--mid {
+  color: #b07a00;
+  background: rgba(241, 196, 15, 0.15);
+  border-color: rgba(241, 196, 15, 0.5);
+}
+
+.severity-badge--low {
+  color: #1e8449;
+  background: rgba(46, 204, 113, 0.12);
+  border-color: rgba(46, 204, 113, 0.4);
+}
+
+.problem-card__section {
+  border-radius: 0.35rem;
+  padding: 0.55rem 0.65rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--theme-color-text);
+  border: 1px solid var(--theme-color-soft-border);
+}
+
+.problem-card__section--objects {
+  background: var(--theme-color-soft-bg);
+}
+
+.problem-card__section--solution {
+  background: var(--theme-color-primary-soft);
+}
+
+.problem-card__section--service {
+  background: var(--theme-color-soft-bg);
+}
+
+.problem-card__section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.35rem;
+}
+
+.problem-card__label {
+  font-weight: 600;
+  color: var(--theme-color-text);
+}
+
+.problem-card__chev {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--theme-color-primary, #0066cc);
+  padding: 0.1rem;
+}
+
+.object-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.object-tag {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 0.25rem;
+  border: 1px solid currentColor;
+}
+
+.object-tag--green {
+  color: #1e8449;
+  border-color: #52be80;
+  background: rgba(46, 204, 113, 0.08);
+}
+
+.object-tag--purple {
+  color: #6c3483;
+  border-color: #af7ac5;
+  background: rgba(175, 122, 197, 0.12);
+}
+
+.object-tag--yellow {
+  color: #9a7d0a;
+  border-color: #f4d03f;
+  background: rgba(241, 196, 15, 0.15);
+}
+
+.object-tag--orange {
+  color: #a04000;
+  border-color: #eb984e;
+  background: rgba(230, 126, 34, 0.12);
+}
+
+.problem-card__bullets {
+  margin: 0.35rem 0 0.65rem;
+  padding-left: 1.1rem;
+  color: var(--theme-color-text);
+}
+
+.problem-card__btn {
+  width: 100%;
+  justify-content: center;
+}
+
+.problem-card__btn--secondary {
+  margin-top: 0.35rem;
+}
+
+.btn-ico {
+  margin-right: 0.35rem;
+}
+
+.stars-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  font-size: 0.8125rem;
+}
+
+.stars-label {
+  color: var(--theme-color-weak-text);
+}
+
+.stars {
+  letter-spacing: 0.1em;
+}
+
+.star {
+  color: var(--theme-color-text-soft, var(--theme-color-soft-border));
+  font-size: 1rem;
+}
+
+.star--on {
+  color: #f1c40f;
+}
+
+.empty-block {
+  font-size: 0.875rem;
+  padding: 0.5rem 0;
+}

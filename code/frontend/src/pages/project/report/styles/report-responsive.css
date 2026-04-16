@@ -1,0 +1,39 @@
+/* 窄屏：目录置顶、主区留白、图表单列 */
+
+@media (max-width: 960px) {
+  .report-main {
+    padding: 0.75rem 1rem 1.25rem;
+  }
+
+  .eval-suite-row {
+    grid-template-columns: 1fr;
+  }
+
+  .eval-suite-row--merged {
+    grid-template-columns: 1fr;
+  }
+
+  .eval-suite-charts {
+    grid-template-columns: 1fr;
+  }
+
+  .kpi-grid--pair {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .report-layout {
+    flex-direction: column;
+  }
+
+  .report-toc {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--theme-color-soft-border);
+    max-height: 220px;
+  }
+
+  .report-toc--collapsed {
+    width: 100%;
+    max-height: 48px;
+  }
+}

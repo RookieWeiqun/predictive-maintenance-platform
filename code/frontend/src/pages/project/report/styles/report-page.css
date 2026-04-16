@@ -1,0 +1,13 @@
+/**
+ * 报告详情页样式入口：按模块拆分，便于手工微调。
+ * 修改顺序会影响层叠；新增规则时优先加到对应 partial，或放在本文件末尾。
+ */
+@import './report-layout.css';
+@import './report-toc.css';
+@import './report-cover.css';
+@import './report-sheet-typography.css';
+@import './report-eval-charts.css';
+@import './report-section-extras.css';
+@import './report-problem-cards.css';
+@import './report-summary-editor.css';
+@import './report-responsive.css';

@@ -1,0 +1,65 @@
+{
+  "users": [
+    {
+      "id": "1",
+      "name": "张三",
+      "role": "project_manager",
+      "roleName": "项目经理",
+      "email": "zhangsan@siemens.com"
+    },
+    {
+      "id": "2",
+      "name": "李四",
+      "role": "project_manager",
+      "roleName": "项目经理",
+      "email": "lisi@siemens.com"
+    },
+    {
+      "id": "3",
+      "name": "王五",
+      "role": "chief_engineer",
+      "roleName": "主任工程师",
+      "email": "wangwu@siemens.com"
+    },
+    {
+      "id": "4",
+      "name": "赵六",
+      "role": "chief_engineer",
+      "roleName": "主任工程师",
+      "email": "zhaoliu@siemens.com"
+    },
+    {
+      "id": "5",
+      "name": "钱七",
+      "role": "maintenance_engineer",
+      "roleName": "维护工程师",
+      "email": "qianqi@siemens.com"
+    },
+    {
+      "id": "6",
+      "name": "孙八",
+      "role": "maintenance_engineer",
+      "roleName": "维护工程师",
+      "email": "sunba@siemens.com"
+    },
+    {
+      "id": "7",
+      "name": "周九",
+      "role": "maintenance_engineer",
+      "roleName": "维护工程师",
+      "email": "zhoujiu@siemens.com"
+    },
+    {
+      "id": "8",
+      "name": "吴十",
+      "role": "maintenance_engineer",
+      "roleName": "维护工程师",
+      "email": "wushi@siemens.com"
+    }
+  ],
+  "roleMap": {
+    "project_manager": "项目经理",
+    "chief_engineer": "主任工程师",
+    "maintenance_engineer": "维护工程师"
+  }
+}

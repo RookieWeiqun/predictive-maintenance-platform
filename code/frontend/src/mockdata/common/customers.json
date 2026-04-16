@@ -1,0 +1,54 @@
+{
+  "customers": [
+    {
+      "id": "1",
+      "name": "ABC制造有限公司",
+      "industry": "汽车制造",
+      "contact": "张经理",
+      "remarks": "华东区重点客户，年度维保合同",
+      "phone": "021-12345678",
+      "email": "zhang@abc.com",
+      "createdAt": "2024-03-12T09:15:00.000Z"
+    },
+    {
+      "id": "2",
+      "name": "XYZ工业集团",
+      "industry": "能源与电力",
+      "contact": "李总",
+      "remarks": "多基地项目协调中",
+      "phone": "010-87654321",
+      "email": "li@xyz.com",
+      "createdAt": "2024-05-20T14:40:00.000Z"
+    },
+    {
+      "id": "3",
+      "name": "DEF科技有限公司",
+      "industry": "电子与半导体",
+      "contact": "王主任",
+      "remarks": "",
+      "phone": "0755-11223344",
+      "email": "wang@def.com",
+      "createdAt": "2024-07-08T11:00:00.000Z"
+    },
+    {
+      "id": "4",
+      "name": "GHI工业有限公司",
+      "industry": "食品饮料",
+      "contact": "赵经理",
+      "remarks": "产线改造项目跟进",
+      "phone": "020-22334455",
+      "email": "zhao@ghi.com",
+      "createdAt": "2023-11-30T16:25:00.000Z"
+    },
+    {
+      "id": "5",
+      "name": "JKL科技股份有限公司",
+      "industry": "机械制造",
+      "contact": "钱总",
+      "remarks": "首次合作，试点车间",
+      "phone": "0512-33445566",
+      "email": "qian@jkl.com",
+      "createdAt": "2025-01-05T08:50:00.000Z"
+    }
+  ]
+}

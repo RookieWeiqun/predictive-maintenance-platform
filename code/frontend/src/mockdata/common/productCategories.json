@@ -1,0 +1,67 @@
+{
+  "categories": [
+    {
+      "id": "1",
+      "name": "自动化产品",
+      "subCategories": [
+        {
+          "id": "1-1",
+          "name": "PLC控制器",
+          "models": ["S7-1200", "S7-1500", "S7-300", "S7-400"]
+        },
+        {
+          "id": "1-2",
+          "name": "HMI人机界面",
+          "models": ["SIMATIC HMI", "KTP系列", "TP系列"]
+        },
+        {
+          "id": "1-3",
+          "name": "工业网络",
+          "models": ["SCALANCE X", "SCALANCE W", "IE交换机"]
+        }
+      ]
+    },
+    {
+      "id": "2",
+      "name": "驱动产品",
+      "subCategories": [
+        {
+          "id": "2-1",
+          "name": "变频器",
+          "models": ["SINAMICS G120", "SINAMICS G150", "SINAMICS S120"]
+        },
+        {
+          "id": "2-2",
+          "name": "伺服驱动器",
+          "models": ["SINAMICS S210", "SINAMICS V90", "SINAMICS S110"]
+        },
+        {
+          "id": "2-3",
+          "name": "电机",
+          "models": ["SIMOTICS", "1LE0系列", "1FT7系列"]
+        }
+      ]
+    },
+    {
+      "id": "3",
+      "name": "低压产品",
+      "subCategories": [
+        {
+          "id": "3-1",
+          "name": "断路器",
+          "models": ["3VA系列", "3VL系列", "3VT系列"]
+        },
+        {
+          "id": "3-2",
+          "name": "接触器",
+          "models": ["3RT系列", "3TB系列", "3TF系列"]
+        },
+        {
+          "id": "3-3",
+          "name": "继电器",
+          "models": ["3TH系列", "3TX系列", "3UG系列"]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+/**
+ * 主题变量映射
+ * 将自定义变量名映射到 Siemens iX 标准变量名
+ * 这样可以在不修改大量代码的情况下使用 Siemens iX 的标准主题系统
+ */
+
+:root {
+  /* 文本颜色映射 */
+  --theme-color-text: var(--theme-color-std-text);
+  --theme-color-text-soft: var(--theme-color-soft-text);
+  
+  /* 背景颜色映射 */
+  --theme-color-background: var(--theme-color-1);
+  --theme-color-surface: var(--theme-color-1);
+  --theme-color-soft: var(--theme-color-2);
+  /** 侧栏、次级面板等（随 classic light/dark 切换，勿使用固定灰底） */
+  --theme-color-soft-bg: var(--theme-color-2);
+  --theme-color-soft-hover: var(--theme-color-1--hover);
+  --theme-color-soft-active: var(--theme-color-1--active);
+  
+  /* 边框颜色映射 */
+  --theme-color-soft-border: var(--theme-color-soft-bdr);
+  
+  /* 主色调映射 */
+  --theme-color-primary: var(--theme-color-primary);
+  --theme-color-primary-soft: var(--theme-color-ghost-primary--hover);
+  
+  /* 状态颜色映射 */
+  --theme-color-success: var(--theme-color-success);
+  --theme-color-success-soft: var(--theme-color-success-40);
+  --theme-color-warning: var(--theme-color-warning);
+  --theme-color-warning-soft: var(--theme-color-warning-10);
+  --theme-color-alarm: var(--theme-color-alarm);
+  --theme-color-alarm-soft: var(--theme-color-alarm-10);
+  --theme-color-info: var(--theme-color-info);
+  --theme-color-info-soft: var(--theme-color-info-40);
+}

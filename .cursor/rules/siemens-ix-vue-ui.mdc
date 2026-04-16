@@ -1,0 +1,24 @@
+---
+description: Siemens Industrial Experience (ix-vue) 弹窗与列表页统一写法
+globs: code/frontend/**/*.vue
+alwaysApply: false
+---
+
+# Siemens iX Vue 统一组件用法
+
+- **官方组件总览（检索入口）**：[Components overview](https://ix.siemens.io/docs/components/overview) —— 按分类查找 Button、Modal、Form 等，再进入各组件的 Usage / Code。
+
+## 模态框（表单 / 复杂内容）
+
+- 使用 **`showModal`（`@siemens/ix-vue`）** 打开；`content` 使用 **`h(YourModalWrapper, { data: … })`**，与 `DeviceSelectionStep`、`CustomerFormModal` 一致。
+- 弹窗内容根组件使用 **`<Modal>`** 默认插槽：`{ closeModal, dismissModal }`；结构为 **`IxModalHeader` + `IxModalContent` + `IxModalFooter`**。
+- 在 **`showModal({ … })`** 上设置 **`size`**（如 `'600'`）、**`centered`** 等；勿依赖已废弃的 `IxModal` 上 `v-model:visible` / `title` / `@ok`（IX 4 的 `ix-modal` 由 `showModal` 与 `Modal` 插槽驱动）。
+- 官方说明：[Modal 指南](https://ix.siemens.io/docs/components/modal/guide)。
+
+## 表格中的操作列
+
+- 与 **`project/list`**、**`customer/list`** 一致：最后一列 **`pinned: 'right'`**，`cellRenderer` 返回带 `ag-action-btn` 的 HTML，`onCellClicked` 里根据 `data-action` 分支；全局按钮样式见各页 `ag-action-buttons` 段落。
+
+## 不确定时
+
+- 若组件 API、插槽或版本行为不明确：**向维护者索取「组件使用说明」或官方文档链接**，不要凭猜测混用 Element/其他库与 iX。

@@ -1,0 +1,109 @@
+{
+  "id": "atomic-equipment-1",
+  "name": "S7-1500设备检测方案",
+  "type": "equipment",
+  "description": "S7-1500 PLC控制器设备检测方案",
+  "deviceTypes": [
+    "1-1"
+  ],
+  "categoryId": "1",
+  "subCategoryId": "1-1",
+  "model": "S7-1500",
+  "items": [
+        {
+          "id": "level2-cpu-module",
+          "name": "CPU模块",
+          "children": [
+            {
+              "id": "level3-cpu-communication",
+              "name": "CPU通信模块",
+              "children": [
+                {
+                  "id": "item-appearance",
+                  "name": "外观检查",
+                  "type": "visual",
+                  "required": true,
+                  "children": [
+                    {
+                      "id": "detail-appearance-1",
+                      "name": "检查外壳完整性",
+                      "type": "visual",
+                      "required": true
+                    },
+                    {
+                      "id": "detail-appearance-2",
+                      "name": "检查指示灯状态",
+                      "type": "visual",
+                      "required": true
+                    }
+                  ]
+                },
+                {
+                  "id": "item-electrical-params",
+                  "name": "电气参数检测",
+                  "type": "electrical",
+                  "required": true,
+                  "children": [
+                    {
+                      "id": "detail-voltage",
+                      "name": "电源电压测量",
+                      "type": "electrical",
+                      "required": true,
+                      "unit": "V",
+                      "standardValue": 24,
+                      "minThreshold": 20,
+                      "maxThreshold": 28
+                    },
+                    {
+                      "id": "detail-grounding",
+                      "name": "接地电阻测量",
+                      "type": "electrical",
+                      "required": true,
+                      "unit": "Ω",
+                      "maxThreshold": 1
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "level2-power-module",
+          "name": "电源模块",
+          "children": [
+            {
+              "id": "level3-power-detection",
+              "name": "电源检测模块",
+              "children": [
+                {
+                  "id": "item-power-check",
+                  "name": "电源检查",
+                  "type": "electrical",
+                  "required": true,
+                  "children": [
+                    {
+                      "id": "detail-power-voltage",
+                      "name": "电源输出电压(V)",
+                      "type": "electrical",
+                      "required": true,
+                      "unit": "V",
+                      "standardValue": 24,
+                      "minThreshold": 22,
+                      "maxThreshold": 26
+                    },
+                    {
+                      "id": "detail-power-current",
+                      "name": "电源输出电流(A)",
+                      "type": "electrical",
+                      "required": true,
+                      "unit": "A"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+}

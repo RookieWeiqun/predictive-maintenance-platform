@@ -1,0 +1,305 @@
+{
+  "reports": [
+    {
+      "projectId": "1",
+      "reportNo": "RPT-2024-001",
+      "version": "V1.2",
+      "generatedAt": "2026-04-01",
+      "serviceBasicInfo": {
+        "serviceId": "PR260328SH01",
+        "companyName": "ABC制造有限公司",
+        "serviceCity": "上海（中国）",
+        "customerContact": { "name": "王工", "phone": "138****1234" },
+        "siemensContact": { "name": "刘工", "phone": "021-****8888" },
+        "serviceExecutors": ["周工", "陈工"],
+        "executionDateRange": "2026-03-28 ~ 2026-03-30",
+        "serviceDays": { "days": 3, "persons": 2, "displayText": "3 天 × 2 人" },
+        "reportGeneratedDate": "2026-04-01",
+        "targetSystemName": "上海工厂自动化系统（PLC、G120、HMI，覆盖一车间与二车间）",
+        "serviceType": "预防性维护检查服务",
+        "executionStatistics": {
+          "totalChecks": 164,
+          "urgentMaintenance": 6,
+          "requiredMaintenance": 14,
+          "recommendedMaintenance": 20,
+          "normalResults": 124
+        },
+        "dataBackupStatus": "已完成"
+      },
+      "systemEvaluation": {
+        "overallRating": "良好",
+        "overallScore": 82,
+        "radar": [
+          { "label": "电气安全", "value": 78, "max": 100 },
+          { "label": "控制稳定性", "value": 85, "max": 100 },
+          { "label": "机械状态", "value": 80, "max": 100 },
+          { "label": "环境与布线", "value": 76, "max": 100 },
+          { "label": "备件与维护性", "value": 90, "max": 100 }
+        ],
+        "healthPie": [
+          { "label": "健康", "value": 18, "color": "#2ecc71" },
+          { "label": "亚健康", "value": 6, "color": "#f1c40f" },
+          { "label": "风险", "value": 2, "color": "#e74c3c" }
+        ],
+        "beforeAfter": {
+          "beforeScore": 72,
+          "afterScore": 82,
+          "notes": "完成清灰、端子复紧与参数校验后，关键风险项下降。"
+        }
+      },
+      "issuesAndSuggestions": {
+        "deviceIssues": [
+          {
+            "deviceModel": "SINAMICS G120",
+            "serialNumber": "SNG120-004",
+            "severity": "高",
+            "issue": "驱动柜散热风道积尘，温升偏高。",
+            "suggestion": "清理风道与滤网；确认风扇运行；建议 3 个月复检。"
+          },
+          {
+            "deviceModel": "S7-1500",
+            "serialNumber": "SN1500-002",
+            "severity": "中",
+            "issue": "部分 I/O 端子存在松动迹象。",
+            "suggestion": "按扭矩规范复紧；在下次停机窗口做热成像复核。"
+          }
+        ],
+        "attachments": [
+          { "title": "驱动柜清灰前后对比", "type": "image", "ref": "IMG-001" },
+          { "title": "端子复紧记录", "type": "record", "ref": "REC-008" }
+        ]
+      },
+      "appendixDetailedInspection": {
+        "workshops": [
+          {
+            "name": "一车间",
+            "devices": [
+              {
+                "model": "SINAMICS G120",
+                "serialNumber": "SNG120-004",
+                "items": [
+                  {
+                    "name": "电气连接检查",
+                    "children": [
+                      {
+                        "name": "端子紧固状态",
+                        "result": "异常",
+                        "processData": "复紧扭矩：1.2Nm（规范 1.1~1.3Nm）",
+                        "hazardNote": "端子松动会导致接触电阻上升与温升。",
+                        "suggestion": "建立季度复紧点检；关键回路做热成像巡检。",
+                        "images": ["IMG-001"]
+                      },
+                      {
+                        "name": "接地连续性",
+                        "result": "正常",
+                        "processData": "接地电阻：0.08Ω",
+                        "hazardNote": "",
+                        "suggestion": "",
+                        "images": []
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "summaryDefaults": {
+        "maintenanceSummary": "本次维护完成了驱动柜清灰、端子复紧与参数校验。现场运行状态稳定，建议建立季度点检与关键回路温升复核机制。",
+        "sparePartsSuggestion": "建议备件：驱动柜滤网（2 套）、散热风扇（1 套）、端子排（若干）。"
+      },
+      "reportDocument": {
+        "meta": {
+          "coverTitle": "设备预防性维护诊断报告",
+          "tagline": "预维护平台 · 服务报告",
+          "reportType": "预防性维护智能诊断报告"
+        },
+        "cover": {
+          "reportId": "RPT-2024-001",
+          "reportType": "预防性维护智能诊断报告",
+          "customerCompany": "ABC制造有限公司",
+          "targetSystem": "上海工厂 · 某工厂自动化设备预防性维护",
+          "applicant": "zhangsan@siemens.com",
+          "deliveryDate": "2026-04-01",
+          "remarks": "执行范围：上海工厂一车间、二车间；对接客户联系人王工。",
+          "version": "V1.2"
+        },
+        "evaluationObjects": [
+          {
+            "anchor": "eval-sh1-plc",
+            "title": "一车间 · PLC 与工业网络评估"
+          },
+          {
+            "anchor": "eval-sh1-drive",
+            "title": "一车间 · G120 变频器与柜体评估"
+          },
+          {
+            "anchor": "eval-sh2-hmi",
+            "title": "二车间 · HMI 操作站评估"
+          }
+        ],
+        "problemCards": [
+          {
+            "title": "二车间 HMI 与 PLC 通信偶发超时",
+            "severity": "高",
+            "description": "与 devices 中二车间 SIMATIC HMI 及 S7-1500 链路相关，高峰时段出现周期轮询延迟。",
+            "affectedObjects": [
+              { "label": "SNHMI-004", "variant": "green" },
+              { "label": "SN1500-001", "variant": "purple" },
+              { "label": "二车间-OP01", "variant": "yellow" }
+            ],
+            "solutions": [
+              "检查工业交换机端口与网线接头，核对 HMI 项目中的 PLC 连接参数。",
+              "在非生产窗口重启通信服务并抓取 Wireshark 片段供比对。"
+            ],
+            "recommendedService": {
+              "name": "工业网络与 SCADA 健康检查",
+              "rating": 4
+            }
+          },
+          {
+            "title": "一车间 G120 驱动柜散热风道积尘、温升偏高",
+            "severity": "高",
+            "description": "对应设备清单中 SINAMICS G120 序列号 SNG120-004，风道积尘导致散热效率下降。",
+            "affectedObjects": [
+              { "label": "SNG120-004", "variant": "green" },
+              { "label": "一车间-G120柜-A", "variant": "orange" }
+            ],
+            "solutions": [
+              "清理风道与滤网；确认风扇运行；建议 3 个月复检温升曲线。",
+              "与附录「电气连接检查」中记录联动复核。"
+            ],
+            "recommendedService": {
+              "name": "驱动柜热管理与清洁服务",
+              "rating": 5
+            }
+          },
+          {
+            "title": "S7-1500 部分 I/O 端子松动",
+            "severity": "中",
+            "description": "序列号 SN1500-002 所在机架，振动环境下端子接触电阻有上升趋势。",
+            "affectedObjects": [{ "label": "SN1500-002", "variant": "yellow" }],
+            "solutions": [
+              "按制造商标称扭矩复紧端子。",
+              "下次停机窗口对关键通道做热成像抽检。"
+            ],
+            "recommendedService": {
+              "name": "电气连接点检服务",
+              "rating": 3
+            }
+          }
+        ]
+      }
+    },
+    {
+      "projectId": "2",
+      "reportNo": "RPT-2024-002",
+      "version": "V1.0",
+      "generatedAt": "2026-04-03",
+      "serviceBasicInfo": {
+        "serviceId": "PR260401BJ02",
+        "companyName": "XYZ工业集团",
+        "serviceCity": "北京（中国）",
+        "customerContact": { "name": "赵工", "phone": "139****5678" },
+        "siemensContact": { "name": "孙工", "phone": "010-****6666" },
+        "serviceExecutors": ["彭工"],
+        "executionDateRange": "2026-04-01 ~ 2026-04-02",
+        "serviceDays": { "days": 2, "persons": 1, "displayText": "2 天 × 1 人" },
+        "reportGeneratedDate": "2026-04-03",
+        "targetSystemName": "北京工厂生产车间伺服与运动控制系统",
+        "serviceType": "预防性维护检查服务",
+        "executionStatistics": {
+          "totalChecks": 115,
+          "urgentMaintenance": 3,
+          "requiredMaintenance": 10,
+          "recommendedMaintenance": 12,
+          "normalResults": 90
+        },
+        "dataBackupStatus": "已完成"
+      },
+      "systemEvaluation": {
+        "overallRating": "一般",
+        "overallScore": 74,
+        "radar": [
+          { "label": "电气安全", "value": 70, "max": 100 },
+          { "label": "控制稳定性", "value": 76, "max": 100 },
+          { "label": "机械状态", "value": 72, "max": 100 },
+          { "label": "环境与布线", "value": 68, "max": 100 },
+          { "label": "备件与维护性", "value": 84, "max": 100 }
+        ],
+        "healthPie": [
+          { "label": "健康", "value": 12, "color": "#2ecc71" },
+          { "label": "亚健康", "value": 9, "color": "#f1c40f" },
+          { "label": "风险", "value": 4, "color": "#e74c3c" }
+        ],
+        "beforeAfter": {
+          "beforeScore": 70,
+          "afterScore": 74,
+          "notes": "对关键报警进行了复核与阈值调整，风险项略有下降。"
+        }
+      },
+      "issuesAndSuggestions": {
+        "deviceIssues": [
+          {
+            "deviceModel": "SINAMICS V90",
+            "serialNumber": "SNV90-006",
+            "severity": "中",
+            "issue": "伺服报警记录显示偶发过流。",
+            "suggestion": "检查负载机械阻力与加减速曲线；建议对电机轴承进行状态评估。"
+          }
+        ],
+        "attachments": [{ "title": "报警记录截图", "type": "image", "ref": "IMG-011" }]
+      },
+      "appendixDetailedInspection": {
+        "workshops": []
+      },
+      "summaryDefaults": {
+        "maintenanceSummary": "本次维护对伺服驱动报警与参数进行了复核，现场可继续稳定运行。建议对负载与轴承状态进行进一步检查。",
+        "sparePartsSuggestion": "建议备件：V90 制动电阻（1 套）、伺服电机轴承（2 套）。"
+      },
+      "reportDocument": {
+        "meta": {
+          "coverTitle": "设备预防性维护诊断报告",
+          "tagline": "预维护平台 · 服务报告",
+          "reportType": "预防性维护智能诊断报告"
+        },
+        "cover": {
+          "reportId": "RPT-2024-002",
+          "reportType": "预防性维护智能诊断报告",
+          "customerCompany": "XYZ工业集团",
+          "targetSystem": "北京工厂 · 某公司驱动系统维护项目",
+          "applicant": "lisi@siemens.com",
+          "deliveryDate": "2026-04-03",
+          "remarks": "生产车间 A、B；执行工程师彭工；客户对接赵工。",
+          "version": "V1.0"
+        },
+        "evaluationObjects": [
+          {
+            "anchor": "eval-bj-v90",
+            "title": "北京工厂 · V90 伺服轴与机械传动评估"
+          }
+        ],
+        "problemCards": [
+          {
+            "title": "SINAMICS V90 伺服偶发过流报警",
+            "severity": "中",
+            "description": "与 devices 中北京工厂 V90 序列 SNV90-006 一致，报警多见于加减速阶段。",
+            "affectedObjects": [
+              { "label": "SNV90-006", "variant": "green" },
+              { "label": "产线A-轴3", "variant": "purple" }
+            ],
+            "solutions": [
+              "检查负载机械阻力与加减速曲线；核对电机电缆与屏蔽接地。",
+              "建议对电机轴承进行振动与温度趋势评估。"
+            ],
+            "recommendedService": {
+              "name": "伺服系统深度诊断与整定服务",
+              "rating": 4
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

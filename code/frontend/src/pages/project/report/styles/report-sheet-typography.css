@@ -1,0 +1,56 @@
+/* 章节标题、导语、列表（不含图表区） */
+
+.sheet-h2 {
+  font-size: 1.125rem;
+  font-weight: 700;
+  margin: 0 0 0.85rem;
+  color: var(--theme-color-text);
+  padding-bottom: 0.55rem;
+  border-bottom: 2px solid color-mix(in srgb, var(--theme-color-primary) 55%, transparent);
+}
+
+.sheet-h3 {
+  position: relative;
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0 0 0.75rem;
+  padding: 0 0 0.45rem;
+}
+
+.sheet-h3::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--theme-color-primary) 65%, transparent),
+    color-mix(in srgb, var(--theme-color-soft-border) 75%, transparent) 55%,
+    transparent
+  );
+}
+
+.sheet-lead {
+  font-size: 0.875rem;
+  color: var(--theme-color-weak-text);
+  margin: 0 0 0.75rem;
+}
+
+.sheet-lead-tight {
+  margin: 0 0 0.65rem;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.report-sheet--sub p,
+.sheet-ul {
+  font-size: 0.875rem;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.sheet-ul {
+  padding-left: 1.25rem;
+}

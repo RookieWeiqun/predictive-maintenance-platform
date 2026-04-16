@@ -1,0 +1,105 @@
+{
+  "id": "atomic-equipment-2",
+  "name": "G120变频器设备检测方案",
+  "type": "equipment",
+  "description": "SINAMICS G120变频器设备检测方案",
+  "deviceTypes": [
+    "2-1"
+  ],
+  "categoryId": "2",
+  "subCategoryId": "2-1",
+  "model": "SINAMICS G120",
+  "items": [
+        {
+          "id": "level2-control-unit",
+          "name": "控制单元",
+          "children": [
+            {
+              "id": "level3-control-module",
+              "name": "控制检测模块",
+              "children": [
+                {
+                  "id": "item-appearance-check",
+                  "name": "外观检查",
+                  "type": "visual",
+                  "required": true,
+                  "children": [
+                    {
+                      "id": "detail-heatsink",
+                      "name": "检查散热器清洁度",
+                      "type": "visual",
+                      "required": true
+                    },
+                    {
+                      "id": "detail-terminals",
+                      "name": "检查接线端子",
+                      "type": "visual",
+                      "required": true
+                    }
+                  ]
+                },
+                {
+                  "id": "item-electrical-detection",
+                  "name": "电气参数检测",
+                  "type": "electrical",
+                  "required": true,
+                  "children": [
+                    {
+                      "id": "detail-input-voltage",
+                      "name": "输入电压测量",
+                      "type": "electrical",
+                      "required": true,
+                      "unit": "V",
+                      "standardValue": 380,
+                      "minThreshold": 342,
+                      "maxThreshold": 418
+                    },
+                    {
+                      "id": "detail-output-voltage",
+                      "name": "输出电压测量",
+                      "type": "electrical",
+                      "required": true,
+                      "unit": "V"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "level2-power-module",
+          "name": "功率模块",
+          "children": [
+            {
+              "id": "level3-power-detection-module",
+              "name": "功率检测模块",
+              "children": [
+                {
+                  "id": "item-power-params",
+                  "name": "功率参数检测",
+                  "type": "electrical",
+                  "required": true,
+                  "children": [
+                    {
+                      "id": "detail-power-rating",
+                      "name": "额定功率(KW)",
+                      "type": "electrical",
+                      "required": true,
+                      "unit": "KW"
+                    },
+                    {
+                      "id": "detail-power-efficiency",
+                      "name": "运行效率(%)",
+                      "type": "electrical",
+                      "required": true,
+                      "unit": "%"
+                    }
+                  ]
+                }
+              ]
+            }
+      ]
+    }
+  ]
+}

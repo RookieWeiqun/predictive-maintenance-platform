@@ -1,0 +1,471 @@
+{
+  "id": "atomic-peripheral-1",
+  "name": "外围检测方案",
+  "type": "peripheral",
+  "description": "系统外围检测方案，包含电气室、供电系统、电机等检测项目",
+  "deviceTypes": [],
+  "items": [
+    {
+      "id": "level1-electrical-room",
+      "name": "电气室",
+      "children": [
+        {
+          "id": "level2-environment-check",
+          "name": "环境检查",
+          "children": [
+            {
+              "id": "level3-environment-module",
+              "name": "环境检测模块",
+              "children": [
+                {
+                  "id": "item-temp",
+                  "name": "温度",
+                  "type": "environment",
+                  "required": true,
+                  "children": [
+                    {
+                      "id": "detail-temp",
+                      "name": "电气室内温度(°C)",
+                      "type": "environment",
+                      "required": true,
+                      "unit": "°C",
+                      "standardValue": 25,
+                      "minThreshold": 15,
+                      "maxThreshold": 35
+                    }
+                  ]
+                },
+                {
+                  "id": "item-humidity",
+                  "name": "湿度",
+                  "type": "environment",
+                  "required": true,
+                  "children": [
+                    {
+                      "id": "detail-humidity-1",
+                      "name": "电气室内湿度(%)",
+                      "type": "environment",
+                      "required": true,
+                      "unit": "%",
+                      "standardValue": 60,
+                      "minThreshold": 40,
+                      "maxThreshold": 80
+                    },
+                    {
+                      "id": "detail-humidity-2",
+                      "name": "柜内是否有凝露",
+                      "type": "visual",
+                      "required": true
+                    }
+                  ]
+                },
+                {
+                  "id": "item-dust",
+                  "name": "粉尘",
+                  "type": "visual",
+                  "required": true,
+                  "children": [
+                    {
+                      "id": "detail-dust-1",
+                      "name": "柜内是否有大量粉尘",
+                      "type": "visual",
+                      "required": true
+                    },
+                    {
+                      "id": "detail-dust-2",
+                      "name": "粉尘是否导电",
+                      "type": "visual",
+                      "required": true
+                    },
+                    {
+                      "id": "detail-dust-3",
+                      "name": "是否有对粉尘的有效防护",
+                      "type": "visual",
+                      "required": true
+                    }
+                  ]
+                },
+                {
+                  "id": "item-sealed",
+                  "name": "是否封闭",
+                  "type": "visual",
+                  "required": true,
+                  "children": [
+                    {
+                      "id": "detail-sealed",
+                      "name": "电气室是否封闭",
+                      "type": "visual",
+                      "required": true
+                    }
+                  ]
+                },
+                {
+                  "id": "item-other-env",
+                  "name": "其他",
+                  "type": "visual",
+                  "required": false,
+                  "children": [
+                    {
+                      "id": "detail-other-env",
+                      "name": "周边环境是否有有害电子设备运行的因素,如水池,腐蚀性气体等",
+                      "type": "visual",
+                      "required": false
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "level2-cabinet-check",
+          "name": "柜体检查",
+          "children": [
+            {
+              "id": "level3-cabinet-module",
+              "name": "柜体检测模块",
+              "children": [
+                {
+                  "id": "item-cabinet",
+                  "name": "柜体",
+                  "type": "visual",
+                  "required": true,
+                  "children": [
+                    {
+                      "id": "detail-cabinet-1",
+                      "name": "柜体安装是否平稳",
+                      "type": "visual",
+                      "required": true
+                    },
+                    {
+                      "id": "detail-cabinet-2",
+                      "name": "柜体是否正常无变形",
+                      "type": "visual",
+                      "required": true
+                    },
+                    {
+                      "id": "detail-cabinet-3",
+                      "name": "柜门锁是否能正常使用",
+                      "type": "functional",
+                      "required": true
+                    },
+                    {
+                      "id": "detail-cabinet-4",
+                      "name": "柜顶是否有防异物坠落措施",
+                      "type": "visual",
+                      "required": true
+                    }
+                  ]
+                },
+                {
+                  "id": "item-ventilation",
+                  "name": "通风孔",
+                  "type": "visual",
+                  "required": true,
+                  "children": [
+                    {
+                      "id": "detail-ventilation-1",
+                      "name": "通风孔是否有滤棉",
+                      "type": "visual",
+                      "required": true
+                    },
+                    {
+                      "id": "detail-ventilation-2",
+                      "name": "通风孔滤棉是否洁净",
+                      "type": "visual",
+                      "required": true
+                    }
+                  ]
+                },
+                {
+                  "id": "item-cabinet-bottom",
+                  "name": "柜底",
+                  "type": "visual",
+                  "required": true,
+                  "children": [
+                    {
+                      "id": "detail-cabinet-bottom",
+                      "name": "柜底是否封堵",
+                      "type": "visual",
+                      "required": true
+                    }
+                  ]
+                },
+                {
+                  "id": "item-other-cabinet",
+                  "name": "其他",
+                  "type": "visual",
+                  "required": false,
+                  "children": [
+                    {
+                      "id": "detail-other-cabinet",
+                      "name": "周边环境是否有有害电子设备运行的因素,如水池,腐蚀性气体等",
+                      "type": "visual",
+                      "required": false
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "level2-emc-check",
+          "name": "EMC检查",
+          "children": [
+            {
+              "id": "level3-emc-module",
+              "name": "EMC检测模块",
+              "children": [
+                {
+                  "id": "item-grounding-bar",
+                  "name": "柜内接地铜排",
+                  "type": "visual",
+                  "required": true,
+                  "children": [
+                    {
+                      "id": "detail-grounding-1",
+                      "name": "接地铜排截面积是否够大",
+                      "type": "visual",
+                      "required": true
+                    },
+                    {
+                      "id": "detail-grounding-2",
+                      "name": "接地线是否紧固牢靠并大面积接触铜排",
+                      "type": "visual",
+                      "required": true
+                    },
+                    {
+                      "id": "detail-grounding-3",
+                      "name": "接地线、各接地连接元件、铜排等是否锈蚀",
+                      "type": "visual",
+                      "required": true
+                    }
+                  ]
+                },
+                {
+                  "id": "item-signal-shielding",
+                  "name": "信号线屏蔽",
+                  "type": "visual",
+                  "required": true,
+                  "children": [
+                    {
+                      "id": "detail-shielding",
+                      "name": "信号线屏蔽接地是否规范",
+                      "type": "visual",
+                      "required": true
+                    }
+                  ]
+                },
+                {
+                  "id": "item-device-grounding",
+                  "name": "装置接地",
+                  "type": "visual",
+                  "required": true,
+                  "children": [
+                    {
+                      "id": "detail-device-grounding-1",
+                      "name": "设备是否有可靠接地",
+                      "type": "visual",
+                      "required": true
+                    },
+                    {
+                      "id": "detail-device-grounding-2",
+                      "name": "变频器及其出线是否与其他电缆或设备有足够的距离",
+                      "type": "visual",
+                      "required": true
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "level1-power-supply",
+      "name": "供电系统",
+      "children": [
+        {
+          "id": "level2-grid-check",
+          "name": "电网检查",
+          "children": [
+            {
+              "id": "level3-grid-module",
+              "name": "电网检测模块",
+              "children": [
+                {
+                  "id": "item-grid-type",
+                  "name": "电网类型",
+                  "type": "visual",
+                  "required": true,
+                  "children": [
+                    {
+                      "id": "detail-grid-type",
+                      "name": "现场电网类型",
+                      "type": "visual",
+                      "required": true
+                    }
+                  ]
+                },
+                {
+                  "id": "item-transformer",
+                  "name": "变压器参数",
+                  "type": "electrical",
+                  "required": true,
+                  "children": [
+                    {
+                      "id": "detail-transformer-1",
+                      "name": "变压器一次电压(V)",
+                      "type": "electrical",
+                      "required": true,
+                      "unit": "V"
+                    },
+                    {
+                      "id": "detail-transformer-2",
+                      "name": "变压器二次电压(V)",
+                      "type": "electrical",
+                      "required": true,
+                      "unit": "V"
+                    },
+                    {
+                      "id": "detail-transformer-3",
+                      "name": "变压器容量(KVA)",
+                      "type": "electrical",
+                      "required": true,
+                      "unit": "KVA"
+                    },
+                    {
+                      "id": "detail-transformer-4",
+                      "name": "变压器型号",
+                      "type": "visual",
+                      "required": true
+                    }
+                  ]
+                },
+                {
+                  "id": "item-grid-quality",
+                  "name": "电网质量",
+                  "type": "electrical",
+                  "required": true,
+                  "children": [
+                    {
+                      "id": "detail-grid-quality",
+                      "name": "电网检测是否正常",
+                      "type": "electrical",
+                      "required": true
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "level1-motor",
+      "name": "电机",
+      "children": [
+        {
+          "id": "level2-motor-check",
+          "name": "电机检查",
+          "children": [
+            {
+              "id": "level3-motor-module",
+              "name": "电机检测模块",
+              "children": [
+                {
+                  "id": "item-motor-params",
+                  "name": "电机参数",
+                  "type": "electrical",
+                  "required": true,
+                  "children": [
+                    {
+                      "id": "detail-motor-1",
+                      "name": "电机额定功率(KW)",
+                      "type": "electrical",
+                      "required": true,
+                      "unit": "KW"
+                    },
+                    {
+                      "id": "detail-motor-2",
+                      "name": "电机额定电压(V)",
+                      "type": "electrical",
+                      "required": true,
+                      "unit": "V"
+                    },
+                    {
+                      "id": "detail-motor-3",
+                      "name": "电机额定电流(A)",
+                      "type": "electrical",
+                      "required": true,
+                      "unit": "A"
+                    },
+                    {
+                      "id": "detail-motor-4",
+                      "name": "电机额定转速(r/min)",
+                      "type": "electrical",
+                      "required": true,
+                      "unit": "r/min"
+                    },
+                    {
+                      "id": "detail-motor-5",
+                      "name": "电机功率因数",
+                      "type": "electrical",
+                      "required": true
+                    }
+                  ]
+                },
+                {
+                  "id": "item-insulation",
+                  "name": "绝缘",
+                  "type": "electrical",
+                  "required": true,
+                  "children": [
+                    {
+                      "id": "detail-insulation-1",
+                      "name": "电机绝缘(MΩ)",
+                      "type": "electrical",
+                      "required": true,
+                      "unit": "MΩ",
+                      "minThreshold": 1
+                    },
+                    {
+                      "id": "detail-insulation-2",
+                      "name": "绝缘是否符合要求",
+                      "type": "visual",
+                      "required": true
+                    }
+                  ]
+                },
+                {
+                  "id": "item-dc-resistance",
+                  "name": "直阻",
+                  "type": "electrical",
+                  "required": true,
+                  "children": [
+                    {
+                      "id": "detail-dc-resistance-1",
+                      "name": "电机直阻(Ω)",
+                      "type": "electrical",
+                      "required": true,
+                      "unit": "Ω"
+                    },
+                    {
+                      "id": "detail-dc-resistance-2",
+                      "name": "直阻是否正常",
+                      "type": "visual",
+                      "required": true
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

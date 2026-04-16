@@ -1,0 +1,58 @@
+{
+  "projects": [
+    {
+      "id": "1",
+      "projectNo": "PM-2024-001",
+      "name": "某工厂自动化设备预防性维护",
+      "customer": "ABC制造有限公司",
+      "factory": "上海工厂",
+      "projectManager": "张三",
+      "status": "active"
+    },
+    {
+      "id": "2",
+      "projectNo": "PM-2024-002",
+      "name": "某公司驱动系统维护项目",
+      "customer": "XYZ工业集团",
+      "factory": "北京工厂",
+      "projectManager": "李四",
+      "status": "draft"
+    },
+    {
+      "id": "3",
+      "projectNo": "PM-2024-003",
+      "name": "某企业生产线设备维护",
+      "customer": "DEF科技有限公司",
+      "factory": "深圳工厂",
+      "projectManager": "王五",
+      "status": "closed"
+    },
+    {
+      "id": "4",
+      "projectNo": "PM-2024-004",
+      "name": "某集团电机设备年度维护",
+      "customer": "GHI工业有限公司",
+      "factory": "广州工厂",
+      "projectManager": "赵六",
+      "status": "active"
+    },
+    {
+      "id": "5",
+      "projectNo": "PM-2024-005",
+      "name": "某公司变频器系统维护",
+      "customer": "JKL科技股份有限公司",
+      "factory": "苏州工厂",
+      "projectManager": "钱七",
+      "status": "active"
+    },
+    {
+      "id": "6",
+      "projectNo": "PM-2024-006",
+      "name": "某企业伺服系统预防性维护",
+      "customer": "MNO制造集团",
+      "factory": "杭州工厂",
+      "projectManager": "孙八",
+      "status": "draft"
+    }
+  ]
+}
