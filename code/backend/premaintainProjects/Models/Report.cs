@@ -12,4 +12,6 @@ public partial class Report
     public int Projectid { get; set; }
 
     public DateOnly Createdate { get; set; }
+
+    public bool Ifdel { get; set; }
 }

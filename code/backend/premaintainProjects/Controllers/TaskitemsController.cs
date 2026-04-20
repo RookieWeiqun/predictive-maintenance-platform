@@ -35,7 +35,7 @@ namespace premaintainProjects.Controllers
 
         // GET: api/Taskitems/5
         [HttpGet("{id}")]
-        public async Task<IActionResult> GetTaskitem(int id)
+        public async Task<IActionResult> GetTaskitem(Guid id)
         {
             var item = await _context.Taskitems.FindAsync(id);
             if (item == null)
@@ -73,6 +73,7 @@ namespace premaintainProjects.Controllers
             catch (DbUpdateConcurrencyException)
             {
                 if (!TaskitemExists(taskitem.Itemid))
+
                 {
                     _logger.LogWarning("更新失败，任务项不存在，ID：{Id}", taskitem.Itemid);
                     return new JsonResult(new { code = ResponseCode.记录不存在, data = (object)null, msg = "记录不存在" });
@@ -92,7 +93,7 @@ namespace premaintainProjects.Controllers
         [HttpPost]
         public async Task<IActionResult> PostTaskitem(Taskitem taskitem)
         {
-            taskitem.Itemid = 0; // 强制让数据库分配主键
+            taskitem.Itemid = Guid.NewGuid(); // 强制让数据库分配主键
             _context.Taskitems.Add(taskitem);
             await _context.SaveChangesAsync();
 
@@ -102,7 +103,7 @@ namespace premaintainProjects.Controllers
 
         // DELETE: api/Taskitems/5
         [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteTaskitem(int id)
+        public async Task<IActionResult> DeleteTaskitem(Guid id)
         {
             var item = await _context.Taskitems.FindAsync(id);
             if (item == null)
@@ -118,7 +119,7 @@ namespace premaintainProjects.Controllers
             return new JsonResult(new { code = ResponseCode.成功, data = id, msg = "" });
         }
 
-        private bool TaskitemExists(int id)
+        private bool TaskitemExists(Guid id)
         {
             return _context.Taskitems.Any(e => e.Itemid == id);
         }

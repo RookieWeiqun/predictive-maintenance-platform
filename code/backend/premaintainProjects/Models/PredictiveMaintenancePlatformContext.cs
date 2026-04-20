@@ -37,9 +37,13 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
 
     public virtual DbSet<Taskitem> Taskitems { get; set; }
 
+    public virtual DbSet<TaskitemsBackup2025> TaskitemsBackup2025s { get; set; }
+
     public virtual DbSet<User> Users { get; set; }
 
-    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder) { }
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    { }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Company>(entity =>
@@ -159,6 +163,11 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
 
             entity.Property(e => e.Taskid).HasColumnName("taskid");
             entity.Property(e => e.Assigneduserid).HasColumnName("assigneduserid");
+            entity.Property(e => e.Ifdel).HasColumnName("ifdel");
+            entity.Property(e => e.Inspectiontype)
+                .HasDefaultValue(1)
+                .HasComment("1、设备检测\r\n2、外围检测")
+                .HasColumnName("inspectiontype");
             entity.Property(e => e.Productid).HasColumnName("productid");
             entity.Property(e => e.Projectid).HasColumnName("projectid");
             entity.Property(e => e.Status)
@@ -235,6 +244,7 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
             entity.Property(e => e.Createdate)
                 .HasDefaultValueSql("CURRENT_DATE")
                 .HasColumnName("createdate");
+            entity.Property(e => e.Ifdel).HasColumnName("ifdel");
             entity.Property(e => e.Managerid).HasColumnName("managerid");
             entity.Property(e => e.Projectname)
                 .HasMaxLength(200)
@@ -255,7 +265,9 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
 
             entity.Property(e => e.Peid).HasColumnName("peid");
             entity.Property(e => e.Equipmentid).HasColumnName("equipmentid");
+            entity.Property(e => e.Ifdel).HasColumnName("ifdel");
             entity.Property(e => e.Projectid).HasColumnName("projectid");
+            entity.Property(e => e.Templateid).HasColumnName("templateid");
         });
 
         modelBuilder.Entity<Report>(entity =>
@@ -270,6 +282,7 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
             entity.Property(e => e.Createdate)
                 .HasDefaultValueSql("CURRENT_DATE")
                 .HasColumnName("createdate");
+            entity.Property(e => e.Ifdel).HasColumnName("ifdel");
             entity.Property(e => e.Path)
                 .HasMaxLength(200)
                 .HasColumnName("path");
@@ -284,7 +297,9 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
 
             entity.HasIndex(e => e.Taskid, "taskitems_taskid_idx");
 
-            entity.Property(e => e.Itemid).HasColumnName("itemid");
+            entity.Property(e => e.Itemid)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("itemid");
             entity.Property(e => e.Categorypath)
                 .HasMaxLength(200)
                 .HasColumnName("categorypath");
@@ -292,10 +307,52 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
                 .HasDefaultValueSql("CURRENT_DATE")
                 .HasColumnType("timestamp without time zone")
                 .HasColumnName("createtime");
+            entity.Property(e => e.ExecutionStatus)
+                .HasDefaultValue((short)1)
+                .HasComment("1.pending 待执行。任务包刚下发或尚未填写结果时使用。\r\n2.\r\ncompleted 已执行并已填写结果。\r\n\r\n3.skipped 本次现场决定跳过该项，但该项原本是计划中的标准检查项。\r\n4. not_applicable 该项对当前设备或现场不适用。\r\n5.\r\nrecheck_required 已执行，但需要后续复检或二次确认。")
+                .HasColumnName("execution_status");
             entity.Property(e => e.Isnormal)
                 .HasDefaultValue(true)
                 .HasColumnName("isnormal");
             entity.Property(e => e.Isrecheck).HasColumnName("isrecheck");
+            entity.Property(e => e.Photopath)
+                .HasMaxLength(400)
+                .HasColumnName("photopath");
+            entity.Property(e => e.SourceType)
+                .HasDefaultValue((short)1)
+                .HasComment("1. system_generated\r\n2.manual_added")
+                .HasColumnName("source_type");
+            entity.Property(e => e.Taskid).HasColumnName("taskid");
+            entity.Property(e => e.Taskname)
+                .HasMaxLength(200)
+                .HasColumnName("taskname");
+            entity.Property(e => e.Taskresult)
+                .HasColumnType("character varying")
+                .HasColumnName("taskresult");
+            entity.Property(e => e.Updatetime)
+                .HasDefaultValueSql("now()")
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("updatetime");
+            entity.Property(e => e.Version)
+                .HasDefaultValue(1)
+                .HasColumnName("version");
+        });
+
+        modelBuilder.Entity<TaskitemsBackup2025>(entity =>
+        {
+            entity
+                .HasNoKey()
+                .ToTable("taskitems_backup_2025");
+
+            entity.Property(e => e.Categorypath)
+                .HasMaxLength(200)
+                .HasColumnName("categorypath");
+            entity.Property(e => e.Createtime)
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("createtime");
+            entity.Property(e => e.Isnormal).HasColumnName("isnormal");
+            entity.Property(e => e.Isrecheck).HasColumnName("isrecheck");
+            entity.Property(e => e.Itemid).HasColumnName("itemid");
             entity.Property(e => e.Name)
                 .HasMaxLength(200)
                 .HasColumnName("name");
