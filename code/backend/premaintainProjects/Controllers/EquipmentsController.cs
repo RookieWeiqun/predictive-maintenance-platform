@@ -92,12 +92,45 @@ namespace premaintainProjects.Controllers
         [HttpPost]
         public async Task<IActionResult> PostEquipment(Equipment equipment)
         {
-            equipment.Equipid = 0; // 强制让数据库分配主键
-            _context.Equipments.Add(equipment);
-            await _context.SaveChangesAsync();
+            using var transaction = await _context.Database.BeginTransactionAsync();
 
-            _logger.LogInformation("新增设备成功，ID：{Id}", equipment.Equipid);
-            return new JsonResult(new { code = ResponseCode.成功, data = equipment.Equipid, msg = "" });
+            try
+            {
+                equipment.Equipid = 0;
+                _context.Equipments.Add(equipment);
+                await _context.SaveChangesAsync();
+
+                if (equipment.Number.HasValue && equipment.Number.Value > 0)
+                {
+                    var products = new List<Product>();
+
+                    for (int i = 0; i < equipment.Number.Value; i++)
+                    {
+                        products.Add(new Product
+                        {
+                            Equipid = equipment.Equipid,
+                            Mlfb = equipment.Mlfb,
+                            Serialno = null
+                        });
+                    }
+
+                    _context.Products.AddRange(products);
+                    await _context.SaveChangesAsync();
+                }
+
+                await transaction.CommitAsync();
+
+                _logger.LogInformation("新增设备成功，ID：{Id}，同步生成产品数量：{Count}",
+                    equipment.Equipid, equipment.Number ?? 0);
+
+                return new JsonResult(new { code = ResponseCode.成功, data = equipment.Equipid, msg = "" });
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                _logger.LogError(ex, "新增设备失败");
+                return new JsonResult(new { code = ResponseCode.操作失败, data = (object)null, msg = "新增失败" });
+            }
         }
 
         // DELETE: api/Equipments/5

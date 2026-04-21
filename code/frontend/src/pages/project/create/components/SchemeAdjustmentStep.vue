@@ -28,7 +28,53 @@
           class="scheme-card"
         >
           <div class="scheme-card-content">
-            <h4 class="scheme-title">{{ scheme.name }}</h4>
+            <div class="scheme-card-head">
+              <h4 class="scheme-title">{{ scheme.name }}</h4>
+              <span
+                v-if="scheme.schemeKind"
+                class="scheme-type-badge"
+                :data-kind="scheme.schemeKind"
+              >
+                {{ scheme.schemeKind === 'peripheral' ? '外围检测' : '设备检测' }}
+              </span>
+            </div>
+            <p class="scheme-info">
+              <span class="info-label">适用型号：</span>
+              <span class="info-value">{{ scheme.model }}</span>
+            </p>
+            <p class="scheme-description">标准维护方案</p>
+          </div>
+        </IxCard>
+      </div>
+    </div>
+
+    <div v-if="peripheralSchemes.length > 0" class="matched-schemes">
+      <div class="schemes-header">
+        <h3>匹配到的外围检测方案</h3>
+      </div>
+      <div class="scheme-cards-grid">
+        <IxCard
+          v-for="scheme in peripheralSchemes"
+          :key="`${scheme.id}-${scheme.workshopLabel ?? ''}`"
+          :variant="selectedSchemeId === scheme.id ? 'primary' : 'outline'"
+          :selected="selectedSchemeId === scheme.id"
+          @click="handleSelectScheme(scheme.id)"
+          class="scheme-card"
+        >
+          <div class="scheme-card-content">
+            <div class="scheme-card-head">
+              <h4 class="scheme-title">{{ scheme.name }}</h4>
+              <span
+                class="scheme-type-badge"
+                data-kind="peripheral"
+              >
+                外围检测
+              </span>
+            </div>
+            <p v-if="scheme.workshopLabel" class="scheme-info">
+              <span class="info-label">工厂/车间：</span>
+              <span class="info-value">{{ scheme.workshopLabel }}</span>
+            </p>
             <p class="scheme-info">
               <span class="info-label">适用型号：</span>
               <span class="info-value">{{ scheme.model }}</span>
@@ -71,25 +117,26 @@
         </div>
       </div>
       <AgGridVue
+        :key="selectedSchemeId"
         class="scheme-grid"
         :style="{ width: '100%', height: gridHeight + 'px' }"
         :gridOptions="gridOptions"
       /> 
     </div>
     <div v-else class="empty-state">
-      <p>请先完成"匹配方案"步骤</p>
+      <p v-if="selectedSchemeId">正在加载该方案的检测项目...</p>
+      <p v-else>请先完成"匹配方案"步骤</p>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, watch, onUnmounted } from 'vue';
+import { ref, onMounted, computed, watch, onUnmounted, withDefaults } from 'vue';
 import { 
   IxButton,
   IxCard,
 } from "@siemens/ix-vue";
 import { AgGridVue } from 'ag-grid-vue3';
-import maintenanceSchemesData from '@/mockdata/common/maintenanceSchemes.json';
 import {
   ModuleRegistry,
   AllCommunityModule,
@@ -108,15 +155,28 @@ interface Device {
   quantity: number;
 }
 
+export interface SchemeCardLite {
+  id: string;
+  name: string;
+  model: string;
+  schemeKind?: 'equipment' | 'peripheral';
+  workshopLabel?: string;
+}
+
 interface Props {
   adjustedSchemeTreeModel?: any;
   adjustedSchemeTreeContext?: any;
   originalSchemeItems?: SchemeItem[];
   devices?: Device[];
+  matchedSchemeCards?: SchemeCardLite[];
+  peripheralSchemeCards?: SchemeCardLite[];
   selectedSchemeId?: string;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  matchedSchemeCards: () => [],
+  peripheralSchemeCards: () => [],
+});
 
 const emit = defineEmits<{
   'update-tree-context': [context: any];
@@ -178,16 +238,8 @@ const calculateGridHeight = () => {
 // 方案选择相关
 const selectedSchemeId = computed(() => props.selectedSchemeId || '');
 
-// 计算匹配到的方案
-const matchedSchemes = computed(() => {
-  if (!props.devices || props.devices.length === 0) return [];
-  
-  const models = props.devices.map(d => d.model).filter(Boolean);
-  if (models.length === 0) return [];
-  
-  const schemes = Array.isArray(maintenanceSchemesData) ? maintenanceSchemesData : [];
-  return schemes.filter((s: any) => models.includes(s.model));
-});
+const matchedSchemes = computed(() => props.matchedSchemeCards ?? []);
+const peripheralSchemes = computed(() => props.peripheralSchemeCards ?? []);
 
 // 设备统计
 const totalDeviceQuantity = computed(() => {
@@ -200,6 +252,29 @@ const uniqueModels = computed(() => {
   const models = props.devices.map(d => d.model).filter(Boolean);
   return [...new Set(models)];
 });
+
+function normalizeSchemeItems(items: any[]): SchemeItem[] {
+  const cloned = JSON.parse(JSON.stringify(items ?? [])) as any[];
+  const normalize = (nodes: any[]): SchemeItem[] =>
+    nodes.map((item) => ({
+      ...item,
+      type: item.type || '',
+      required: item.required !== undefined ? item.required : false,
+      children: Array.isArray(item.children) ? normalize(item.children) : [],
+    })) as SchemeItem[];
+  return normalize(cloned);
+}
+
+function buildAtomicScheme(items: SchemeItem[]): AtomicScheme {
+  return {
+    id: 'adjustment-scheme',
+    name: '调整方案',
+    type: 'equipment',
+    description: '',
+    deviceTypes: [],
+    items,
+  };
+}
 
 // 处理方案选择
 const handleSelectScheme = (schemeId: string) => {
@@ -225,59 +300,20 @@ onMounted(() => {
   // 监听窗口大小变化
   window.addEventListener('resize', calculateGridHeight);
   
-  // 从 props 获取方案数据
-  if (props.originalSchemeItems && props.originalSchemeItems.length > 0) {
-    const schemeItems: SchemeItem[] = (props.originalSchemeItems || []).map((item: any) => ({
-      ...item,
-      type: item.type || '',
-      required: item.required !== undefined ? item.required : false,
-    })) as SchemeItem[];
-    
-    currentAtomicScheme.value = {
-      id: 'adjustment-scheme',
-      name: '调整方案',
-      type: 'equipment',
-      description: '',
-      deviceTypes: [],
-      items: schemeItems,
-    };
-    
-    // 保存原始方案数据
-    originalAtomicScheme.value = JSON.parse(JSON.stringify(currentAtomicScheme.value));
-    
-    // 使用 composable 初始化 gridOptions
-    initGridOptions();
-  }
+  // 数据初始化交由下面的 watch(immediate) 统一处理，避免 onMounted 与 watch 重复覆盖
 });
 
 // 监听原始方案项目数据变化
 watch(() => props.originalSchemeItems, (newItems) => {
   if (newItems && newItems.length > 0) {
-    const schemeItems: SchemeItem[] = (newItems || []).map((item: any) => ({
-      ...item,
-      type: item.type || '',
-      required: item.required !== undefined ? item.required : false,
-    })) as SchemeItem[];
-    
-    currentAtomicScheme.value = {
-      id: 'adjustment-scheme',
-      name: '调整方案',
-      type: 'equipment',
-      description: '',
-      deviceTypes: [],
-      items: schemeItems,
-    };
+    const schemeItems = normalizeSchemeItems(newItems);
+    currentAtomicScheme.value = buildAtomicScheme(schemeItems);
     
     // 保存原始方案数据
     originalAtomicScheme.value = JSON.parse(JSON.stringify(currentAtomicScheme.value));
     
-    // 如果 gridOptions 已创建，更新数据
-    if (gridApi.value) {
-      updateGridData();
-    } else {
-      // 如果 gridOptions 未创建，重新初始化
-      initGridOptions();
-    }
+    // 切换方案时重建 gridOptions，确保编辑配置和行映射完全对齐当前方案
+    initGridOptions();
   } else {
     currentAtomicScheme.value = null;
     originalAtomicScheme.value = null;
@@ -285,7 +321,7 @@ watch(() => props.originalSchemeItems, (newItems) => {
       gridApi.value.setGridOption('rowData', []);
     }
   }
-}, { immediate: true, deep: true });
+}, { immediate: true });
 
 // 组件卸载时移除事件监听
 onUnmounted(() => {
@@ -433,6 +469,44 @@ onUnmounted(() => {
   padding: 1rem;
 }
 
+.scheme-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.scheme-card-head .scheme-title {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--theme-color-text);
+}
+
+.scheme-type-badge {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.25rem;
+  line-height: 1.2;
+  background: var(--theme-color-soft);
+  color: var(--theme-color-text-soft);
+}
+
+.scheme-type-badge[data-kind='equipment'] {
+  background: var(--theme-color-primary-soft, rgba(0, 84, 166, 0.12));
+  color: var(--theme-color-primary);
+}
+
+.scheme-type-badge[data-kind='peripheral'] {
+  background: var(--theme-color-success-soft, rgba(0, 176, 79, 0.12));
+  color: var(--theme-color-success);
+}
+
 .scheme-title {
   margin: 0 0 0.75rem 0;
   font-size: 1rem;
@@ -461,5 +535,44 @@ onUnmounted(() => {
   margin: 0.5rem 0 0 0;
   font-size: 0.875rem;
   color: var(--theme-color-text-soft);
+}
+
+.peripheral-summary-block {
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  background: var(--theme-color-soft);
+}
+
+.peripheral-summary-title {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.peripheral-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.75rem;
+}
+
+.peripheral-card {
+  min-height: 82px;
+}
+
+.peripheral-card-content {
+  padding: 0.75rem;
+}
+
+.peripheral-card-workshop {
+  font-size: 0.8125rem;
+  color: var(--theme-color-text-soft);
+  margin-bottom: 0.25rem;
+}
+
+.peripheral-card-scheme {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--theme-color-text);
 }
 </style>

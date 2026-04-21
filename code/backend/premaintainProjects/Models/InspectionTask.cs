@@ -21,4 +21,12 @@ public partial class InspectionTask
     public int? Assigneduserid { get; set; }
 
     public int Productid { get; set; }
+
+    /// <summary>
+    /// 1、设备检测
+    /// 2、外围检测
+    /// </summary>
+    public int Inspectiontype { get; set; }
+
+    public bool Ifdel { get; set; }
 }

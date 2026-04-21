@@ -14,7 +14,7 @@
       <IxSelect 
         id="customerId"
         :model-value="formData.customerId"
-        @update:model-value="(value:string) => $emit('update:customerId', value)"
+        @update:model-value="onCustomerChange"
         placeholder="请选择客户"
       >
         <IxSelectItem 
@@ -26,11 +26,26 @@
       </IxSelect>
       
       <IxFieldLabel htmlFor="factory">工厂信息 <span class="required">*</span></IxFieldLabel>
+      <IxSelect
+        v-if="factorySelectMode"
+        id="factory"
+        :model-value="formData.factory"
+        @update:model-value="(value: string) => $emit('update:factory', value)"
+        placeholder="请选择工厂（来自该客户下设备档案）"
+      >
+        <IxSelectItem
+          v-for="name in factoryOptions"
+          :key="name"
+          :label="name"
+          :value="name"
+        />
+      </IxSelect>
       <IxInput 
+        v-else
         id="factory"
         :model-value="formData.factory"
         @update:model-value="(value:string) => $emit('update:factory', value)"
-        placeholder="请输入工厂信息" 
+        :placeholder="factoryInputPlaceholder"
       />
       
       <IxFieldLabel htmlFor="projectManagerId">项目经理 <span class="required">*</span></IxFieldLabel>
@@ -83,16 +98,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import {
   IxFieldLabel,
   IxInput,
   IxLayoutAuto,
   IxSelect,
   IxSelectItem,
-} from "@siemens/ix-vue";
-import customersData from '@/mockdata/common/customers.json';
+  showToast,
+} from '@siemens/ix-vue';
 import usersData from '@/mockdata/common/users.json';
+import { equipmentsApi } from '@/api';
 
 interface Props {
   formData: {
@@ -103,11 +119,12 @@ interface Props {
     chiefEngineerId: string;
     executionEngineers: string[];
   };
+  customerOptions: { label: string; value: string }[];
 }
 
 const props = defineProps<Props>();
 
-defineEmits<{
+const emit = defineEmits<{
   'update:projectName': [value: string];
   'update:customerId': [value: string];
   'update:factory': [value: string];
@@ -116,12 +133,52 @@ defineEmits<{
   'update:executionEngineers': [value: string[]];
 }>();
 
-const customerOptions = computed(() => {
-  if (!customersData || !customersData.customers) {
-    return [];
-  }
-  return customersData.customers.map(c => ({ label: c.name, value: c.id }));
+const factoryOptions = ref<string[]>([]);
+
+const factorySelectMode = computed(
+  () => !!props.formData.customerId && factoryOptions.value.length > 0,
+);
+
+const factoryInputPlaceholder = computed(() => {
+  if (!props.formData.customerId) return '请先选择客户';
+  if (factoryOptions.value.length === 0) return '该客户下暂无设备工厂档案，请手动填写';
+  return '请输入工厂信息';
 });
+
+function onCustomerChange(value: string) {
+  emit('update:customerId', value);
+}
+
+watch(
+  () => props.formData.customerId,
+  async (id, prev) => {
+    factoryOptions.value = [];
+    if (id !== prev) {
+      emit('update:factory', '');
+    }
+    if (!id) return;
+    const companyid = Number.parseInt(id, 10);
+    if (Number.isNaN(companyid)) return;
+    try {
+      const list = await equipmentsApi.listEquipmentsByCompany(companyid);
+      const names = new Set<string>();
+      for (const e of list) {
+        const f = e.factory?.trim();
+        if (f) names.add(f);
+      }
+      factoryOptions.value = [...names].sort((a, b) => a.localeCompare(b, 'zh-CN'));
+      if (
+        props.formData.factory &&
+        !factoryOptions.value.includes(props.formData.factory)
+      ) {
+        emit('update:factory', '');
+      }
+    } catch (e) {
+      showToast({ message: e instanceof Error ? e.message : '工厂列表加载失败' });
+    }
+  },
+  { immediate: true },
+);
 
 const projectManagerOptions = computed(() => 
   usersData.users

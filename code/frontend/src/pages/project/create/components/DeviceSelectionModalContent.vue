@@ -1,9 +1,9 @@
 <template>
   <div class="customer-devices-section">
     <div class="section-header">
-      <h3>客户设备清单</h3>
+      <h3>设备档案（{{ factory }}）</h3>
       <div class="header-actions">
-        <span class="device-count">共 {{ customerDevices.length }} 组设备</span>
+        <span class="device-count">共 {{ devices.length }} 组设备</span>
         <IxButton 
           variant="primary" 
           size="sm" 
@@ -15,7 +15,7 @@
       </div>
     </div>
     
-    <div v-if="customerDevices.length > 0" class="table-container">
+    <div v-if="devices.length > 0" class="table-container">
       <AgGridVue
         v-if="modalGridOptions"
         style="height: 100%; width: 100%"
@@ -24,7 +24,7 @@
       />
     </div>
     <div v-else class="empty-state">
-      <p>该客户暂无设备清单</p>
+      <p>该客户在该工厂下暂无设备档案</p>
     </div>
   </div>
 </template>
@@ -33,50 +33,43 @@
 import { ref, computed, watch } from 'vue';
 import { AgGridVue } from 'ag-grid-vue3';
 import { IxButton } from '@siemens/ix-vue';
-import devicesData from '@/mockdata/common/devices.json';
+import type { SelectableProjectDevice } from '../utils/equipmentSelection';
 
 interface Props {
-  customerId: string;
+  factory: string;
   gridOptions: any;
+  devices: SelectableProjectDevice[];
   closeModal: () => void;
 }
 
 const props = defineProps<Props>();
 
 const emit = defineEmits<{
-  'add': [deviceIds: string[]];
+  add: [deviceIds: string[]];
 }>();
 
 const selectedDeviceIds = ref<string[]>([]);
 const gridApi = ref<any>(null);
 
-const customerDevices = computed(() => {
-  if (!props.customerId) return [];
-  return devicesData.devices.filter(device => device.customerId === props.customerId);
-});
-
-// 创建模态窗口专用的 gridOptions，确保 onGridReady 正确设置
 const modalGridOptions = computed(() => {
   if (!props.gridOptions) return null;
-  
+
   return {
     ...props.gridOptions,
     onGridReady: (params: any) => {
       gridApi.value = params.api;
       updateGridData();
-      // 如果原 gridOptions 有 onGridReady，也调用它
       if (props.gridOptions.onGridReady) {
         props.gridOptions.onGridReady(params);
       }
-    }
+    },
   };
 });
 
-// 更新表格数据
 const updateGridData = () => {
   if (!gridApi.value) return;
-  
-  const rowData = customerDevices.value.map(device => ({
+
+  const rowData = props.devices.map((device) => ({
     id: device.id,
     factoryName: device.factoryName,
     workshopName: device.workshopName,
@@ -84,19 +77,23 @@ const updateGridData = () => {
     subCategoryName: device.subCategoryName,
     model: device.model,
     quantity: device.quantity,
-    serialRange: device.serialNumbers && device.serialNumbers.length > 0
-      ? `${device.serialNumbers[0]} ~ ${device.serialNumbers[device.serialNumbers.length - 1]}`
-      : '-',
+    serialRange:
+      device.serialNumbers && device.serialNumbers.length > 0
+        ? `${device.serialNumbers[0]} ~ ${device.serialNumbers[device.serialNumbers.length - 1]}`
+        : '-',
     _deviceData: device,
   }));
-  
+
   gridApi.value.setGridOption('rowData', rowData);
 };
 
-// 监听客户设备变化，更新表格数据
-watch(() => customerDevices.value, () => {
-  updateGridData();
-}, { deep: true, immediate: true });
+watch(
+  () => props.devices,
+  () => {
+    updateGridData();
+  },
+  { deep: true, immediate: true },
+);
 
 const handleSelectionChanged = (event: any) => {
   if (!gridApi.value) {
@@ -109,12 +106,10 @@ const handleSelectionChanged = (event: any) => {
 const handleAdd = () => {
   if (selectedDeviceIds.value.length > 0) {
     emit('add', selectedDeviceIds.value);
-    // 清空选择
     selectedDeviceIds.value = [];
     if (gridApi.value) {
       gridApi.value.deselectAll();
     }
-    // 关闭模态窗口
     props.closeModal();
   }
 };

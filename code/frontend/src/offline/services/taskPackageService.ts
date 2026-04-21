@@ -1,8 +1,16 @@
 import type { OfflineTaskItemUpsert, OfflineTaskUpsert } from '../types';
 import { offlineTaskItemRepository } from '../repositories/taskItemRepository';
 import { offlineTaskRepository } from '../repositories/taskRepository';
+import {
+  inspectionTasksApi,
+  inspectionTemplatesApi,
+  productsApi,
+  taskitemsApi,
+} from '@/api';
 import { getSchemeById } from '@/mockdata/scheme';
 import tasksData from '@/mockdata/task/tasks.json';
+import { loadTemplateItemsByTemplateId } from '@/pages/scheme/utils/loadTemplateItems';
+import { isDetectionItem, type SchemeItem } from '@/pages/scheme/utils/schemeUtils';
 
 interface MockTask {
   id: string;
@@ -14,6 +22,10 @@ interface MockTask {
   status: string;
 }
 
+type DownloadTaskPackageOptions = {
+  projectName?: string | null;
+};
+
 function nowIso(): string {
   return new Date().toISOString();
 }
@@ -21,6 +33,70 @@ function nowIso(): string {
 function joinCategoryPath(path: string[], name: string): string | null {
   const values = [...path, name].filter(Boolean);
   return values.length > 0 ? values.join(' / ') : null;
+}
+
+function mapInspectionStatusToOfflineStatus(code: number): string {
+  if (code === 1) return 'in-progress';
+  if (code === 2) return 'completed';
+  if (code === 3) return 'pending';
+  return 'pending';
+}
+
+function mapBackendResultToUi(raw: string | null | undefined): '' | 'normal' | 'warning' | 'abnormal' {
+  const value = (raw ?? '').trim().toLowerCase();
+  if (!value) return '';
+  if (value === 'normal' || value === '正常') return 'normal';
+  if (value === 'warning' || value === '警告') return 'warning';
+  if (value === 'abnormal' || value === '异常') return 'abnormal';
+  return '';
+}
+
+function buildOfflineResultPayload(result: string | null | undefined): string | null {
+  const mapped = mapBackendResultToUi(result);
+  if (!mapped) {
+    return null;
+  }
+
+  return JSON.stringify({
+    result: mapped,
+    remarks: '',
+    dataFields: {},
+  });
+}
+
+function flattenTemplateItems(items: SchemeItem[], path: string[] = []): Array<{
+  itemId: string;
+  itemName: string;
+  categoryPath: string | null;
+}> {
+  const result: Array<{
+    itemId: string;
+    itemName: string;
+    categoryPath: string | null;
+  }> = [];
+
+  for (const item of items) {
+    if (isDetectionItem(item)) {
+      result.push({
+        itemId: item.id,
+        itemName: (item.name || '').trim() || '未命名任务项',
+        categoryPath: path.length > 0 ? path.join(' / ') : null,
+      });
+      continue;
+    }
+
+    const label = (item.name || '').trim();
+    const nextPath = label ? [...path, label] : path;
+    if (Array.isArray(item.children) && item.children.length > 0) {
+      result.push(...flattenTemplateItems(item.children, nextPath));
+    }
+  }
+
+  return result;
+}
+
+function serverTaskitemKey(name: string | null | undefined, categoryPath: string | null | undefined): string {
+  return `${(name ?? '').trim()}@@${(categoryPath ?? '').trim()}`;
 }
 
 function flattenSchemeItems(taskUuid: string, items: any[], path: string[] = []): OfflineTaskItemUpsert[] {
@@ -80,7 +156,86 @@ function buildOfflineTask(task: MockTask): OfflineTaskUpsert {
   };
 }
 
-export async function downloadTaskPackage(taskId: string): Promise<{ taskCount: number; itemCount: number }> {
+async function downloadServerTaskPackage(
+  taskId: number,
+  options?: DownloadTaskPackageOptions,
+): Promise<{ taskCount: number; itemCount: number }> {
+  const [task, template, taskitems, templateRoots] = await Promise.all([
+    inspectionTasksApi.getInspectionTask(taskId),
+    inspectionTasksApi.getInspectionTask(taskId).then((dto) =>
+      inspectionTemplatesApi.getInspectionTemplate(dto.templateid),
+    ),
+    taskitemsApi.listTaskitemsByTask(taskId).catch(() => []),
+    inspectionTasksApi.getInspectionTask(taskId).then((dto) =>
+      loadTemplateItemsByTemplateId(dto.templateid),
+    ),
+  ]);
+
+  const products = await productsApi.searchProducts({ productid: task.productid }).catch(() => []);
+  const product = products[0];
+  const taskUuid = String(task.taskid ?? taskId);
+  const taskNo = (task.taskNo ?? '').trim() || `任务#${taskUuid}`;
+
+  await offlineTaskRepository.upsert({
+    task_uuid: taskUuid,
+    server_task_id: taskUuid,
+    task_no: taskNo,
+    project_id: String(task.projectid),
+    project_name: options?.projectName ?? null,
+    scheme_id: String(task.templateid),
+    scheme_name: template.name?.trim() || `模板 #${task.templateid}`,
+    device_model: product?.mlfb?.trim() || '-',
+    status: mapInspectionStatusToOfflineStatus(task.status),
+    downloaded_at: nowIso(),
+    local_updated_at: nowIso(),
+    sync_status: 'synced',
+  });
+
+  const serverTaskitems = new Map(
+    taskitems.map((item) => [serverTaskitemKey(item.name, item.categorypath), item]),
+  );
+
+  const offlineItems = flattenTemplateItems(templateRoots).map<OfflineTaskItemUpsert>((item) => {
+    const matched = serverTaskitems.get(serverTaskitemKey(item.itemName, item.categoryPath));
+    const resultPayload = buildOfflineResultPayload(matched?.result);
+    const mappedResult = mapBackendResultToUi(matched?.result);
+
+    return {
+      task_item_uuid: `${taskUuid}:${item.itemId}`,
+      server_item_id: matched?.itemid ?? null,
+      task_uuid: taskUuid,
+      source_type: 'system_generated',
+      item_name: item.itemName,
+      category_path: item.categoryPath,
+      result: resultPayload,
+      execution_status: mappedResult ? 'completed' : 'pending',
+      is_normal: mappedResult === 'normal',
+      is_recheck: matched?.isrecheck ?? false,
+      sync_status: 'synced',
+      local_updated_at: nowIso(),
+    };
+  });
+
+  for (const item of offlineItems) {
+    const existing = await offlineTaskItemRepository.getByTaskItemUuid(item.task_item_uuid);
+    if (existing?.sync_status === 'pending') {
+      continue;
+    }
+    await offlineTaskItemRepository.upsert(item);
+  }
+
+  return { taskCount: 1, itemCount: offlineItems.length };
+}
+
+export async function downloadTaskPackage(
+  taskId: string,
+  options?: DownloadTaskPackageOptions,
+): Promise<{ taskCount: number; itemCount: number }> {
+  const numericTaskId = Number.parseInt(taskId, 10);
+  if (Number.isFinite(numericTaskId) && numericTaskId > 0) {
+    return downloadServerTaskPackage(numericTaskId, options);
+  }
+
   const task = tasksData.tasks.find((current) => current.id === taskId);
   if (task == null) {
     throw new Error(`未找到任务 ${taskId}`);

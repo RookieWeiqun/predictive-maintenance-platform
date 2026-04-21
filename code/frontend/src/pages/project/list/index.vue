@@ -70,6 +70,10 @@ const navigateToDetail = (id: string) => {
   router.push(`/project/detail/${id}`);
 };
 
+const navigateToEdit = (id: string) => {
+  router.push({ path: '/project/create', query: { id, mode: 'edit' } });
+};
+
 const navigateToReport = (id: string) => {
   router.push(`/project/report/${id}`);
 };
@@ -88,18 +92,18 @@ type ProjectRow = {
   customer: string;
   factory: string;
   projectManager: string;
-  status: 'draft' | 'active' | 'closed';
+  status: 'draft' | 'active' | 'completed' | 'closed';
 };
 
-/** 后端 projectstatus 数值 → 与现有 UI 一致的状态（可按实际枚举扩展） */
-const PROJECT_STATUS_CODE_MAP: Record<number, 'draft' | 'active' | 'closed'> = {
+/** 后端 projectstatus：1 进行中、2 已完成、3 已关闭（0 视为草稿） */
+const PROJECT_STATUS_CODE_MAP: Record<number, 'draft' | 'active' | 'completed' | 'closed'> = {
   0: 'draft',
   1: 'active',
-  64: 'active',
-  128: 'closed',
+  2: 'completed',
+  3: 'closed',
 };
 
-function mapProjectStatus(code: number): 'draft' | 'active' | 'closed' {
+function mapProjectStatus(code: number): 'draft' | 'active' | 'completed' | 'closed' {
   return PROJECT_STATUS_CODE_MAP[code] ?? 'draft';
 }
 
@@ -248,7 +252,8 @@ onMounted(async () => {
           const action = target.getAttribute('data-action');
           const id = target.getAttribute('data-id');
           if (!id) return;
-          if (action === 'view' || action === 'edit') navigateToDetail(id);
+          if (action === 'view') navigateToDetail(id);
+          if (action === 'edit') navigateToEdit(id);
           if (action === 'report') navigateToReport(id);
         },
       },
@@ -311,6 +316,11 @@ onMounted(async () => {
 .status-active {
   background-color: var(--theme-color-primary-soft, rgba(0, 84, 166, 0.12));
   color: var(--theme-color-primary);
+}
+
+.status-completed {
+  background-color: var(--theme-color-warning-soft, rgba(255, 152, 0, 0.14));
+  color: var(--theme-color-warning, #e65100);
 }
 
 .status-closed {

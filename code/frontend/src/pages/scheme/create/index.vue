@@ -1,6 +1,16 @@
 <!-- 方案创建页面 -->
 <template>
   <div class="scheme-create-page">
+    <div v-if="syncProgress.visible" class="sync-progress-mask">
+      <div class="sync-progress-card">
+        <div class="sync-progress-title">正在保存检测项</div>
+        <div class="sync-progress-message">{{ syncProgress.message }}</div>
+        <div class="sync-progress-track">
+          <div class="sync-progress-fill" :style="{ width: `${syncProgress.percent}%` }"></div>
+        </div>
+        <div class="sync-progress-percent">{{ syncProgress.percent }}%</div>
+      </div>
+    </div>
     <IxContentHeader :header-title="pageTitle">
       <IxButton variant="secondary" @click="handleCancel">取消</IxButton>
       <IxButton variant="primary" @click="handleSave" :disabled="!canSave">保存</IxButton>
@@ -22,11 +32,11 @@
             style="flex: 1;"
           />
           
-          <!-- 设备方案显示分类和型号 -->
-          <template v-if="schemeForm.atomicType === 'equipment'">
+          <!-- 外围/设备方案都需要明确产品类别和产品系列 -->
+          <template v-if="schemeForm.atomicType">
             <IxSelect 
               v-model="schemeForm.categoryId" 
-              label="产品分类"
+              :label="productCategoryLabel"
               style="flex: 1;"
             >
               <IxSelectItem 
@@ -38,7 +48,7 @@
             </IxSelect>
             <IxSelect 
               v-model="schemeForm.subCategoryId" 
-              label="子分类"
+              :label="productSeriesLabel"
               style="flex: 1;"
             >
               <IxSelectItem 
@@ -49,6 +59,7 @@
               />
             </IxSelect>
             <IxInput 
+              v-if="schemeForm.atomicType === 'equipment'"
               v-model="schemeForm.model" 
               label="适用型号" 
               placeholder="请输入适用型号（可选）"
@@ -65,6 +76,14 @@
               <IxButton variant="tertiary" size="sm" @click="handleCollapseAll">全部收缩</IxButton>
             </div>
             <div class="table-actions-right">
+              <input
+                ref="excelInputRef"
+                type="file"
+                accept=".xlsx,.xls"
+                style="display: none;"
+                @change="handleExcelSelected"
+              />
+              <IxButton variant="tertiary" size="sm" @click="triggerExcelImport">导入Excel</IxButton>
               <IxButton variant="tertiary" size="sm" @click="handleAddRootItem">添加项目</IxButton>
               <IxButton 
                 variant="tertiary" 
@@ -98,13 +117,14 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { 
-  IxContentHeader, 
-  IxButton, 
-  IxInput, 
-  IxSelect, 
+import {
+  IxContentHeader,
+  IxButton,
+  IxInput,
+  IxSelect,
   IxSelectItem,
-} from "@siemens/ix-vue";
+  showToast,
+} from '@siemens/ix-vue';
 import { AgGridVue } from 'ag-grid-vue3';
 import { getIxTheme } from '@siemens/ix-aggrid';
 import {
@@ -113,8 +133,11 @@ import {
   GridOptions,
 } from 'ag-grid-community';
 import * as agGrid from 'ag-grid-community';
-import { saveScheme } from '@/mockdata/scheme/index';
 import productCategoriesData from '@/mockdata/common/productCategories.json';
+import { inspectionTemplatesApi } from '@/api';
+import { buildTemplateDtoForCreate } from '../utils/schemeInspectionTemplate';
+import { importInspectionItemsFromExcel } from '../utils/importInspectionItemsFromExcel';
+import { syncTemplateNodesWithProgress } from '../utils/syncTemplateNodes';
 import { 
   convertToFlatRows,
   type AtomicScheme, 
@@ -159,6 +182,14 @@ const subCategories = computed(() => {
   return category?.subCategories || [];
 });
 
+const productCategoryLabel = computed(() =>
+  schemeForm.value.atomicType === 'peripheral' ? '产品类别' : '产品分类',
+);
+
+const productSeriesLabel = computed(() =>
+  schemeForm.value.atomicType === 'peripheral' ? '产品系列' : '子分类',
+);
+
 
 // ag-grid 配置
 const gridOptions = ref<GridOptions | null>(null);
@@ -172,6 +203,8 @@ const rowDataToItemMap = ref<Map<string, SchemeItem>>(new Map());
 
 // 选中的行
 const selectedRows = ref<FlatRow[]>([]);
+const excelInputRef = ref<HTMLInputElement | null>(null);
+const syncProgress = ref({ visible: false, percent: 0, message: '' });
 
 // 是否有选中的行
 const hasSelectedRow = computed(() => selectedRows.value.length > 0);
@@ -280,9 +313,34 @@ const handleCellValueChanged = () => {
   updateGridData();
 };
 
+const triggerExcelImport = () => {
+  excelInputRef.value?.click();
+};
+
+const handleExcelSelected = async (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file || !currentAtomicScheme.value) {
+    return;
+  }
+  try {
+    const importedItems = await importInspectionItemsFromExcel(file);
+    currentAtomicScheme.value.items = importedItems;
+    expandedRows.value.clear();
+    selectedRows.value = [];
+    updateGridData();
+    showToast({ message: `导入成功，共导入 ${importedItems.length} 个根节点` });
+  } catch (e) {
+    showToast({ message: e instanceof Error ? e.message : 'Excel 导入失败' });
+  } finally {
+    input.value = '';
+  }
+};
+
 // 验证是否可以保存
 const canSave = computed(() => {
   if (!schemeForm.value.atomicType || !schemeForm.value.name) return false;
+  if (!schemeForm.value.categoryId || !schemeForm.value.subCategoryId) return false;
   if (schemeForm.value.atomicType === 'equipment' && !schemeForm.value.categoryId) return false;
   if (!currentAtomicScheme.value || !currentAtomicScheme.value.items || currentAtomicScheme.value.items.length === 0) {
     return false;
@@ -337,6 +395,12 @@ const handleAddRootItem = () => {
   const newItem: SchemeItem = {
     id: `new-${Date.now()}`,
     name: '新检测项目',
+    dataType: 'boolean',
+    priority: 'High',
+    ruleType: 'boolean_equal',
+    operationGuide: '',
+    param1: '',
+    param2: '',
     type: 'visual',
     required: true,
     children: [],
@@ -371,6 +435,12 @@ const handleAddChildItemToSelected = () => {
   const newChildItem: SchemeItem = {
     id: `new-${Date.now()}`,
     name: '新子项目',
+    dataType: parentItem.dataType || 'boolean',
+    priority: parentItem.priority || 'High',
+    ruleType: parentItem.ruleType || 'boolean_equal',
+    operationGuide: parentItem.operationGuide || '',
+    param1: parentItem.param1 || '',
+    param2: parentItem.param2 || '',
     type: parentItem.type || 'visual',
     required: true,
     children: [],
@@ -469,60 +539,40 @@ const handleSave = async () => {
     alert('请完善方案信息');
     return;
   }
-  
-  // 生成新的方案ID
-  const typePrefix = schemeForm.value.atomicType === 'peripheral' ? 'atomic-peripheral' : 'atomic-equipment';
-  const schemeIdToSave = `${typePrefix}-${Date.now()}`;
-  
-  // 更新当前方案数据
-  if (currentAtomicScheme.value) {
-    currentAtomicScheme.value.id = schemeIdToSave;
-    currentAtomicScheme.value.name = schemeForm.value.name;
-    currentAtomicScheme.value.type = schemeForm.value.atomicType as 'peripheral' | 'equipment';
-    currentAtomicScheme.value.description = schemeForm.value.description;
-  }
-  
-  // 保存原子方案
+
   const atomicScheme: AtomicScheme = {
-    id: schemeIdToSave,
+    id: '0',
     name: schemeForm.value.name,
     type: schemeForm.value.atomicType as 'peripheral' | 'equipment',
     description: schemeForm.value.description,
     items: currentAtomicScheme.value?.items || [],
   };
-  
+
+  atomicScheme.categoryId = schemeForm.value.categoryId;
+  atomicScheme.subCategoryId = schemeForm.value.subCategoryId;
+  atomicScheme.deviceTypes = schemeForm.value.subCategoryId ? [schemeForm.value.subCategoryId] : [];
+
   if (schemeForm.value.atomicType === 'equipment') {
-    atomicScheme.categoryId = schemeForm.value.categoryId;
-    atomicScheme.subCategoryId = schemeForm.value.subCategoryId;
     atomicScheme.model = schemeForm.value.model;
-    atomicScheme.deviceTypes = schemeForm.value.subCategoryId ? [schemeForm.value.subCategoryId] : [];
   }
-  
+
   try {
-    // 保存方案到 localStorage 和 scheme 系统
-    const schemeData = {
-      id: atomicScheme.id,
-      name: atomicScheme.name,
-      type: atomicScheme.type,
-      description: atomicScheme.description || '',
-      items: atomicScheme.items,
-      categoryId: atomicScheme.categoryId || '',
-      subCategoryId: atomicScheme.subCategoryId || '',
-      model: atomicScheme.model || '',
-      deviceTypes: atomicScheme.deviceTypes || [],
-    };
-    
-    // 保存到 scheme 系统（会更新 localStorage）
-    saveScheme(schemeData);
-    
-    console.log('保存原子方案:', atomicScheme);
-    
-    alert('保存成功！');
-    // 保存后跳转到查看页面
-    router.push(`/scheme/view/${schemeIdToSave}`);
+    const payload = buildTemplateDtoForCreate(schemeForm.value, atomicScheme);
+    const newId = await inspectionTemplatesApi.createInspectionTemplate(payload);
+    syncProgress.value = { visible: true, percent: 1, message: '准备同步检测项...' };
+    await syncTemplateNodesWithProgress(newId, atomicScheme.items, (p) => {
+      syncProgress.value = { visible: true, percent: p.percent, message: p.message };
+    });
+    syncProgress.value = { visible: true, percent: 100, message: '同步完成' };
+    showToast({ message: '保存成功' });
+    router.push(`/scheme/view/${newId}`);
   } catch (error) {
     console.error('保存失败:', error);
-    alert('保存失败，请重试');
+    showToast({ message: error instanceof Error ? error.message : '保存失败，请重试' });
+  } finally {
+    setTimeout(() => {
+      syncProgress.value.visible = false;
+    }, 300);
   }
 };
 
@@ -726,6 +776,55 @@ watch(() => schemeForm.value.categoryId, () => {
 .table-actions-right {
   display: flex;
   gap: 0.5rem;
+}
+
+.sync-progress-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.28);
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sync-progress-card {
+  width: min(440px, calc(100vw - 2rem));
+  background: var(--theme-color-surface);
+  border-radius: 0.5rem;
+  padding: 1rem;
+}
+
+.sync-progress-title {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.sync-progress-message {
+  font-size: 0.875rem;
+  color: var(--theme-color-text-soft);
+  margin-bottom: 0.75rem;
+}
+
+.sync-progress-track {
+  width: 100%;
+  height: 8px;
+  background: var(--theme-color-soft);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.sync-progress-fill {
+  height: 100%;
+  background: var(--theme-color-primary);
+  transition: width 0.2s ease;
+}
+
+.sync-progress-percent {
+  margin-top: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--theme-color-text-soft);
+  text-align: right;
 }
 </style>
 

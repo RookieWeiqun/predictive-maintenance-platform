@@ -102,6 +102,41 @@ namespace premaintainProjects.Controllers
             return new JsonResult(new { code = ResponseCode.成功, data = inspectionTask.Taskid, msg = "" });
         }
 
+        [HttpPut("batch")]
+        public async Task<IActionResult> BatchUpdateInspectionTasks([FromBody] List<InspectionTask> tasks)
+        {
+            if (tasks == null || tasks.Count == 0)
+            {
+                return new JsonResult(new { code = ResponseCode.参数无效, data = (object)null, msg = "参数不能为空" });
+            }
+
+            var ids = tasks.Select(x => x.Taskid).ToList();
+            var existingTasks = await _context.InspectionTasks
+                .Where(x => ids.Contains(x.Taskid))
+                .ToListAsync();
+
+            foreach (var existing in existingTasks)
+            {
+                var input = tasks.FirstOrDefault(x => x.Taskid == existing.Taskid);
+                if (input == null) continue;
+
+                existing.Projectid = input.Projectid;
+                existing.Templateid = input.Templateid;
+                existing.Productid = input.Productid;
+                existing.Status = input.Status;
+                existing.TaskNo = input.TaskNo;
+                existing.Assigneduserid = input.Assigneduserid;
+                existing.Inspectiontype = input.Inspectiontype;
+                existing.Ifdel = input.Ifdel;
+            }
+
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("批量更新巡检任务成功，数量：{Count}", existingTasks.Count);
+
+            return new JsonResult(new { code = ResponseCode.成功, data = ids, msg = "" });
+        }
+
         // POST: api/InspectionTasks
         [HttpPost]
         public async Task<IActionResult> PostInspectionTask(InspectionTask inspectionTask)
@@ -113,6 +148,61 @@ namespace premaintainProjects.Controllers
             _logger.LogInformation("新增巡检任务成功，ID：{Id}", inspectionTask.Taskid);
             return new JsonResult(new { code = ResponseCode.成功, data = inspectionTask.Taskid, msg = "" });
         }
+
+        // POST: api/InspectionTasks/equipment
+        [HttpPost("equipment")]
+        public async Task<IActionResult> PostInspectionTask4Equipment(InspectionTask4Equipment inspectionTask4Equipment)
+        {
+            using var transaction = await _context.Database.BeginTransactionAsync();
+
+            try
+            {
+                var productIds = await _context.Products
+                    .Where(p => p.Equipid == inspectionTask4Equipment.Equipmentid)
+                    .Select(p => p.Productid)
+                    .ToListAsync();
+
+                if (productIds.Count == 0)
+                {
+                    _logger.LogWarning("未找到设备对应的产品，EquipmentId：{EquipmentId}", inspectionTask4Equipment.Equipmentid);
+                    return new JsonResult(new { code = ResponseCode.记录不存在, data = (object)null, msg = "未找到设备对应的产品" });
+                }
+
+                var inspectionTasks = productIds.Select(productId => new InspectionTask
+                {
+                    Taskid = 0,
+                    Projectid = inspectionTask4Equipment.Projectid,
+                    Templateid = inspectionTask4Equipment.Templateid,
+                    Status = inspectionTask4Equipment.Status,
+                    TaskNo = inspectionTask4Equipment.TaskNo,
+                    Assigneduserid = inspectionTask4Equipment.Assigneduserid,
+                    Productid = productId,
+                    Inspectiontype = inspectionTask4Equipment.Inspectiontype,
+                    Ifdel = false
+                }).ToList();
+
+                _context.InspectionTasks.AddRange(inspectionTasks);
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                _logger.LogInformation("按设备批量新增巡检任务成功，EquipmentId：{EquipmentId}，数量：{Count}",
+                    inspectionTask4Equipment.Equipmentid, inspectionTasks.Count);
+
+                return new JsonResult(new
+                {
+                    code = ResponseCode.成功,
+                    data = inspectionTasks.Select(x => x.Taskid).ToList(),
+                    msg = ""
+                });
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                _logger.LogError(ex, "按设备批量新增巡检任务失败，EquipmentId：{EquipmentId}", inspectionTask4Equipment.Equipmentid);
+                return new JsonResult(new { code = ResponseCode.操作失败, data = (object)null, msg = "操作失败" });
+            }
+        }
+
 
         // DELETE: api/InspectionTasks/5
         [HttpDelete("{id}")]

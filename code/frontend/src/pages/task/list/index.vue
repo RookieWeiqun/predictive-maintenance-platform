@@ -33,14 +33,10 @@
           />
           <IxSelect 
             v-model="selectedProject" 
-            placeholder="全部项目" 
-            style="min-width: 200px;"
+            placeholder="请选择项目" 
+            style="min-width: 240px;"
             @update:modelValue="handleProjectFilter"
           >
-            <IxSelectItem 
-              value="all"
-              label="全部项目"
-            />
             <IxSelectItem 
               v-for="project in projectList" 
               :key="project.id" 
@@ -67,11 +63,21 @@
               </IxButton>
             </div>
           </div>
-          <AgGridVue
-            v-if="gridOptions"
-            style="height: 600px; width: 100%"
-            :gridOptions="gridOptions"
-          />
+          <div class="table-grid-wrap">
+            <AgGridVue
+              v-if="gridOptions"
+              class="task-grid"
+              :gridOptions="gridOptions"
+            />
+            <div
+              v-if="tasksLoading"
+              class="table-loading-mask"
+              aria-busy="true"
+              aria-live="polite"
+            >
+              <span class="table-loading-text">任务加载中…</span>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -80,7 +86,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { AgGridVue } from 'ag-grid-vue3';
 import { getIxTheme } from '@siemens/ix-aggrid';
@@ -90,65 +96,256 @@ import {
   GridOptions,
 } from 'ag-grid-community';
 import * as agGrid from 'ag-grid-community';
-import { IxContentHeader, IxInput, IxSelect, IxSelectItem, IxButton } from "@siemens/ix-vue";
-import { downloadAllTaskPackages, downloadTaskPackage, offlineOutboxRepository, offlineTaskRepository } from '@/android';
-import tasksData from '@/mockdata/task/tasks.json';
+import { IxContentHeader, IxInput, IxSelect, IxSelectItem, IxButton, showToast } from "@siemens/ix-vue";
+import { downloadTaskPackage, offlineOutboxRepository } from '@/android';
 import taskStatusData from '@/mockdata/common/taskStatus.json';
+import {
+  projectsApi,
+  inspectionTasksApi,
+  inspectionTemplatesApi,
+  productsApi,
+  taskitemsApi,
+} from '@/api';
+import type { ProjectDto } from '@/api/modules/projects';
+import type { InspectionTaskDto } from '@/api/modules/inspectionTasks';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
+/** 离开页面再返回时恢复所选项目（sessionStorage，关闭标签页后清除） */
+const TASK_LIST_SELECTED_PROJECT_KEY = 'isp:taskList:selectedProjectId';
+
 const router = useRouter();
+
+type TaskListRow = {
+  id: string;
+  projectId: string;
+  projectNo: string;
+  projectName: string;
+  taskType: string;
+  taskTypeLabel: string;
+  deviceModel: string;
+  schemeId: string;
+  schemeName: string;
+  deviceCount: number;
+  remark: string;
+  status: 'pending' | 'in-progress' | 'completed' | 'synced';
+  engineer: string;
+  parentId: string | null;
+  isSubTask: boolean;
+  /** 后端巡检任务 id，用于删除与跳转 */
+  rawTaskid: number;
+};
 
 // 搜索文本
 const searchText = ref('');
-// 选中的项目
-const selectedProject = ref('all');
+// 选中的项目（空字符串表示未选择，任务列表为空）
+const selectedProject = ref('');
 // 选中的任务（用于创建子任务）
-const selectedTask = ref<any>(null);
+const selectedTask = ref<TaskListRow | null>(null);
 
-// 从mockdata加载数据
-const allTasks = ref(tasksData.tasks);
+const projects = ref<ProjectDto[]>([]);
+const allTasks = ref<TaskListRow[]>([]);
+const tasksLoading = ref(false);
 const statusMap = taskStatusData.statusMap;
 
-// 项目列表（用于下拉框）
-const projectList = computed(() => {
-  const projectMap = new Map();
-  allTasks.value.forEach(task => {
-    if (!projectMap.has(task.projectId)) {
-      projectMap.set(task.projectId, {
-        id: task.projectId,
-        projectNo: task.projectNo,
-        name: task.projectName,
-      });
-    }
-  });
-  return Array.from(projectMap.values());
+watch(selectedProject, (id) => {
+  try {
+    if (id) sessionStorage.setItem(TASK_LIST_SELECTED_PROJECT_KEY, id);
+    else sessionStorage.removeItem(TASK_LIST_SELECTED_PROJECT_KEY);
+  } catch {
+    /* 隐私模式等 */
+  }
 });
+
+function formatProjectNo(p: ProjectDto): string {
+  if (p.projectid == null) return '—';
+  return `P-${String(p.projectid).padStart(4, '0')}`;
+}
+
+/** 与后端 InspectionTask.status：1 进行中 / 2 完成 / 3 未开始 */
+function mapInspectionStatusToUi(code: number): TaskListRow['status'] {
+  if (code === 1) return 'in-progress';
+  if (code === 2) return 'completed';
+  if (code === 3) return 'pending';
+  return 'pending';
+}
+
+function taskTypeFromInspectionType(inspectiontype: number): { taskType: string; taskTypeLabel: string } {
+  if (inspectiontype === 1) return { taskType: 'equipment', taskTypeLabel: '设备检测' };
+  return { taskType: 'peripheral', taskTypeLabel: '外围检测' };
+}
+
+async function mapInspectionTasksToRows(
+  tasks: InspectionTaskDto[],
+  projectId: number,
+  projectNo: string,
+  projectName: string,
+): Promise<TaskListRow[]> {
+  const templateCache = new Map<number, { name: string; inspectiontype: number }>();
+  const productCache = new Map<number, { mlfb: string; serialno: string }>();
+
+  const rows = await Promise.all(
+    tasks
+      .filter((t) => t.taskid != null && t.taskid > 0)
+      .map(async (t) => {
+        const taskid = t.taskid as number;
+        const templateid = Number(t.templateid || 0);
+        const productid = Number(t.productid || 0);
+
+        if (templateid > 0 && !templateCache.has(templateid)) {
+          try {
+            const dto = await inspectionTemplatesApi.getInspectionTemplate(templateid);
+            templateCache.set(templateid, {
+              name: dto.name?.trim() || `模板 #${templateid}`,
+              inspectiontype: Number(dto.inspectiontype ?? 0),
+            });
+          } catch {
+            templateCache.set(templateid, { name: `模板 #${templateid}`, inspectiontype: 2 });
+          }
+        }
+
+        if (productid > 0 && !productCache.has(productid)) {
+          try {
+            const list = await productsApi.searchProducts({ productid });
+            const p0 = list[0];
+            productCache.set(productid, {
+              mlfb: p0?.mlfb?.trim() || '-',
+              serialno: p0?.serialno?.trim() || '-',
+            });
+          } catch {
+            productCache.set(productid, { mlfb: '-', serialno: '-' });
+          }
+        }
+
+        const tmpl = templateid > 0 ? templateCache.get(templateid) : undefined;
+        const { taskType, taskTypeLabel } = taskTypeFromInspectionType(tmpl?.inspectiontype ?? 2);
+        const schemeName = tmpl?.name ?? (templateid > 0 ? `模板 #${templateid}` : '-');
+        const prod = productid > 0 ? productCache.get(productid) : undefined;
+        const displayId = (t.taskNo ?? '').trim() || `任务#${taskid}`;
+
+        return {
+          id: displayId,
+          projectId: String(projectId),
+          projectNo,
+          projectName,
+          taskType,
+          taskTypeLabel,
+          deviceModel: prod?.mlfb ?? '-',
+          schemeId: templateid > 0 ? String(templateid) : '',
+          schemeName,
+          deviceCount: 1,
+          remark: prod?.serialno ? `序列号：${prod.serialno}` : '',
+          status: mapInspectionStatusToUi(t.status),
+          engineer: t.assigneduserid != null ? `用户#${t.assigneduserid}` : '',
+          parentId: null,
+          isSubTask: false,
+          rawTaskid: taskid,
+        } satisfies TaskListRow;
+      }),
+  );
+
+  return rows.sort((a, b) => a.rawTaskid - b.rawTaskid);
+}
+
+// 项目列表（用于下拉框）
+const projectList = computed(() =>
+  projects.value
+    .filter((p) => p.projectid != null && Number(p.projectid) > 0)
+    .map((p) => ({
+      id: String(p.projectid),
+      projectNo: formatProjectNo(p),
+      name: p.projectname ?? '',
+    })),
+);
+
+async function loadProjects(): Promise<void> {
+  try {
+    projects.value = await projectsApi.listProjects();
+  } catch (e) {
+    showToast({ message: e instanceof Error ? e.message : '项目列表加载失败' });
+    projects.value = [];
+  }
+}
+
+async function fetchTasksForSelectedProject(): Promise<void> {
+  const key = selectedProject.value;
+  expandedRows.value.clear();
+  selectedTask.value = null;
+
+  if (!key) {
+    tasksLoading.value = false;
+    allTasks.value = [];
+    updateGridData();
+    return;
+  }
+
+  const pid = Number(key);
+  if (!Number.isFinite(pid) || pid <= 0) {
+    tasksLoading.value = false;
+    allTasks.value = [];
+    updateGridData();
+    return;
+  }
+
+  tasksLoading.value = true;
+  try {
+    const tasks = await inspectionTasksApi.searchInspectionTasks({ projectid: pid });
+    const project = projects.value.find((p) => Number(p.projectid) === pid);
+    const projectNo = project ? formatProjectNo(project) : `P-${String(pid).padStart(4, '0')}`;
+    const projectName = project?.projectname ?? '';
+    allTasks.value = await mapInspectionTasksToRows(tasks, pid, projectNo, projectName);
+    if (allTasks.value.length === 0) {
+      showToast({ message: '当前项目暂无巡检任务' });
+    }
+  } catch (e) {
+    showToast({ message: e instanceof Error ? e.message : '任务列表加载失败' });
+    allTasks.value = [];
+  } finally {
+    tasksLoading.value = false;
+    updateGridData();
+  }
+}
+
+async function restoreSessionProjectIfValid(): Promise<void> {
+  let saved = '';
+  try {
+    saved = sessionStorage.getItem(TASK_LIST_SELECTED_PROJECT_KEY)?.trim() ?? '';
+  } catch {
+    return;
+  }
+  if (!saved) return;
+  const exists = projects.value.some((p) => String(p.projectid) === saved);
+  if (!exists) {
+    try {
+      sessionStorage.removeItem(TASK_LIST_SELECTED_PROJECT_KEY);
+    } catch {
+      /* ignore */
+    }
+    return;
+  }
+  selectedProject.value = saved;
+  await fetchTasksForSelectedProject();
+}
 
 // 获取状态文本
 const getStatusText = (status: string) => {
   return statusMap[status as keyof typeof statusMap] || status;
 };
 
-// 过滤后的任务列表
+// 过滤后的任务列表（当前项目数据已由接口限定，仅本地搜索）
 const filteredTasks = computed(() => {
   let tasks = allTasks.value;
-  
-  // 按项目筛选
-  if (selectedProject.value !== 'all') {
-    tasks = tasks.filter(t => t.projectId === selectedProject.value);
-  }
-  
-  // 按搜索文本筛选
+
   if (searchText.value) {
     const searchLower = searchText.value.toLowerCase();
-    tasks = tasks.filter(t => 
-      t.id.toLowerCase().includes(searchLower) ||
-      t.deviceModel.toLowerCase().includes(searchLower) ||
-      t.schemeName.toLowerCase().includes(searchLower)
+    tasks = tasks.filter(
+      (t) =>
+        String(t.id).toLowerCase().includes(searchLower) ||
+        String(t.deviceModel).toLowerCase().includes(searchLower) ||
+        String(t.schemeName).toLowerCase().includes(searchLower),
     );
   }
-  
+
   return tasks;
 });
 
@@ -203,8 +400,24 @@ const expandedRows = ref<Set<string>>(new Set());
 const gridOptions = ref<GridOptions | null>(null);
 const gridApi = ref<any>(null);
 
-// 创建子任务（每次只创建一个）
-const handleCreateSubTask = (task: any) => {
+let taskGridResizeTimer: ReturnType<typeof setTimeout> | null = null;
+function fitTaskGridColumns() {
+  const api = gridApi.value as { sizeColumnsToFit?: () => void } | null;
+  api?.sizeColumnsToFit?.();
+}
+function scheduleFitTaskGridColumns() {
+  if (taskGridResizeTimer != null) clearTimeout(taskGridResizeTimer);
+  taskGridResizeTimer = setTimeout(() => {
+    taskGridResizeTimer = null;
+    fitTaskGridColumns();
+  }, 100);
+}
+function onTaskGridWindowResize() {
+  scheduleFitTaskGridColumns();
+}
+
+// 创建子任务（每次只创建一个；后端按产品拆任务时 deviceCount 为 1，按钮将保持禁用）
+const handleCreateSubTask = (task: TaskListRow | null) => {
   if (!task) {
     alert('请先选择任务');
     return;
@@ -239,7 +452,7 @@ const handleCreateSubTask = (task: any) => {
     return;
   }
   
-  const newSubTask = {
+  const newSubTask: TaskListRow = {
     id: subTaskId,
     projectId: task.projectId,
     projectNo: task.projectNo,
@@ -255,6 +468,7 @@ const handleCreateSubTask = (task: any) => {
     engineer: '',
     parentId: task.id,
     isSubTask: true,
+    rawTaskid: 0,
   };
   
   // 添加到任务列表
@@ -271,12 +485,16 @@ const handleCreateSubTask = (task: any) => {
 
 
 // 查看方案
-const handleViewScheme = (task: any) => {
+const handleViewScheme = (task: TaskListRow) => {
+  if (!task.schemeId) {
+    showToast({ message: '该任务未关联维护模板' });
+    return;
+  }
   // 从任务列表进入，传递任务ID和返回路径
   router.push({
     path: `/scheme/view/${task.schemeId}`,
     query: {
-      taskId: task.id,
+      taskId: task.rawTaskid > 0 ? String(task.rawTaskid) : task.id,
       returnPath: '/task/list',
     },
   });
@@ -284,43 +502,60 @@ const handleViewScheme = (task: any) => {
 
 // 执行任务
 const handleExecuteTask = (task: any) => {
-  void (async () => {
-    try {
-      const localTask = await offlineTaskRepository.getByTaskUuid(task.id);
-      if (localTask == null) {
-        await downloadTaskPackage(task.id);
-      }
-    } catch (error) {
-      console.error('预加载离线任务包失败:', error);
-    }
-
-    router.push(`/task/collect/${task.id}`);
-  })();
+  const tid = task.rawTaskid > 0 ? String(task.rawTaskid) : task.id;
+  router.push(`/task/collect/${tid}`);
 };
 
 // 查看任务
-const handleReviewTask = (task: any) => {
-  router.push(`/task/review/${task.id}`);
+const handleReviewTask = (task: TaskListRow) => {
+  const tid = task.rawTaskid > 0 ? String(task.rawTaskid) : task.id;
+  router.push(`/task/review/${tid}`);
 };
 
 const handleOpenAndroidDebug = () => {
   router.push('/android/debug');
 };
 
-// 删除任务
-const handleDeleteTask = (task: any) => {
-  if (!confirm(`确定要删除任务 ${task.id} 吗？${task.isSubTask ? '' : '这将同时删除所有子任务。'}`)) {
+// 删除任务（后端：先删 Taskitems，再 DELETE /api/InspectionTasks/{id}）
+const handleDeleteTask = async (task: TaskListRow) => {
+  const tid = task.rawTaskid;
+  if (tid > 0) {
+    if (
+      !confirm(
+        `确定删除巡检任务「${task.id}」吗？将调用接口删除该任务及其下所有任务项，且不可恢复。`,
+      )
+    ) {
+      return;
+    }
+    try {
+      const items = await taskitemsApi.listTaskitemsByTask(tid);
+      for (const it of items) {
+        const iid = it.itemid;
+        if (iid != null && iid > 0) await taskitemsApi.deleteTaskitem(iid);
+      }
+      await inspectionTasksApi.deleteInspectionTask(tid);
+      if (selectedTask.value?.rawTaskid === tid) {
+        selectedTask.value = null;
+      }
+      await fetchTasksForSelectedProject();
+      showToast({ message: '已删除巡检任务' });
+    } catch (e) {
+      showToast({ message: e instanceof Error ? e.message : '删除任务失败' });
+    }
     return;
   }
-  
-  if (task.isSubTask) {
-    // 删除子任务
-    allTasks.value = allTasks.value.filter(t => t.id !== task.id);
-  } else {
-    // 删除父任务及其所有子任务
-    allTasks.value = allTasks.value.filter(t => t.id !== task.id && t.parentId !== task.id);
+
+  if (
+    !confirm(`确定移除本地条目「${task.id}」吗？（未关联后端任务 id，仅从列表移除）`)
+  ) {
+    return;
   }
-  
+
+  if (task.isSubTask) {
+    allTasks.value = allTasks.value.filter((t) => t.id !== task.id);
+  } else {
+    allTasks.value = allTasks.value.filter((t) => t.id !== task.id && t.parentId !== task.id);
+  }
   updateGridData();
 };
 
@@ -329,19 +564,40 @@ const handleSearch = () => {
   updateGridData();
 };
 
-// 项目筛选
+// 项目切换：拉取该项目下的巡检任务
 const handleProjectFilter = () => {
-  updateGridData();
+  void fetchTasksForSelectedProject();
 };
 
 // 下载任务（从云端下载任务到本地）
 const handleDownloadTasks = async () => {
+  if (!selectedProject.value) {
+    showToast({ message: '请先选择项目' });
+    return;
+  }
+
+  const downloadableTasks = allTasks.value.filter((task) => task.rawTaskid > 0 && !task.isSubTask);
+  if (downloadableTasks.length === 0) {
+    showToast({ message: '当前项目暂无可下载的巡检任务' });
+    return;
+  }
+
   try {
-    const downloaded = await downloadAllTaskPackages();
-    alert(`已下载 ${downloaded.taskCount} 个任务包，共 ${downloaded.itemCount} 条任务项到本地离线库。`);
+    let taskCount = 0;
+    let itemCount = 0;
+
+    for (const task of downloadableTasks) {
+      const downloaded = await downloadTaskPackage(String(task.rawTaskid), {
+        projectName: task.projectName,
+      });
+      taskCount += downloaded.taskCount;
+      itemCount += downloaded.itemCount;
+    }
+
+    showToast({ message: `已下载 ${taskCount} 个任务包，共 ${itemCount} 条任务项` });
   } catch (error) {
     console.error('下载任务失败:', error);
-    alert('下载任务失败，请稍后重试');
+    showToast({ message: error instanceof Error ? error.message : '下载任务失败，请稍后重试' });
   }
 };
 
@@ -394,22 +650,22 @@ onMounted(() => {
     tooltipShowDelay: 500,
     columnDefs: [
       {
-        field: 'id',
-        headerName: '任务ID',
+        field: 'taskTypeLabel',
+        headerName: '任务类型',
         resizable: true,
         sortable: true,
         filter: true,
-        width: 200,
+        flex: 0.95,
+        minWidth: 108,
         cellRenderer: (params: any) => {
           const task = params.data;
           const indent = task.level > 0 ? '&nbsp;&nbsp;&nbsp;&nbsp;' : '';
-          const expandIcon = task.hasChildren 
-            ? (expandedRows.value.has(task.id) 
-                ? '<span style="cursor: pointer; margin-right: 4px;">▼</span>' 
-                : '<span style="cursor: pointer; margin-right: 4px;">▶</span>')
+          const expandIcon = task.hasChildren
+            ? expandedRows.value.has(task.id)
+              ? '<span style="cursor: pointer; margin-right: 4px;">▼</span>'
+              : '<span style="cursor: pointer; margin-right: 4px;">▶</span>'
             : '<span style="margin-right: 12px;"></span>';
-          
-          return `${indent}${expandIcon}${task.id}`;
+          return `${indent}${expandIcon}${params.value ?? ''}`;
         },
         onCellClicked: (params: any) => {
           const task = params.data;
@@ -419,19 +675,13 @@ onMounted(() => {
         },
         cellStyle: (params: any) => {
           return {
-            fontFamily: params.data.level === 0 ? 'Courier New, monospace' : 'inherit',
-            fontWeight: params.data.level === 0 ? 500 : 400,
-            color: params.data.level === 0 ? 'var(--theme-color-primary)' : 'var(--theme-color-text)',
+            fontWeight: params.data.level === 0 ? 600 : 400,
+            color:
+              params.data.level === 0
+                ? 'var(--theme-color-text)'
+                : 'var(--theme-color-text-soft)',
           };
         },
-      },
-      {
-        field: 'taskTypeLabel',
-        headerName: '任务类型',
-        resizable: true,
-        sortable: true,
-        filter: true,
-        width: 120,
       },
       {
         field: 'deviceModel',
@@ -439,7 +689,8 @@ onMounted(() => {
         resizable: true,
         sortable: true,
         filter: true,
-        width: 150,
+        flex: 0.85,
+        minWidth: 96,
       },
       {
         field: 'schemeName',
@@ -447,7 +698,8 @@ onMounted(() => {
         resizable: true,
         sortable: true,
         filter: true,
-        width: 250,
+        flex: 1.5,
+        minWidth: 100,
       },
       {
         field: 'deviceCount',
@@ -455,7 +707,9 @@ onMounted(() => {
         resizable: true,
         sortable: true,
         filter: true,
-        width: 120,
+        flex: 0.55,
+        minWidth: 72,
+        maxWidth: 110,
         cellRenderer: (params: any) => {
           if (params.data.isSubTask) {
             return '1';
@@ -469,7 +723,8 @@ onMounted(() => {
         resizable: true,
         sortable: true,
         filter: true,
-        width: 120,
+        flex: 0.7,
+        minWidth: 84,
         cellRenderer: (params: any) => {
           const status = params.value;
           const statusText = getStatusText(status);
@@ -480,28 +735,30 @@ onMounted(() => {
       {
         field: 'actions',
         headerName: '操作',
-        resizable: false,
+        resizable: true,
         sortable: false,
         filter: false,
-        width: 320,
+        flex: 2.35,
+        minWidth: 280,
         cellRenderer: (params: any) => {
           const task = params.data;
           const taskId = task.id;
           
           let buttons = '';
           
-          buttons += `<button class="ag-action-btn ag-action-btn-view" data-action="view" data-id="${taskId}">查看方案</button>`;
-          buttons += `<button class="ag-action-btn ag-action-btn-execute" data-action="execute" data-id="${taskId}">执行任务</button>`;
-          buttons += `<button class="ag-action-btn ag-action-btn-review" data-action="review" data-id="${taskId}">查看任务</button>`;
-          buttons += `<button class="ag-action-btn ag-action-btn-delete" data-action="delete" data-id="${taskId}">删除</button>`;
+          buttons += `<button type="button" class="ag-action-btn ag-action-btn-view" data-action="view" data-id="${taskId}">查看方案</button>`;
+          buttons += `<button type="button" class="ag-action-btn ag-action-btn-execute" data-action="execute" data-id="${taskId}">执行任务</button>`;
+          buttons += `<button type="button" class="ag-action-btn ag-action-btn-review" data-action="review" data-id="${taskId}">查看任务</button>`;
+          buttons += `<button type="button" class="ag-action-btn ag-action-btn-delete" data-action="delete" data-id="${taskId}">删除任务</button>`;
           
           return `<div class="ag-action-buttons">${buttons}</div>`;
         },
         onCellClicked: (params: any) => {
-          if (params.event?.target?.classList.contains('ag-action-btn')) {
-            const action = params.event.target.getAttribute('data-action');
-            const task = params.data;
-            
+          const target = params.event?.target as HTMLElement | undefined;
+          const btn = target?.closest?.('.ag-action-btn') as HTMLElement | null;
+          const task = params.data;
+          if (btn) {
+            const action = btn.getAttribute('data-action');
             if (action === 'view') {
               handleViewScheme(task);
             } else if (action === 'execute') {
@@ -509,12 +766,11 @@ onMounted(() => {
             } else if (action === 'review') {
               handleReviewTask(task);
             } else if (action === 'delete') {
-              handleDeleteTask(task);
+              void handleDeleteTask(task);
             }
-          } else {
-            // 点击行时选中任务（用于创建子任务）
-            selectedTask.value = params.data;
+            return;
           }
+          selectedTask.value = task;
         },
       },
     ],
@@ -529,8 +785,28 @@ onMounted(() => {
     },
     onGridReady: (params: any) => {
       gridApi.value = params.api;
+      updateGridData();
+      scheduleFitTaskGridColumns();
+    },
+    onFirstDataRendered: () => {
+      scheduleFitTaskGridColumns();
     },
   };
+
+  window.addEventListener('resize', onTaskGridWindowResize);
+
+  void (async () => {
+    await loadProjects();
+    await restoreSessionProjectIfValid();
+  })();
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', onTaskGridWindowResize);
+  if (taskGridResizeTimer != null) {
+    clearTimeout(taskGridResizeTimer);
+    taskGridResizeTimer = null;
+  }
 });
 </script>
 
@@ -540,8 +816,10 @@ onMounted(() => {
 }
 
 .page-content {
-  max-width: 1600px;
+  width: 100%;
+  max-width: 100%;
   margin: 0 auto;
+  box-sizing: border-box;
 }
 
 .filter-section {
@@ -554,6 +832,36 @@ onMounted(() => {
 
 .table-container {
   margin-top: 1rem;
+  position: relative;
+}
+
+.table-grid-wrap {
+  position: relative;
+  height: 600px;
+  width: 100%;
+}
+
+.task-grid {
+  height: 100%;
+  width: 100%;
+}
+
+.table-loading-mask {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3;
+  background: color-mix(in srgb, var(--theme-color-background) 85%, transparent);
+  border-radius: 0 0 0.5rem 0.5rem;
+  pointer-events: none;
+}
+
+.table-loading-text {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--theme-color-text-soft);
 }
 
 .table-header {
@@ -628,11 +936,11 @@ onMounted(() => {
 /* 全局样式，用于 ag-grid 内部的按钮，与 IxButton variant="secondary" 保持一致 */
 .ag-action-buttons {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.375rem;
   align-items: center;
   height: 100%;
   padding: 0.25rem 0;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .ag-action-btn {
@@ -640,7 +948,7 @@ onMounted(() => {
   background-color: transparent;
   border: 1px solid var(--theme-color-soft-border);
   color: var(--theme-color-text);
-  padding: 0.375rem 0.75rem;
+  padding: 0.3125rem 0.5rem;
   border-radius: 0.25rem;
   cursor: pointer;
   font-size: 0.8125rem;

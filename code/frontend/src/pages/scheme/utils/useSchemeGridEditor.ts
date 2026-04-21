@@ -212,6 +212,12 @@ export function useSchemeGridEditor(
     const newItem: SchemeItem = {
       id: `new-${Date.now()}`,
       name: '新检测项目',
+      dataType: 'boolean',
+      priority: 'High',
+      ruleType: 'boolean_equal',
+      operationGuide: '',
+      param1: '',
+      param2: '',
       type: 'visual',
       required: true,
       children: [],
@@ -246,6 +252,12 @@ export function useSchemeGridEditor(
     const newChildItem: SchemeItem = {
       id: `new-${Date.now()}`,
       name: '新子项目',
+      dataType: parentItem.dataType || 'boolean',
+      priority: parentItem.priority || 'High',
+      ruleType: parentItem.ruleType || 'boolean_equal',
+      operationGuide: parentItem.operationGuide || '',
+      param1: parentItem.param1 || '',
+      param2: parentItem.param2 || '',
       type: parentItem.type || 'visual',
       required: true,
       children: [],
@@ -289,23 +301,11 @@ export function useSchemeGridEditor(
         return false;
       };
       
-      selectedRows.value.forEach(row => {
-        // 从所有可能的层级中删除（包括第一层的子项）
-        const removeFromAllLevels = (items: SchemeItem[]) => {
-          for (const item of items) {
-            if (item.children) {
-              if (removeItem(item.children, row.id)) {
-                return true;
-              }
-              if (removeFromAllLevels(item.children)) {
-                return true;
-              }
-            }
-          }
-          return false;
-        };
-        
-        removeFromAllLevels(currentAtomicScheme.value!.items);
+      // 先按层级从深到浅删，避免“父子都选中”时父节点先删导致子节点遗漏
+      const selected = [...selectedRows.value].sort((a, b) => b.level - a.level);
+      selected.forEach(row => {
+        // 先尝试根层级，再递归删除子层级
+        removeItem(currentAtomicScheme.value!.items, row.id);
         expandedRows.value.delete(row.id);
       });
       
@@ -451,13 +451,13 @@ export function useSchemeGridEditor(
           },
         },
         {
-          field: 'typeLabel',
-          headerName: '检测类型',
+          field: 'dataType',
+          headerName: '数据类型',
           width: 120,
           valueGetter: (params: any) => {
             const data = params.data as FlatRow;
-            if (!data.isDetectionItem || !data.type) return '-';
-            return getTypeLabel(data.type);
+            if (!data.isDetectionItem) return '-';
+            return data.dataType || (data.type ? getTypeLabel(data.type) : '-');
           },
           cellStyle: (params: any) => {
             const data = params.data as FlatRow;
@@ -468,13 +468,13 @@ export function useSchemeGridEditor(
           },
         },
         {
-          field: 'requiredLabel',
-          headerName: '是否必填',
+          field: 'priority',
+          headerName: '权重',
           width: 100,
           valueGetter: (params: any) => {
             const data = params.data as FlatRow;
             if (!data.isDetectionItem) return '-';
-            return data.required !== false ? '必填' : '可选';
+            return data.priority || (data.required !== false ? 'High' : 'Low');
           },
           cellStyle: (params: any) => {
             const data = params.data as FlatRow;
@@ -513,12 +513,12 @@ export function useSchemeGridEditor(
           },
         },
         {
-          field: 'minThreshold',
-          headerName: '最小阈值',
-          width: 120,
+          field: 'operationGuide',
+          headerName: '操作指导',
+          width: 220,
           valueFormatter: (params: any) => {
-            if (params.value === undefined || params.value === null) return '-';
-            return params.value.toString();
+            if (params.value === undefined || params.value === null || params.value === '') return '-';
+            return String(params.value);
           },
           cellStyle: (params: any) => {
             const data = params.data as FlatRow;
@@ -529,12 +529,12 @@ export function useSchemeGridEditor(
           },
         },
         {
-          field: 'maxThreshold',
-          headerName: '最大阈值',
-          width: 120,
+          field: 'ruleType',
+          headerName: '规则类型',
+          width: 140,
           valueFormatter: (params: any) => {
-            if (params.value === undefined || params.value === null) return '-';
-            return params.value.toString();
+            if (params.value === undefined || params.value === null || params.value === '') return '-';
+            return String(params.value);
           },
           cellStyle: (params: any) => {
             const data = params.data as FlatRow;
@@ -545,9 +545,29 @@ export function useSchemeGridEditor(
           },
         },
         {
-          field: 'testProcedure',
-          headerName: '测试步骤',
-          width: 200,
+          field: 'param1',
+          headerName: '参数1',
+          width: 120,
+          valueFormatter: (params: any) => {
+            if (params.value === undefined || params.value === null) return '-';
+            return String(params.value);
+          },
+          cellStyle: (params: any) => {
+            const data = params.data as FlatRow;
+            if (!data.isDetectionItem) {
+              return { color: 'var(--theme-color-weak-text)' };
+            }
+            return { color: 'var(--theme-color-text)' };
+          },
+        },
+        {
+          field: 'param2',
+          headerName: '参数2',
+          width: 120,
+          valueFormatter: (params: any) => {
+            if (params.value === undefined || params.value === null) return '-';
+            return String(params.value);
+          },
           cellStyle: (params: any) => {
             const data = params.data as FlatRow;
             if (!data.isDetectionItem) {

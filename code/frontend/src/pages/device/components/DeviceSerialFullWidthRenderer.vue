@@ -1,4 +1,4 @@
-<!-- ag-grid 全宽行：IxCard，仅「序列号」「上次维护时间」；单行横向滚动 -->
+﻿<!-- ag-grid 全宽行：IxCard，展示序列号与上次维护时间（数据来自接口字段，无则显示 —） -->
 <template>
   <div ref="rootEl" class="device-serial-strip">
     <div
@@ -6,25 +6,27 @@
       :key="card.serial"
       class="device-serial-card-wrap"
     >
-      <IxCard variant="outline" class="device-serial-card" @click="onCardClick">
+      <IxCard variant="outline" class="device-serial-card" @click="(e) => onCardClick(card.serial, e)">
         <IxCardContent>
           <!-- 注意：定位规则依赖 `ix-typography:last-of-type`，两行顺序不要调整 -->
           <IxTypography class="device-serial-card__sn">
             序列号：<span class="device-serial-card__mono">{{ card.serial }}</span>
           </IxTypography>
           <IxTypography class="device-serial-card__time">
-            上次维护：{{ card.lastMaintText }}
+            上次维护：{{ card.lastMaintText }} ｜ 任务：{{ card.taskCount }}
           </IxTypography>
         </IxCardContent>
       </IxCard>
     </div>
   </div>
+
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, nextTick } from 'vue';
+import { computed, h, onBeforeUnmount, onMounted, ref, nextTick } from 'vue';
 import type { ICellRendererParams } from 'ag-grid-community';
-import { IxCard, IxCardContent, IxTypography } from '@siemens/ix-vue';
+import { IxCard, IxCardContent, IxTypography, showModal } from '@siemens/ix-vue';
+import DeviceTaskModal from './DeviceTaskModal.vue';
 
 type MaintenanceInfo = {
   lastMaintenanceDate: string;
@@ -36,6 +38,25 @@ type SerialStripRow = {
     id: string;
     serialNumbers: string[];
     maintenance: MaintenanceInfo;
+    taskEntries?: {
+      taskid: number;
+      taskNo: string;
+      statusText: string;
+      templateName: string;
+      productid: number;
+      serialno: string;
+      items: {
+        name: string;
+        categorypath: string;
+        result: string;
+      }[];
+    }[];
+    fallbackTemplateName?: string;
+    fallbackTaskItems?: {
+      name: string;
+      categorypath: string;
+      result: string;
+    }[];
   };
 };
 
@@ -45,6 +66,16 @@ const props = defineProps<{
 
 const parent = computed(() => props.params.data?.parent);
 const rootEl = ref<HTMLElement | null>(null);
+
+/** 任务上的 serialno 与卡片序列号一致；设备接口的 serialNumbers 常与 Product 不一致，详情页已用产品序列号纠正，此处再兜底避免误走「单条模板」合成任务 */
+function taskEntriesForSerial(serial: string) {
+  const all = parent.value?.taskEntries ?? [];
+  const s = serial.trim();
+  const matched = all.filter((x) => (x.serialno ?? '').trim() === s);
+  if (matched.length > 0) return matched;
+  if (s === '—' || s === '') return all;
+  return matched;
+}
 let ro: ResizeObserver | null = null;
 let raf = 0;
 
@@ -61,26 +92,45 @@ function formatDateYmd(iso: string) {
   }
 }
 
-/** 在设备基准时间上按序列号序号错开（原型） */
-function lastMaintenanceAt(baseIso: string, serialIndex: number): string {
-  if (!baseIso) return '—';
-  const d = new Date(baseIso);
-  if (Number.isNaN(d.getTime())) return '—';
-  d.setDate(d.getDate() - serialIndex * 10);
-  return formatDateYmd(d.toISOString());
-}
-
 const cards = computed(() => {
   const p = parent.value;
   if (!p) return [];
-  const base = p.maintenance?.lastMaintenanceDate ?? '';
-  return p.serialNumbers.map((serial, index) => ({
+  const lastText = formatDateYmd(p.maintenance?.lastMaintenanceDate ?? '');
+  return p.serialNumbers.map((serial) => ({
     serial,
-    lastMaintText: `${lastMaintenanceAt(base, index)}`,
+    lastMaintText: lastText || '—',
+    taskCount: taskEntriesForSerial(serial).length,
   }));
 });
 
-function onCardClick(event: Event) {
+function onCardClick(serial: string, event: Event) {
+  const tasks = taskEntriesForSerial(serial);
+  const fallbackItems = parent.value?.fallbackTaskItems ?? [];
+  const fallbackTemplateName = parent.value?.fallbackTemplateName || '模板检测项';
+  const displayTasks =
+    tasks.length > 0
+      ? tasks
+      : fallbackItems.length > 0
+        ? [
+            {
+              taskid: -1,
+              taskNo: '尚未生成任务数据',
+              statusText: '无记录',
+              templateName: fallbackTemplateName,
+              items: fallbackItems,
+            },
+          ]
+        : [];
+  showModal({
+    size: '900',
+    centered: true,
+    content: h(DeviceTaskModal, {
+      data: {
+        title: `序列号 ${serial} 的检测任务`,
+        tasks: displayTasks,
+      },
+    }),
+  });
   event.stopPropagation();
 }
 

@@ -10,4 +10,8 @@ public partial class ProjectEquipment
     public int Projectid { get; set; }
 
     public int Equipmentid { get; set; }
+
+    public bool Ifdel { get; set; }
+
+    public int? Templateid { get; set; }
 }

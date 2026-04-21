@@ -2,4 +2,11 @@
 export * from './types';
 export * as companiesApi from './modules/companies';
 export * as equipmentsApi from './modules/equipments';
+export * as projectEquipmentsApi from './modules/projectEquipments';
 export * as projectsApi from './modules/projects';
+export * as inspectionTemplatesApi from './modules/inspectionTemplates';
+export * as inspectionCategoriesApi from './modules/inspectionCategories';
+export * as inspectionItemsApi from './modules/inspectionItems';
+export * as inspectionTasksApi from './modules/inspectionTasks';
+export * as productsApi from './modules/products';
+export * as taskitemsApi from './modules/taskitems';
