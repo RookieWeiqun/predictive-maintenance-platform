@@ -38,6 +38,11 @@ export async function requestJson<T>(path: string, init?: RequestInit): Promise<
   try {
     return (await response.json()) as T;
   } catch {
-    throw new ApiError('后端响应不是合法 JSON');
+    const contentType = response.headers.get('content-type') || 'unknown';
+    const bodyText = await response.text().catch(() => '');
+    const preview = bodyText.slice(0, 200).replace(/\s+/g, ' ').trim();
+    throw new ApiError(
+      `后端响应不是合法 JSON。content-type=${contentType}${preview ? `，body=${preview}` : ''}`,
+    );
   }
 }

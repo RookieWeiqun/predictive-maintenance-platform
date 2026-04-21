@@ -4,6 +4,12 @@
     <IxContentHeader header-title="维护任务清单">
       <IxButton 
         variant="secondary" 
+        @click="handleOpenAndroidDebug"
+      >
+        Android调试
+      </IxButton>
+      <IxButton 
+        variant="secondary" 
         @click="handleDownloadTasks"
       >
         下载任务
@@ -85,6 +91,7 @@ import {
 } from 'ag-grid-community';
 import * as agGrid from 'ag-grid-community';
 import { IxContentHeader, IxInput, IxSelect, IxSelectItem, IxButton } from "@siemens/ix-vue";
+import { downloadAllTaskPackages, downloadTaskPackage, offlineOutboxRepository, offlineTaskRepository } from '@/android';
 import tasksData from '@/mockdata/task/tasks.json';
 import taskStatusData from '@/mockdata/common/taskStatus.json';
 
@@ -277,12 +284,27 @@ const handleViewScheme = (task: any) => {
 
 // 执行任务
 const handleExecuteTask = (task: any) => {
-  router.push(`/task/collect/${task.id}`);
+  void (async () => {
+    try {
+      const localTask = await offlineTaskRepository.getByTaskUuid(task.id);
+      if (localTask == null) {
+        await downloadTaskPackage(task.id);
+      }
+    } catch (error) {
+      console.error('预加载离线任务包失败:', error);
+    }
+
+    router.push(`/task/collect/${task.id}`);
+  })();
 };
 
 // 查看任务
 const handleReviewTask = (task: any) => {
   router.push(`/task/review/${task.id}`);
+};
+
+const handleOpenAndroidDebug = () => {
+  router.push('/android/debug');
 };
 
 // 删除任务
@@ -315,16 +337,8 @@ const handleProjectFilter = () => {
 // 下载任务（从云端下载任务到本地）
 const handleDownloadTasks = async () => {
   try {
-    // TODO: 实现从云端API下载任务的逻辑
-    // 示例：const response = await fetch('/api/tasks/download');
-    // const tasks = await response.json();
-    // allTasks.value = tasks;
-    
-    // 临时提示
-    alert('正在从云端下载任务...\n（此功能待实现）');
-    
-    // 模拟下载成功后刷新数据
-    // updateGridData();
+    const downloaded = await downloadAllTaskPackages();
+    alert(`已下载 ${downloaded.taskCount} 个任务包，共 ${downloaded.itemCount} 条任务项到本地离线库。`);
   } catch (error) {
     console.error('下载任务失败:', error);
     alert('下载任务失败，请稍后重试');
@@ -334,34 +348,18 @@ const handleDownloadTasks = async () => {
 // 上传数据（把采集的数据批量上传至云端）
 const handleUploadData = async () => {
   try {
-    // 获取所有已完成采集的任务（状态为 completed 或 synced）
-    const tasksToUpload = allTasks.value.filter(
-      task => task.status === 'completed' || task.status === 'synced'
-    );
-    
-    if (tasksToUpload.length === 0) {
-      alert('没有可上传的数据，请先完成任务采集');
+    const pendingChanges = await offlineOutboxRepository.listPending();
+
+    if (pendingChanges.length === 0) {
+      alert('当前没有待上传的离线变更。');
       return;
     }
-    
-    if (!confirm(`确定要上传 ${tasksToUpload.length} 个任务的采集数据到云端吗？`)) {
+
+    if (!confirm(`当前有 ${pendingChanges.length} 条待同步离线变更。此处仅完成本地统计，云端同步接口仍待实现，是否继续查看？`)) {
       return;
     }
-    
-    // TODO: 实现批量上传数据的逻辑
-    // 示例：const response = await fetch('/api/tasks/upload', {
-    //   method: 'POST',
-    //   body: JSON.stringify(tasksToUpload),
-    // });
-    
-    // 临时提示
-    alert(`正在上传 ${tasksToUpload.length} 个任务的数据到云端...\n（此功能待实现）`);
-    
-    // 模拟上传成功后更新状态
-    // tasksToUpload.forEach(task => {
-    //   task.status = 'synced';
-    // });
-    // updateGridData();
+
+    alert(`待同步离线变更数量：${pendingChanges.length}\n云端同步接口尚未接入，本地 outbox 已可累计变更。`);
   } catch (error) {
     console.error('上传数据失败:', error);
     alert('上传数据失败，请稍后重试');

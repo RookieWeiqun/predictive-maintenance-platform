@@ -13,6 +13,7 @@ import "@siemens/ix/dist/siemens-ix/theme/classic-light.css";
 import { createApp } from "vue";
 import App from "./App.vue";
 import router from "./router";
+import { initializeAndroidRuntime } from "./android";
 import "./index.css";
 import "./styles/theme-mapping.css";
 
@@ -36,6 +37,16 @@ function optionalTheme() {
 
 optionalTheme();
 
-const app = createApp(App);
-app.use(router);
-app.mount("#app");
+async function bootstrap() {
+  try {
+    await initializeAndroidRuntime();
+  } catch (error) {
+    console.error('离线数据库初始化失败:', error);
+  }
+
+  const app = createApp(App);
+  app.use(router);
+  app.mount("#app");
+}
+
+void bootstrap();

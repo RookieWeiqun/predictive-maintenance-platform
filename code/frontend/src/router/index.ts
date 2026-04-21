@@ -32,6 +32,7 @@ import TaskList from "../pages/task/list/index.vue";
 import TaskScheme from "../pages/task/scheme/index.vue";
 import TaskCollect from "../pages/task/collect/index.vue";
 import TaskReview from "../pages/task/review/index.vue";
+import AndroidDebug from "../pages/android/debug/index.vue";
 
 const router = createRouter({
   history: createWebHashHistory(),
@@ -104,6 +105,10 @@ const router = createRouter({
     {
       path: "/task/review/:taskId",
       component: TaskReview,
+    },
+    {
+      path: "/android/debug",
+      component: AndroidDebug,
     },
   ],
 });

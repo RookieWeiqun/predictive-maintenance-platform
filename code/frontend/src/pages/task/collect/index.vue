@@ -296,6 +296,7 @@ import {
   iconError,
   iconBulb
 } from "@siemens/ix-icons/icons";
+import { downloadTaskPackage, offlineOutboxRepository, offlineTaskItemRepository, offlineTaskRepository } from '@/android';
 import tasksData from '@/mockdata/task/tasks.json';
 import { getSchemeById } from '@/mockdata/scheme/index.ts';
 
@@ -351,6 +352,97 @@ const currentTaskList = ref<any[]>([]);
 
 // 任务数据（存储所有任务的检测结果）
 const taskDataMap = ref<Record<string, any>>({});
+
+function buildTaskItemUuid(taskItemId: string): string {
+  return `${taskId}:${taskItemId}`;
+}
+
+function parseOfflineResult(raw: string | null): { result?: string; remarks?: string; dataFields?: Record<string, any> } {
+  if (raw == null || raw === '') {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object') {
+      return parsed;
+    }
+  } catch {
+    return { result: raw };
+  }
+
+  return {};
+}
+
+function buildOfflineResult(task: any): string {
+  const dataFields = Object.fromEntries(
+    (task.dataFields ?? []).map((field: any) => [field.id, field.value]),
+  );
+
+  return JSON.stringify({
+    result: task.result || '',
+    remarks: task.remarks || '',
+    dataFields,
+  });
+}
+
+async function persistTaskRecord(task: any): Promise<void> {
+  const taskItemUuid = buildTaskItemUuid(task.id);
+  const existing = await offlineTaskItemRepository.getByTaskItemUuid(taskItemUuid);
+  const executionStatus = task.result ? 'completed' : 'pending';
+
+  await offlineTaskItemRepository.upsert({
+    task_item_uuid: taskItemUuid,
+    server_item_id: existing?.server_item_id ?? null,
+    task_uuid: taskId,
+    source_type: existing?.source_type ?? 'system_generated',
+    item_name: task.name,
+    category_path: existing?.category_path ?? `${currentCategoryPath.value} / ${currentSubCategoryName.value}`,
+    result: buildOfflineResult(task),
+    execution_status: executionStatus,
+    is_normal: task.result === 'normal',
+    is_recheck: false,
+    sync_status: 'pending',
+  });
+
+  await offlineTaskRepository.markDirty(taskId);
+  await offlineOutboxRepository.replacePending({
+    entity_type: 'task_item',
+    entity_uuid: taskItemUuid,
+    action: 'upsert_task_item',
+    payload_json: buildOfflineResult(task),
+  });
+}
+
+async function loadOfflineTaskItems(): Promise<void> {
+  const records = await offlineTaskItemRepository.listByTaskUuid(taskId);
+  if (records.length === 0) {
+    return;
+  }
+
+  for (const record of records) {
+    const itemId = record.task_item_uuid.startsWith(`${taskId}:`)
+      ? record.task_item_uuid.slice(taskId.length + 1)
+      : record.task_item_uuid;
+    const payload = parseOfflineResult(record.result);
+    taskDataMap.value[itemId] = {
+      ...(taskDataMap.value[itemId] ?? {}),
+      result: payload.result ?? '',
+      remarks: payload.remarks ?? '',
+      dataFields: payload.dataFields ?? {},
+    };
+  }
+
+  if (currentSubCategoryId.value) {
+    const subCategory = categoryList.value
+      .flatMap((category) => category.children || [])
+      .find((sub: any) => sub.id === currentSubCategoryId.value);
+    if (subCategory) {
+      buildTaskList(subCategory);
+    }
+  }
+  updateCompletionCounts();
+}
 
 // 计算属性
 const currentCategoryPath = computed(() => {
@@ -445,7 +537,7 @@ const hasNextModule = computed(() => {
 });
 
 // 加载任务信息
-onMounted(() => {
+onMounted(async () => {
   // 从任务列表中找到任务
   const task = tasksData.tasks.find(t => t.id === taskId);
   if (!task) {
@@ -484,6 +576,16 @@ onMounted(() => {
   
   // 加载草稿数据
   loadDraft();
+
+  try {
+    const localTask = await offlineTaskRepository.getByTaskUuid(taskId);
+    if (localTask == null) {
+      await downloadTaskPackage(taskId);
+    }
+    await loadOfflineTaskItems();
+  } catch (error) {
+    console.error('加载离线任务项失败:', error);
+  }
 });
 
 // 构建类别列表
@@ -733,6 +835,7 @@ const handleFieldUpdate = (fieldId: string, value: any) => {
   taskDataMap.value[task.id].dataFields[fieldId] = field.value;
   
   saveDraft();
+  void persistTaskRecord(task);
 };
 
 // 处理Toggle按钮切换
@@ -753,6 +856,7 @@ const updateTaskData = (taskId: string, updates: Record<string, any>) => {
   Object.assign(taskDataMap.value[taskId], updates);
   
   saveDraft();
+  void persistTaskRecord(task);
 };
 
 // 获取检测结果按钮的类名
