@@ -24,5 +24,5 @@ public partial class InspectionTemplate
 
     public string? Mlfb { get; set; }
 
-    public DateOnly? Createdate { get; set; }
+    public DateOnly Createdate { get; set; }
 }

@@ -113,6 +113,8 @@ namespace premaintainProjects.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteProject(int id)
         {
+            using var transaction = await _context.Database.BeginTransactionAsync();
+
             var project = await _context.Projects.FindAsync(id);
             if (project == null)
             {
@@ -120,8 +122,27 @@ namespace premaintainProjects.Controllers
                 return new JsonResult(new { code = ResponseCode.记录不存在, data = (object)null, msg = "记录不存在" });
             }
 
-            _context.Projects.Remove(project);
+            // 项目逻辑删除
+            project.Ifdel = true;
+
+            // 下面这些表需要先确认模型里都有 Ifdel 字段
+            var inspectionTasks = await _context.InspectionTasks
+                .Where(x => x.Projectid == id)
+                .ToListAsync();
+            inspectionTasks.ForEach(x => x.Ifdel = true);
+
+            var projectEquipments = await _context.ProjectEquipments
+                .Where(x => x.Projectid == id)
+                .ToListAsync();
+            projectEquipments.ForEach(x => x.Ifdel = true);
+
+            var reports = await _context.Reports
+                .Where(x => x.Projectid == id)
+                .ToListAsync();
+            reports.ForEach(x => x.Ifdel = true);
+
             await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
 
             _logger.LogInformation("删除项目成功，ID：{Id}", id);
             return new JsonResult(new { code = ResponseCode.成功, data = id, msg = "" });

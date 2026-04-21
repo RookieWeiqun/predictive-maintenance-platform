@@ -23,4 +23,6 @@ public partial class Project
     public int Projectstatus { get; set; }
 
     public DateOnly Createdate { get; set; }
+
+    public bool Ifdel { get; set; }
 }
