@@ -32,7 +32,14 @@ export async function requestJson<T>(path: string, init?: RequestInit): Promise<
   });
 
   if (!response.ok) {
-    throw new ApiError(`HTTP ${response.status}: ${response.statusText}`);
+    let detail = '';
+    try {
+      detail = (await response.text()).trim();
+    } catch {
+      // ignore body read error
+    }
+    const suffix = detail ? ` | ${detail}` : '';
+    throw new ApiError(`HTTP ${response.status}: ${response.statusText}${suffix}`);
   }
 
   try {

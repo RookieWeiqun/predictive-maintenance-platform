@@ -84,13 +84,13 @@ export function createBaseColumnDefs(
       },
     },
     {
-      field: 'typeLabel',
-      headerName: '检测类型',
+      field: 'dataType',
+      headerName: '数据类型',
       width: 120,
       valueGetter: (params: any) => {
         const data = params.data as FlatRow;
-        if (!data.isDetectionItem || !data.type) return '-';
-        return getTypeLabel(data.type);
+        if (!data.isDetectionItem) return '-';
+        return data.dataType || (data.type ? getTypeLabel(data.type) : '-');
       },
       valueFormatter: (params: any) => {
         if (params.value === undefined || params.value === null) return '-';
@@ -105,13 +105,13 @@ export function createBaseColumnDefs(
       },
     },
     {
-      field: 'requiredLabel',
-      headerName: '是否必填',
+      field: 'priority',
+      headerName: '权重',
       width: 100,
       valueGetter: (params: any) => {
         const data = params.data as FlatRow;
         if (!data.isDetectionItem) return '-';
-        return data.required !== false ? '必填' : '可选';
+        return data.priority || (data.required !== false ? 'High' : 'Low');
       },
       valueFormatter: (params: any) => {
         if (params.value === undefined || params.value === null) return '-';
@@ -158,43 +158,59 @@ export function createBaseColumnDefs(
       },
     },
     {
-      field: 'minThreshold',
-      headerName: '最小阈值',
-      width: 120,
-      valueFormatter: (params: any) => {
-        if (params.value === undefined || params.value === null) return '-';
-        return params.value.toString();
-      },
-      cellStyle: (params: any) => {
-        const data = params.data as FlatRow;
-        if (!data.isDetectionItem) {
-          return { color: 'var(--theme-color-weak-text)' };
-        }
-        return { color: 'var(--theme-color-text)' };
-      },
-    },
-    {
-      field: 'maxThreshold',
-      headerName: '最大阈值',
-      width: 120,
-      valueFormatter: (params: any) => {
-        if (params.value === undefined || params.value === null) return '-';
-        return params.value.toString();
-      },
-      cellStyle: (params: any) => {
-        const data = params.data as FlatRow;
-        if (!data.isDetectionItem) {
-          return { color: 'var(--theme-color-weak-text)' };
-        }
-        return { color: 'var(--theme-color-text)' };
-      },
-    },
-    {
-      field: 'testProcedure',
-      headerName: '测试步骤',
-      width: 200,
+      field: 'operationGuide',
+      headerName: '操作指导',
+      width: 220,
       valueFormatter: (params: any) => {
         if (params.value === undefined || params.value === null || params.value === '') return '-';
+        return String(params.value);
+      },
+      cellStyle: (params: any) => {
+        const data = params.data as FlatRow;
+        if (!data.isDetectionItem) {
+          return { color: 'var(--theme-color-weak-text)' };
+        }
+        return { color: 'var(--theme-color-text)' };
+      },
+    },
+    {
+      field: 'ruleType',
+      headerName: '规则类型',
+      width: 140,
+      valueFormatter: (params: any) => {
+        if (params.value === undefined || params.value === null || params.value === '') return '-';
+        return String(params.value);
+      },
+      cellStyle: (params: any) => {
+        const data = params.data as FlatRow;
+        if (!data.isDetectionItem) {
+          return { color: 'var(--theme-color-weak-text)' };
+        }
+        return { color: 'var(--theme-color-text)' };
+      },
+    },
+    {
+      field: 'param1',
+      headerName: '参数1',
+      width: 120,
+      valueFormatter: (params: any) => {
+        if (params.value === undefined || params.value === null) return '-';
+        return String(params.value);
+      },
+      cellStyle: (params: any) => {
+        const data = params.data as FlatRow;
+        if (!data.isDetectionItem) {
+          return { color: 'var(--theme-color-weak-text)' };
+        }
+        return { color: 'var(--theme-color-text)' };
+      },
+    },
+    {
+      field: 'param2',
+      headerName: '参数2',
+      width: 120,
+      valueFormatter: (params: any) => {
+        if (params.value === undefined || params.value === null) return '-';
         return String(params.value);
       },
       cellStyle: (params: any) => {
@@ -248,59 +264,87 @@ export function configureColumnEditing(
         }
         return false;
       };
-    } else if (field === 'typeLabel') {
+    } else if (field === 'dataType') {
       colDef.editable = (params: any) => !!params.data.isDetectionItem;
       colDef.cellEditor = 'agSelectCellEditor';
-      colDef.cellEditorParams = { values: ['外观', '电气', '功能', '环境'] };
+      colDef.cellEditorParams = { values: ['数值', '布尔', '枚举'] };
       colDef.valueGetter = (params: any) => {
         const data = params.data as FlatRow;
-        if (!data.isDetectionItem || !data.type) return '-';
-        return getTypeLabel(data.type);
+        if (!data.isDetectionItem) return '-';
+        return data.dataType || '-';
       };
       colDef.valueSetter = (params: any) => {
         const rowData = params.data as FlatRow;
         if (rowData.isDetectionItem) {
           const item = findItemByRowId(rowData.id);
           if (item) {
-            const typeMap: Record<string, string> = {
-              '外观': 'visual',
-              '电气': 'electrical',
-              '功能': 'functional',
-              '环境': 'environment',
-            };
-            const typeValue = Object.entries(typeMap).find(([label]) => label === params.newValue)?.[1];
-            if (typeValue) {
-              item.type = typeValue;
-              rowData.type = typeValue;
-              rowData.typeLabel = params.newValue;
-              return true;
-            }
+            item.dataType = params.newValue || undefined;
+            rowData.dataType = params.newValue || undefined;
+            return true;
           }
         }
         return false;
       };
-    } else if (field === 'requiredLabel') {
+    } else if (field === 'priority') {
       colDef.editable = (params: any) => !!params.data.isDetectionItem;
       colDef.cellEditor = 'agSelectCellEditor';
-      colDef.cellEditorParams = { values: ['必填', '可选'] };
+      colDef.cellEditorParams = { values: ['High', 'Medium', 'Low'] };
       colDef.valueGetter = (params: any) => {
         const data = params.data as FlatRow;
         if (!data.isDetectionItem) return '-';
-        return data.required !== false ? '必填' : '可选';
+        return data.priority || (data.required !== false ? 'High' : 'Low');
       };
       colDef.valueSetter = (params: any) => {
         const rowData = params.data as FlatRow;
         if (rowData.isDetectionItem) {
           const item = findItemByRowId(rowData.id);
           if (item) {
-            item.required = params.newValue === '必填';
-            rowData.required = params.newValue === '必填';
-            rowData.requiredLabel = params.newValue;
+            item.priority = params.newValue || undefined;
+            rowData.priority = params.newValue || undefined;
+            item.required = (params.newValue || 'High') !== 'Low';
+            rowData.required = item.required;
             updateGridData();
             return true;
           }
         }
         return false;
+      };
+    } else if (field === 'operationGuide' || field === 'ruleType' || field === 'param1' || field === 'param2') {
+      colDef.editable = (params: any) => params.data.isDetectionItem;
+      colDef.cellEditor = 'agTextCellEditor';
+      colDef.valueSetter = (params: any) => {
+        const rowData = params.data as FlatRow;
+        if (!rowData.isDetectionItem) return false;
+        const item = findItemByRowId(rowData.id);
+        if (!item) return false;
+        const value = params.newValue || undefined;
+        if (field === 'operationGuide') {
+          item.operationGuide = value;
+          rowData.operationGuide = value;
+          item.testProcedure = value;
+          rowData.testProcedure = value;
+        } else if (field === 'ruleType') {
+          item.ruleType = value;
+          rowData.ruleType = value;
+        } else if (field === 'param1') {
+          item.param1 = value;
+          rowData.param1 = value;
+          const n = value ? Number.parseFloat(value) : Number.NaN;
+          if (Number.isFinite(n)) {
+            item.minThreshold = n;
+            rowData.minThreshold = n;
+          }
+        } else if (field === 'param2') {
+          item.param2 = value;
+          rowData.param2 = value;
+          const n = value ? Number.parseFloat(value) : Number.NaN;
+          if (Number.isFinite(n)) {
+            item.maxThreshold = n;
+            rowData.maxThreshold = n;
+          }
+        }
+        updateGridData();
+        return true;
       };
     } else if (field === 'unit') {
       colDef.editable = (params: any) => !!params.data.isDetectionItem;

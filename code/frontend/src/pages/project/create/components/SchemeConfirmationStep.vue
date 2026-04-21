@@ -49,13 +49,25 @@
       <div class="scheme-container">
         <div class="scheme-summary">
           <div class="scheme-info-item">
-            <span class="scheme-label">方案名称：</span>
+            <span class="scheme-label">设备检测方案：</span>
             <span class="scheme-value">{{ selectedScheme?.name || '-' }}</span>
           </div>
           <div class="scheme-info-item">
             <span class="scheme-label">适用型号：</span>
             <span class="scheme-value">{{ selectedScheme?.model || '-' }}</span>
           </div>
+        </div>
+        <div
+          v-if="peripheralSchemeSummary && peripheralSchemeSummary.length > 0"
+          class="peripheral-summary"
+        >
+          <h4 class="peripheral-summary-title">各车间外围方案</h4>
+          <ul class="peripheral-summary-list">
+            <li v-for="(row, idx) in peripheralSchemeSummary" :key="idx">
+              <span class="scheme-label">{{ row.workshopLabel }}</span>
+              <span class="scheme-value">{{ row.schemeName }}</span>
+            </li>
+          </ul>
         </div>
         <div v-if="adjustedSchemeTreeModel" class="scheme-preview">
           <div class="tree-header">
@@ -93,7 +105,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch, withDefaults } from 'vue';
 import { AgGridVue } from 'ag-grid-vue3';
 import { getIxTheme } from '@siemens/ix-aggrid';
 import {
@@ -109,9 +121,9 @@ import {
   IxSelectItem,
   IxTree,
 } from "@siemens/ix-vue";
-import customersData from '@/mockdata/common/customers.json';
 import usersData from '@/mockdata/common/users.json';
 import maintenanceSchemesData from '@/mockdata/common/maintenanceSchemes.json';
+import { isTemplateApiId } from '@/pages/scheme/utils/schemeInspectionTemplate';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -135,9 +147,19 @@ interface Props {
   adjustedSchemeTreeModel?: TreeModel<any>;
   adjustedSchemeTreeContext?: TreeContext;
   checkedItems: string[];
+  /** 与客户下拉同源，用于展示客户名称 */
+  customerOptions?: { label: string; value: string }[];
+  /** Search 匹配结果，用于展示方案名称与 MLFB */
+  matchedSchemeCards?: { id: string; name: string; model: string }[];
+  /** 各车间已选外围方案摘要 */
+  peripheralSchemeSummary?: { workshopLabel: string; schemeName: string }[];
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  customerOptions: () => [],
+  matchedSchemeCards: () => [],
+  peripheralSchemeSummary: () => [],
+});
 
 const emit = defineEmits<{
   'update-tree-context': [context: TreeContext];
@@ -150,8 +172,8 @@ const maintenanceEngineerOptions = computed(() =>
 );
 
 const getCustomerName = (customerId: string) => {
-  const customer = customersData.customers.find(c => c.id === customerId);
-  return customer?.name || '-';
+  const hit = props.customerOptions.find((c) => c.value === customerId);
+  return hit?.label || '-';
 };
 
 const getProjectManagerName = (managerId: string) => {
@@ -160,9 +182,18 @@ const getProjectManagerName = (managerId: string) => {
 };
 
 const selectedScheme = computed(() => {
-  if (!props.formData.maintenanceSchemeId) return null;
+  const id = props.formData.maintenanceSchemeId;
+  if (!id) return null;
+  const fromApi = props.matchedSchemeCards.find((s) => s.id === id);
+  if (fromApi) {
+    return { name: fromApi.name, model: fromApi.model };
+  }
+  if (isTemplateApiId(id)) {
+    return { name: `模板 #${id}`, model: '-' };
+  }
   const schemes = Array.isArray(maintenanceSchemesData) ? maintenanceSchemesData : [];
-  return schemes.find(s => s.id === props.formData.maintenanceSchemeId);
+  const legacy = schemes.find((s) => s.id === id);
+  return legacy ? { name: legacy.name, model: legacy.model } : null;
 });
 
 const totalTasks = computed(() => {
@@ -400,6 +431,30 @@ const updateDeviceGridData = () => {
 .scheme-value {
   color: var(--theme-color-text);
   font-weight: 500;
+}
+
+.peripheral-summary {
+  margin: 1rem 0;
+  padding: 0.75rem 1rem;
+  background: var(--theme-color-soft);
+  border-radius: 0.25rem;
+}
+
+.peripheral-summary-title {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--theme-color-text);
+}
+
+.peripheral-summary-list {
+  margin: 0;
+  padding-left: 1.25rem;
+  font-size: 0.875rem;
+}
+
+.peripheral-summary-list li {
+  margin-bottom: 0.35rem;
 }
 
 .scheme-preview {

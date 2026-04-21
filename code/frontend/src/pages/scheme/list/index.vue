@@ -11,7 +11,7 @@
         <div class="filter-section">
           <IxInput 
             v-model="searchText" 
-            placeholder="搜索方案名称或型号" 
+            placeholder="搜索方案名称、描述、产品类型或型号" 
             style="flex: 1; max-width: 300px;" 
           />
           <IxSelect v-model="selectedCategory" placeholder="全部分类" style="min-width: 150px;">
@@ -32,7 +32,7 @@
             v-if="gridOptions"
             style="height: 600px; width: 100%"
             :gridOptions="gridOptions"
-            @grid-ready="handleGridReady"
+            :rowData="filteredSchemes"
           />
         </div>
       </div>
@@ -41,7 +41,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { AgGridVue } from 'ag-grid-vue3';
 import { getIxTheme } from '@siemens/ix-aggrid';
@@ -51,10 +51,12 @@ import {
   GridOptions,
 } from 'ag-grid-community';
 import * as agGrid from 'ag-grid-community';
-import { IxContentHeader, IxButton, IxInput, IxSelect, IxSelectItem } from "@siemens/ix-vue";
-import { iconAdd } from "@siemens/ix-icons/icons";
-import { getAllSchemes } from '@/mockdata/scheme/index';
+import { IxContentHeader, IxButton, IxInput, IxSelect, IxSelectItem, showToast } from '@siemens/ix-vue';
+import { iconAdd } from '@siemens/ix-icons/icons';
 import productCategoriesData from '@/mockdata/common/productCategories.json';
+import { inspectionTemplatesApi } from '@/api';
+import { templateDtoToListRow, type SchemeListRow } from '../utils/schemeInspectionTemplate';
+import { loadTemplateItemsMap } from '../utils/loadTemplateItems';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -109,45 +111,65 @@ const getSchemeTypeLabel = (type: string) => {
 };
 
 // 获取产品类型（合并分类和子分类）
-const getProductType = (scheme: any) => {
-  if (scheme.type === 'peripheral') {
-    return '-'; // 外围检测方案不显示产品类型
-  }
+const getProductType = (scheme: SchemeListRow) => {
   const categoryName = getCategoryName(scheme.categoryId);
   const subCategoryName = getSubCategoryName(scheme.subCategoryId);
-  if (categoryName && subCategoryName) {
+  if (categoryName && subCategoryName && categoryName !== '-' && subCategoryName !== '-') {
     return `${categoryName}/${subCategoryName}`;
-  } else if (categoryName) {
+  } else if (categoryName && categoryName !== '-') {
     return categoryName;
   }
   return '-';
 };
 
+const schemeRows = ref<SchemeListRow[]>([]);
+
+async function loadSchemes() {
+  try {
+    const [list, itemsMap] = await Promise.all([
+      inspectionTemplatesApi.listInspectionTemplates(),
+      loadTemplateItemsMap(),
+    ]);
+    schemeRows.value = list.map((dto) => {
+      const row = templateDtoToListRow(dto);
+      const apiItems = itemsMap.get(dto.templateid);
+      if (apiItems && apiItems.length > 0) {
+        row.items = apiItems;
+      }
+      return row;
+    });
+  } catch (e) {
+    showToast({ message: e instanceof Error ? e.message : '方案列表加载失败' });
+  }
+}
+
 // 过滤后的方案列表
 const filteredSchemes = computed(() => {
-  // 从 scheme 文件夹加载所有方案
-  let schemes = getAllSchemes();
-  
-  // 按分类筛选
+  let schemes = schemeRows.value;
+
   if (selectedCategory.value) {
-    schemes = schemes.filter(s => s.categoryId === selectedCategory.value);
+    schemes = schemes.filter((s) => s.categoryId === selectedCategory.value);
   }
-  
-  // 按搜索文本筛选
-  if (searchText.value) {
-    const searchLower = searchText.value.toLowerCase();
-    schemes = schemes.filter(s => 
-      s.name.toLowerCase().includes(searchLower) ||
-      (s.model && s.model.toLowerCase().includes(searchLower))
+
+  const q = searchText.value.trim().toLowerCase();
+  if (q) {
+    schemes = schemes.filter(
+      (s) => {
+        const productType = getProductType(s).toLowerCase();
+        return (
+          s.name.toLowerCase().includes(q) ||
+          (s.description && s.description.toLowerCase().includes(q)) ||
+          productType.includes(q) ||
+          (s.model && s.model.toLowerCase().includes(q))
+        );
+      },
     );
   }
-  
+
   return schemes;
 });
 
-// ag-grid 配置
 const gridOptions = ref<GridOptions | null>(null);
-const gridApi = ref<any>(null);
 
 // 查看方案
 const handleView = (schemeId: string) => {
@@ -159,11 +181,16 @@ const handleEdit = (schemeId: string) => {
   router.push(`/scheme/edit/${schemeId}`);
 };
 
-// 删除方案
-const handleDelete = (schemeId: string) => {
-  // TODO: 实现删除功能
-  if (confirm('确定要删除这个方案吗？')) {
-    console.log('删除方案:', schemeId);
+const handleDelete = async (schemeId: string) => {
+  if (!confirm('确定要删除这个方案吗？')) {
+    return;
+  }
+  try {
+    await inspectionTemplatesApi.deleteInspectionTemplate(Number.parseInt(schemeId, 10));
+    await loadSchemes();
+    showToast({ message: '删除成功' });
+  } catch (e) {
+    showToast({ message: e instanceof Error ? e.message : '删除失败' });
   }
 };
 
@@ -177,21 +204,11 @@ const handleAddEquipmentScheme = () => {
   router.push('/scheme/create/equipment');
 };
 
-// 搜索
 const handleSearch = () => {
-  if (gridApi.value) {
-    gridApi.value.setRowData(filteredSchemes.value);
-  }
+  // 由 `filteredSchemes` 计算属性驱动，保留按钮以符合操作习惯。
 };
 
-// 处理 Grid Ready 事件
-const handleGridReady = (params: any) => {
-  if (params && params.api) {
-    gridApi.value = params.api;
-  }
-};
-
-onMounted(() => {
+onMounted(async () => {
   const ixTheme = getIxTheme(agGrid);
 
   gridOptions.value = {
@@ -208,13 +225,24 @@ onMounted(() => {
         cellStyle: { fontWeight: 500 },
       },
       {
+        field: 'description',
+        headerName: '方案描述',
+        resizable: true,
+        sortable: true,
+        filter: true,
+        width: 260,
+        valueGetter: (params: any) => {
+          return params.data?.description || '-';
+        },
+      },
+      {
         headerName: '方案类型',
         resizable: true,
         sortable: true,
         filter: true,
         width: 120,
         valueGetter: (params: any) => {
-          return getSchemeTypeLabel(params.data.type);
+          return getSchemeTypeLabel(params.data?.type);
         },
       },
       {
@@ -224,7 +252,7 @@ onMounted(() => {
         filter: true,
         width: 200,
         valueGetter: (params: any) => {
-          return getProductType(params.data);
+          return params.data ? getProductType(params.data) : '-';
         },
       },
       {
@@ -244,7 +272,7 @@ onMounted(() => {
         sortable: true,
         width: 120,
         valueGetter: (params: any) => {
-          return params.data.items ? countDetectionItems(params.data.items) : 0;
+          return params.data?.items ? countDetectionItems(params.data.items) : 0;
         },
       },
       {
@@ -265,30 +293,25 @@ onMounted(() => {
           `;
         },
         onCellClicked: (params: any) => {
-          if (params.event?.target?.classList.contains('ag-action-btn')) {
-            const action = params.event.target.getAttribute('data-action');
-            const id = params.event.target.getAttribute('data-id');
-            if (action === 'view') {
-              handleView(id);
-            } else if (action === 'edit') {
-              handleEdit(id);
-            } else if (action === 'delete') {
-              handleDelete(id);
-            }
+          const target = params.event?.target as HTMLElement | undefined;
+          if (!target?.classList.contains('ag-action-btn')) return;
+          const action = target.getAttribute('data-action');
+          const id = target.getAttribute('data-id');
+          if (!id) return;
+          if (action === 'view') {
+            handleView(id);
+          } else if (action === 'edit') {
+            handleEdit(id);
+          } else if (action === 'delete') {
+            void handleDelete(id);
           }
         },
       },
     ],
-    rowData: filteredSchemes.value,
     suppressCellFocus: true,
   };
-});
 
-// 监听搜索和筛选变化
-watch([searchText, selectedCategory], () => {
-  if (gridApi.value) {
-    gridApi.value.setRowData(filteredSchemes.value);
-  }
+  await loadSchemes();
 });
 </script>
 

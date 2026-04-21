@@ -1,6 +1,16 @@
 <!-- 方案查看/编辑页面 -->
 <template>
   <div class="scheme-view-page">
+    <div v-if="syncProgress.visible" class="sync-progress-mask">
+      <div class="sync-progress-card">
+        <div class="sync-progress-title">正在保存检测项</div>
+        <div class="sync-progress-message">{{ syncProgress.message }}</div>
+        <div class="sync-progress-track">
+          <div class="sync-progress-fill" :style="{ width: `${syncProgress.percent}%` }"></div>
+        </div>
+        <div class="sync-progress-percent">{{ syncProgress.percent }}%</div>
+      </div>
+    </div>
     <IxContentHeader :header-title="pageTitle">
       <IxButton variant="secondary" @click="handleBack">返回</IxButton>
       <template v-if="!isEditMode">
@@ -30,12 +40,12 @@
             style="flex: 1;"
           />
           
-          <!-- 设备方案显示分类和型号 -->
-          <template v-if="schemeForm.atomicType === 'equipment'">
+          <!-- 外围/设备方案都需要明确产品类别和产品系列 -->
+          <template v-if="schemeForm.atomicType">
             <IxSelect 
               v-if="isEditMode"
               v-model="schemeForm.categoryId" 
-              label="产品分类"
+              :label="productCategoryLabel"
               style="flex: 1;"
             >
               <IxSelectItem 
@@ -48,14 +58,14 @@
             <IxInput 
               v-else
               :model-value="categoryName" 
-              label="产品分类" 
+              :label="productCategoryLabel" 
               readonly
               style="flex: 1;"
             />
             <IxSelect 
               v-if="isEditMode"
               v-model="schemeForm.subCategoryId" 
-              label="子分类"
+              :label="productSeriesLabel"
               style="flex: 1;"
             >
               <IxSelectItem 
@@ -68,11 +78,12 @@
             <IxInput 
               v-else
               :model-value="subCategoryName" 
-              label="子分类" 
+              :label="productSeriesLabel" 
               readonly
               style="flex: 1;"
             />
             <IxInput 
+              v-if="schemeForm.atomicType === 'equipment'"
               v-model="schemeForm.model" 
               label="适用型号" 
               :readonly="!isEditMode"
@@ -90,6 +101,14 @@
               <IxButton variant="tertiary" size="sm" @click="handleCollapseAll">全部收缩</IxButton>
             </div>
             <div v-if="isEditMode" class="table-actions-right">
+              <input
+                ref="excelInputRef"
+                type="file"
+                accept=".xlsx,.xls"
+                style="display: none;"
+                @change="handleExcelSelected"
+              />
+              <IxButton variant="tertiary" size="sm" @click="triggerExcelImport">导入Excel</IxButton>
               <IxButton variant="tertiary" size="sm" @click="handleAddRootItem">添加项目</IxButton>
               <IxButton 
                 variant="tertiary" 
@@ -123,13 +142,14 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { 
-  IxContentHeader, 
-  IxButton, 
-  IxInput, 
-  IxSelect, 
+import {
+  IxContentHeader,
+  IxButton,
+  IxInput,
+  IxSelect,
   IxSelectItem,
-} from "@siemens/ix-vue";
+  showToast,
+} from '@siemens/ix-vue';
 import { AgGridVue } from 'ag-grid-vue3';
 import {
   ModuleRegistry,
@@ -137,12 +157,21 @@ import {
 } from 'ag-grid-community';
 import { getSchemeById, saveScheme } from '@/mockdata/scheme/index.ts';
 import productCategoriesData from '@/mockdata/common/productCategories.json';
+import { inspectionTemplatesApi } from '@/api';
+import {
+  isTemplateApiId,
+  templateDtoToFormAndAtomic,
+  buildTemplateDtoForSave,
+} from '../utils/schemeInspectionTemplate';
 import { 
   type AtomicScheme, 
   type SchemeItem, 
 } from '../utils/schemeUtils';
 import { updateGridOptionsForEdit, updateGridOptionsForView } from '../utils/gridEditUtils';
 import { useSchemeGridEditor } from '../utils/useSchemeGridEditor';
+import { importInspectionItemsFromExcel } from '../utils/importInspectionItemsFromExcel';
+import { syncTemplateNodesWithProgress } from '../utils/syncTemplateNodes';
+import { loadTemplateItemsByTemplateId } from '../utils/loadTemplateItems';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -153,6 +182,10 @@ const schemeId = route.params.id as string;
 // 从任务列表进入时的参数
 const taskId = route.query.taskId as string | undefined;
 const returnPath = route.query.returnPath as string | undefined;
+
+const loadedTemplateCreatedate = ref<string | null>(null);
+const excelInputRef = ref<HTMLInputElement | null>(null);
+const syncProgress = ref({ visible: false, percent: 0, message: '' });
 
 // 编辑模式
 const isEditMode = ref(false);
@@ -198,6 +231,14 @@ const subCategories = computed(() => {
   return category?.subCategories || [];
 });
 
+const productCategoryLabel = computed(() =>
+  schemeForm.value.atomicType === 'peripheral' ? '产品类别' : '产品分类',
+);
+
+const productSeriesLabel = computed(() =>
+  schemeForm.value.atomicType === 'peripheral' ? '产品系列' : '子分类',
+);
+
 // 分类名称
 const categoryName = computed(() => {
   if (!schemeForm.value.categoryId) return '-';
@@ -242,10 +283,32 @@ const handleCellValueChanged = () => {
   updateGridData();
 };
 
+const triggerExcelImport = () => {
+  excelInputRef.value?.click();
+};
+
+const handleExcelSelected = async (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file || !currentAtomicScheme.value) {
+    return;
+  }
+  try {
+    const importedItems = await importInspectionItemsFromExcel(file);
+    currentAtomicScheme.value.items = importedItems;
+    selectedRows.value = [];
+    updateGridData();
+    showToast({ message: `导入成功，共导入 ${importedItems.length} 个根节点` });
+  } catch (e) {
+    showToast({ message: e instanceof Error ? e.message : 'Excel 导入失败' });
+  } finally {
+    input.value = '';
+  }
+};
+
 // 验证是否可以保存
 const canSave = computed(() => {
   if (!schemeForm.value.atomicType || !schemeForm.value.name) return false;
-  if (schemeForm.value.atomicType === 'equipment' && !schemeForm.value.categoryId) return false;
   if (!currentAtomicScheme.value || !currentAtomicScheme.value.items || currentAtomicScheme.value.items.length === 0) {
     return false;
   }
@@ -304,16 +367,16 @@ const handleSave = async () => {
     description: schemeForm.value.description,
     items: currentAtomicScheme.value?.items || [],
   };
-  
+
+  atomicScheme.categoryId = schemeForm.value.categoryId;
+  atomicScheme.subCategoryId = schemeForm.value.subCategoryId;
+  atomicScheme.deviceTypes = schemeForm.value.subCategoryId ? [schemeForm.value.subCategoryId] : [];
+
   if (schemeForm.value.atomicType === 'equipment') {
-    atomicScheme.categoryId = schemeForm.value.categoryId;
-    atomicScheme.subCategoryId = schemeForm.value.subCategoryId;
     atomicScheme.model = schemeForm.value.model;
-    atomicScheme.deviceTypes = schemeForm.value.subCategoryId ? [schemeForm.value.subCategoryId] : [];
   }
   
   try {
-    // 保存方案到 localStorage 和 scheme 系统
     const schemeData = {
       id: atomicScheme.id,
       name: atomicScheme.name,
@@ -325,7 +388,32 @@ const handleSave = async () => {
       model: atomicScheme.model || '',
       deviceTypes: atomicScheme.deviceTypes || [],
     };
-    
+
+    if (!taskId && isTemplateApiId(String(schemeIdToSave))) {
+      await inspectionTemplatesApi.updateInspectionTemplate(
+        buildTemplateDtoForSave(
+          Number.parseInt(String(schemeIdToSave), 10),
+          schemeForm.value,
+          atomicScheme,
+          loadedTemplateCreatedate.value,
+        ),
+      );
+      syncProgress.value = { visible: true, percent: 1, message: '准备同步检测项...' };
+      await syncTemplateNodesWithProgress(Number.parseInt(String(schemeIdToSave), 10), atomicScheme.items, (p) => {
+        syncProgress.value = { visible: true, percent: p.percent, message: p.message };
+      });
+      syncProgress.value = { visible: true, percent: 100, message: '同步完成' };
+      originalSchemeForm.value = { ...schemeForm.value };
+      if (currentAtomicScheme.value) {
+        originalAtomicScheme.value = JSON.parse(JSON.stringify(currentAtomicScheme.value));
+      }
+      isEditMode.value = false;
+      updateGridOptionsForViewLocal();
+      updateGridData();
+      showToast({ message: '保存成功' });
+      return;
+    }
+
     // 如果是从任务列表进入，保存为项目方案（不影响标准方案）
     if (taskId) {
       // 保存项目方案到独立的存储空间
@@ -337,27 +425,26 @@ const handleSave = async () => {
         console.error('保存项目方案失败:', e);
       }
     } else {
-      // 保存到标准方案系统（会更新 localStorage）
       saveScheme(schemeData);
     }
-    
-    console.log('保存原子方案:', atomicScheme);
-    
-    // 更新原始数据
+
     originalSchemeForm.value = { ...schemeForm.value };
     if (currentAtomicScheme.value) {
       originalAtomicScheme.value = JSON.parse(JSON.stringify(currentAtomicScheme.value));
     }
-    
+
     isEditMode.value = false;
-    // 恢复表格配置为只读
     updateGridOptionsForViewLocal();
     updateGridData();
-    
-    alert('保存成功！');
+
+    showToast({ message: '保存成功' });
   } catch (error) {
     console.error('保存失败:', error);
-    alert('保存失败，请重试');
+    showToast({ message: error instanceof Error ? error.message : '保存失败，请重试' });
+  } finally {
+    setTimeout(() => {
+      syncProgress.value.visible = false;
+    }, 300);
   }
 };
 
@@ -395,9 +482,7 @@ const updateGridOptionsForViewLocal = () => {
   );
 };
 
-// 初始化数据
-onMounted(() => {
-  // 如果是从任务列表进入，优先加载项目方案
+async function bootstrapView() {
   let scheme: any = null;
   if (taskId) {
     const taskSchemeKey = `task_scheme_${taskId}_${schemeId}`;
@@ -410,12 +495,36 @@ onMounted(() => {
       console.error('读取项目方案失败:', e);
     }
   }
-  
-  // 如果没有项目方案，加载标准方案
+
+  if (!scheme && isTemplateApiId(schemeId)) {
+    try {
+      const dto = await inspectionTemplatesApi.getInspectionTemplate(Number.parseInt(schemeId, 10));
+      loadedTemplateCreatedate.value = dto.createdate ?? null;
+      const { schemeForm: sf, atomic } = templateDtoToFormAndAtomic(dto);
+      const apiItems = await loadTemplateItemsByTemplateId(Number.parseInt(schemeId, 10));
+      if (apiItems.length > 0) {
+        atomic.items = apiItems;
+      }
+      schemeForm.value = sf;
+      originalSchemeForm.value = { ...sf };
+      currentAtomicScheme.value = atomic;
+      originalAtomicScheme.value = JSON.parse(JSON.stringify(atomic));
+      if (currentAtomicScheme.value && currentAtomicScheme.value.items.length > 0) {
+        initGridOptions();
+      }
+      return;
+    } catch (e) {
+      console.error(e);
+      alert('未找到该方案或加载失败');
+      router.push(returnPath || '/scheme/list');
+      return;
+    }
+  }
+
   if (!scheme) {
     scheme = getSchemeById(schemeId);
   }
-  
+
   if (!scheme) {
     alert('未找到该方案');
     router.push(returnPath || '/scheme/list');
@@ -465,6 +574,10 @@ onMounted(() => {
   if (currentAtomicScheme.value && currentAtomicScheme.value.items.length > 0) {
     initGridOptions();
   }
+}
+
+onMounted(() => {
+  void bootstrapView();
 });
 
 // 监听编辑模式变化，更新表格配置
@@ -558,6 +671,55 @@ watch(() => schemeForm.value.categoryId, () => {
 .table-actions-right {
   display: flex;
   gap: 0.5rem;
+}
+
+.sync-progress-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.28);
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sync-progress-card {
+  width: min(440px, calc(100vw - 2rem));
+  background: var(--theme-color-surface);
+  border-radius: 0.5rem;
+  padding: 1rem;
+}
+
+.sync-progress-title {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.sync-progress-message {
+  font-size: 0.875rem;
+  color: var(--theme-color-text-soft);
+  margin-bottom: 0.75rem;
+}
+
+.sync-progress-track {
+  width: 100%;
+  height: 8px;
+  background: var(--theme-color-soft);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.sync-progress-fill {
+  height: 100%;
+  background: var(--theme-color-primary);
+  transition: width 0.2s ease;
+}
+
+.sync-progress-percent {
+  margin-top: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--theme-color-text-soft);
+  text-align: right;
 }
 </style>
 

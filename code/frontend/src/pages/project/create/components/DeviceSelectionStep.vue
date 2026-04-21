@@ -1,18 +1,27 @@
 <template>
   <div class="step-content">
-    <p class="step-description">从客户设备清单中选择设备添加到项目中，也可以手动创建或批量导入设备。</p>
+    <p class="step-description">
+      从当前客户、当前工厂下的设备档案中选择设备加入项目（与「基本信息」中的客户、工厂一致），也可手动创建或批量导入。
+    </p>
     
     <div class="device-actions">
       <IxButton 
         variant="primary" 
-        :disabled="!customerId"
+        :disabled="!canSelectFromLibrary || loadingDevices"
         @click="handleOpenDeviceSelection"
       >
-        选择设备
+        {{ loadingDevices ? '加载设备…' : '选择设备' }}
       </IxButton>
       <IxButton variant="secondary" @click="handleShowAddModal">手动创建设备</IxButton>
       <IxButton variant="secondary" @click="handleShowUploadModal">批量导入设备</IxButton>
     </div>
+    <p v-if="!canSelectFromLibrary && (customerId || factory)" class="helper-text">
+      请先在「基本信息」中填写客户与工厂，系统将加载该工厂下全部设备供选择。
+    </p>
+    <p v-else-if="loadError" class="helper-text" style="color: var(--theme-color-alarm)">{{ loadError }}</p>
+    <p v-else-if="canSelectFromLibrary && !loadingDevices && selectableDevices.length === 0" class="helper-text">
+      该客户在该工厂下暂无设备档案，可先「手动创建设备」或到设备管理维护档案。
+    </p>
     
     <!-- 项目设备清单表格 -->
     <ProjectDeviceList 
@@ -35,17 +44,15 @@ import {
   GridOptions,
 } from 'ag-grid-community';
 import * as agGrid from 'ag-grid-community';
-import {
-  IxButton,
-  IxFieldLabel,
-  IxUpload,
-  showModal,
-} from "@siemens/ix-vue";
-import devicesData from '@/mockdata/common/devices.json';
+import { IxButton, showModal, showToast } from '@siemens/ix-vue';
 import ProjectDeviceList from './ProjectDeviceList.vue';
 import DeviceSelectionModal from './DeviceSelectionModal.vue';
 import UploadDeviceModal from './UploadDeviceModal.vue';
 import AddDeviceModalWrapper from './AddDeviceModalWrapper.vue';
+import {
+  loadDevicesForProjectSelection,
+  type SelectableProjectDevice,
+} from '../utils/equipmentSelection';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -62,6 +69,8 @@ interface Device {
 
 interface Props {
   customerId: string;
+  /** 与基本信息中的工厂一致，用于筛选设备档案 */
+  factory: string;
   projectDevices: Device[];
   getCategoryName: (id: string) => string;
   getSubCategoryName: (categoryId: string, subCategoryId: string) => string;
@@ -78,14 +87,43 @@ const emit = defineEmits<{
 }>();
 
 const gridOptions = ref<GridOptions | null>(null);
-const gridApi = ref<any>(null);
+const selectableDevices = ref<SelectableProjectDevice[]>([]);
+const loadingDevices = ref(false);
+const loadError = ref('');
 
-const customerDevices = computed(() => {
-  if (!props.customerId) return [];
-  return devicesData.devices.filter(device => device.customerId === props.customerId);
-});
+const canSelectFromLibrary = computed(
+  () =>
+    !!props.customerId &&
+    typeof props.factory === 'string' &&
+    props.factory.trim().length > 0,
+);
 
-// 初始化 ag-grid
+async function refreshSelectableDevices() {
+  loadError.value = '';
+  selectableDevices.value = [];
+  if (!canSelectFromLibrary.value) return;
+  loadingDevices.value = true;
+  try {
+    selectableDevices.value = await loadDevicesForProjectSelection(
+      props.customerId,
+      props.factory,
+    );
+  } catch (e) {
+    loadError.value = e instanceof Error ? e.message : '设备列表加载失败';
+    showToast({ message: loadError.value });
+  } finally {
+    loadingDevices.value = false;
+  }
+}
+
+watch(
+  () => [props.customerId, props.factory] as const,
+  () => {
+    void refreshSelectableDevices();
+  },
+  { immediate: true },
+);
+
 onMounted(() => {
   const ixTheme = getIxTheme(agGrid);
 
@@ -163,55 +201,25 @@ onMounted(() => {
       },
     ],
     suppressCellFocus: true,
-    onGridReady: (params: any) => {
-      gridApi.value = params.api;
-      updateGridData();
-    },
   };
 });
 
-// 监听客户设备变化，更新表格数据
-watch(() => customerDevices.value, () => {
-  updateGridData();
-}, { deep: true });
-
-// 更新表格数据
-const updateGridData = () => {
-  if (!gridApi.value) return;
-  
-  const rowData = customerDevices.value.map(device => ({
-    id: device.id,
-    factoryName: device.factoryName,
-    workshopName: device.workshopName,
-    categoryName: device.categoryName,
-    subCategoryName: device.subCategoryName,
-    model: device.model,
-    quantity: device.quantity,
-    serialRange: device.serialNumbers && device.serialNumbers.length > 0
-      ? `${device.serialNumbers[0]} ~ ${device.serialNumbers[device.serialNumbers.length - 1]}`
-      : '-',
-    // 保留原始设备数据用于后续处理
-    _deviceData: device,
-  }));
-  
-  gridApi.value.setGridOption('rowData', rowData);
-};
-
-
 const handleOpenDeviceSelection = () => {
-  if (!props.customerId) return;
-  
+  if (!canSelectFromLibrary.value || !gridOptions.value) return;
+
   showModal({
     size: 'full-width',
     content: h(DeviceSelectionModal, {
       data: {
         customerId: props.customerId,
+        factory: props.factory.trim(),
         gridOptions: gridOptions.value,
+        devices: [...selectableDevices.value],
         onAdd: (deviceIds: string[]) => {
           handleAddSelectedDevices(deviceIds);
-        }
-      }
-    })
+        },
+      },
+    }),
   });
 };
 
@@ -227,15 +235,14 @@ const handleShowAddModal = () => {
           serialNumber?: string;
           quantity: number;
         }) => {
-          // 将设备添加到项目设备列表
           const projectDevice: Device = {
             id: `device-${Date.now()}`,
             ...device,
           };
           emit('add-devices', [projectDevice]);
-        }
-      }
-    })
+        },
+      },
+    }),
   });
 };
 
@@ -246,33 +253,35 @@ const handleShowUploadModal = () => {
       data: {
         onConfirm: (files: any[]) => {
           handleUploadConfirm(files);
-        }
-      }
-    })
+        },
+      },
+    }),
   });
 };
 
 const handleAddSelectedDevices = (deviceIds: string[]) => {
   if (deviceIds.length === 0) return;
-  
-  const devicesToAdd = customerDevices.value
-    .filter(device => deviceIds.includes(device.id))
-    .map((device, index) => {
+
+  const devicesToAdd = selectableDevices.value
+    .filter((device) => deviceIds.includes(device.id))
+    .map((device) => {
       const projectDevice: Device = {
-        id: `project-device-${Date.now()}-${index}-${device.id}`,
+        /** 必须与设备档案 `equipid` 一致，否则提交时无法写入 ProjectEquipments */
+        id: device.id,
         categoryId: device.categoryId,
         subCategoryId: device.subCategoryId,
         model: device.model,
-        serialNumber: device.serialNumbers && device.serialNumbers.length > 0 
-          ? device.serialNumbers[0] 
-          : undefined,
+        serialNumber:
+          device.serialNumbers && device.serialNumbers.length > 0
+            ? device.serialNumbers[0]
+            : undefined,
         quantity: device.quantity,
         factoryName: device.factoryName,
         workshopName: device.workshopName,
       };
       return projectDevice;
     });
-  
+
   if (devicesToAdd.length > 0) {
     emit('add-devices', devicesToAdd);
   }
@@ -280,16 +289,12 @@ const handleAddSelectedDevices = (deviceIds: string[]) => {
 
 const handleUploadConfirm = (files: any[]) => {
   if (files.length === 0) return;
-  
-  // TODO: 实现Excel解析逻辑，解析后添加到项目设备列表
-  // 这里暂时只是记录日志
   console.log('导入文件:', files);
 };
 </script>
 
 <style scoped>
 .step-content {
-  /* height: 70vh; */
   padding: 0.5rem;
   min-height: 400px;
 }
@@ -306,116 +311,15 @@ const handleUploadConfirm = (files: any[]) => {
   margin-bottom: 1.5rem;
 }
 
-.customer-devices-section {
-  margin-bottom: 0.5rem;
-}
-
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-}
-
-.section-header h3 {
-  margin: 0;
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: var(--theme-color-text);
-}
-
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.device-count {
+.helper-text {
+  font-size: 0.8125rem;
   color: var(--theme-color-text-soft);
-  font-size: 0.875rem;
-}
-
-.table-container {
-  margin-top: 1rem;
-  height: calc(10 * 42px + 120px); /* 10行 + 表头 + 分页器 */
-  min-height: 400px;
-}
-
-.ix-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.875rem;
-}
-
-.ix-table thead {
-  background-color: var(--theme-color-soft);
-  border-bottom: 1px solid var(--theme-color-soft-border);
-}
-
-.ix-table th {
-  padding: 1rem;
-  text-align: left;
-  font-weight: 500;
-  color: var(--theme-color-text-soft);
-  white-space: nowrap;
-}
-
-.ix-table tbody tr {
-  border-bottom: 1px solid var(--theme-color-soft-border);
-}
-
-.ix-table tbody tr:hover {
-  background-color: var(--theme-color-soft-hover);
-}
-
-.ix-table td {
-  padding: 1rem;
-  color: var(--theme-color-text);
-  vertical-align: middle;
-}
-
-.selected-row {
-  background-color: var(--theme-color-soft-hover) !important;
-}
-
-.serial-range {
-  font-family: 'Courier New', monospace;
-  font-size: 0.875rem;
-  color: var(--theme-color-text-soft);
-}
-
-.empty-state {
-  text-align: center;
-  padding: 3rem;
-  color: var(--theme-color-text-soft);
-}
-
-.divider-section {
-  margin: 2rem 0 1rem 0;
-  padding-top: 2rem;
-  border-top: 1px solid var(--theme-color-soft-border);
-}
-
-.divider-section h3 {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--theme-color-text);
   margin: 0 0 1rem 0;
+  line-height: 1.4;
 }
 
 .device-actions {
   display: flex;
   gap: 1rem;
-  /* margin-bottom: 2rem; */
-}
-
-.upload-modal-content {
-  padding: 1rem 0;
-}
-
-.helper-text {
-  font-size: 0.75rem;
-  color: var(--theme-color-text-soft);
-  margin: 0.5rem 0 0 0;
 }
 </style>
