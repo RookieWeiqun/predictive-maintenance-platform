@@ -34,8 +34,11 @@
       <IxMenuItem :active="route.path === '/scheme/list'" @click="navigateTo('/scheme/list')" :icon="iconSingleCheck">
         方案维护
       </IxMenuItem>
-      <IxMenuItem :active="route.path === '/task/list'" @click="navigateTo('/task/list')" :icon="iconTasksAll">
-        任务列表
+      <IxMenuItem :active="route.path === '/task/list-online' || route.path === '/task/list'" @click="navigateTo('/task/list-online')" :icon="iconTasksAll">
+        任务列表-在线版
+      </IxMenuItem>
+      <IxMenuItem :active="route.path === '/task/list-offline'" @click="navigateTo('/task/list-offline')" :icon="iconFolder">
+        任务列表-离线版
       </IxMenuItem>
       
       <!-- 定义设置菜单 -->
@@ -67,7 +70,7 @@ import {
   IxMenuSettings,
   IxMenuSettingsItem,
 } from "@siemens/ix-vue";
-import { iconLogOut, iconUserSettings, iconFolder, iconList, iconAdd, iconSingleCheck, iconTasksAll, iconDeviceManager, iconGenericDevice, iconDeviceFan, iconDeviceDriver, iconDevicePlay, iconGenericDeviceMaintenance, iconCustomer } from "@siemens/ix-icons/icons";
+import { iconLogOut, iconUserSettings, iconFolder, iconList, iconAdd, iconSingleCheck, iconTasksAll, iconGenericDeviceMaintenance, iconCustomer } from "@siemens/ix-icons/icons";
 import { useShowDemoMessage } from "./hooks/demoMessage";
 import Logo from "./components/Logo.vue";
 import UserSettings from "./pages/user-settings/index.vue";

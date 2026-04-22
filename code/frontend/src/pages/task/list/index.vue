@@ -1,7 +1,7 @@
 <!-- 维护任务清单页 -->
 <template>
   <div>
-    <IxContentHeader header-title="维护任务清单">
+    <IxContentHeader header-title="维护任务清单 - 在线版">
       <IxButton 
         variant="secondary" 
         @click="handleOpenAndroidDebug"
@@ -10,15 +10,10 @@
       </IxButton>
       <IxButton 
         variant="secondary" 
+        :disabled="selectedDownloadTaskIds.size === 0"
         @click="handleDownloadTasks"
       >
         下载任务
-      </IxButton>
-      <IxButton 
-        variant="primary" 
-        @click="handleUploadData"
-      >
-        上传数据
       </IxButton>
     </IxContentHeader>
     <section class="page-section">
@@ -97,7 +92,10 @@ import {
 } from 'ag-grid-community';
 import * as agGrid from 'ag-grid-community';
 import { IxContentHeader, IxInput, IxSelect, IxSelectItem, IxButton, showToast } from "@siemens/ix-vue";
-import { downloadTaskPackage, offlineOutboxRepository } from '@/android';
+import {
+  downloadDemoProjectTaskPackages,
+  offlineTaskRepository,
+} from '@/android';
 import taskStatusData from '@/mockdata/common/taskStatus.json';
 import {
   projectsApi,
@@ -129,6 +127,7 @@ type TaskListRow = {
   deviceCount: number;
   remark: string;
   status: 'pending' | 'in-progress' | 'completed' | 'synced';
+  offlineStatus: 'not-downloaded' | 'downloaded' | 'in-progress' | 'uploaded';
   engineer: string;
   parentId: string | null;
   isSubTask: boolean;
@@ -142,6 +141,7 @@ const searchText = ref('');
 const selectedProject = ref('');
 // 选中的任务（用于创建子任务）
 const selectedTask = ref<TaskListRow | null>(null);
+const selectedDownloadTaskIds = ref<Set<string>>(new Set());
 
 const projects = ref<ProjectDto[]>([]);
 const allTasks = ref<TaskListRow[]>([]);
@@ -236,6 +236,7 @@ async function mapInspectionTasksToRows(
           deviceCount: 1,
           remark: prod?.serialno ? `序列号：${prod.serialno}` : '',
           status: mapInspectionStatusToUi(t.status),
+          offlineStatus: 'not-downloaded',
           engineer: t.assigneduserid != null ? `用户#${t.assigneduserid}` : '',
           parentId: null,
           isSubTask: false,
@@ -271,6 +272,7 @@ async function fetchTasksForSelectedProject(): Promise<void> {
   const key = selectedProject.value;
   expandedRows.value.clear();
   selectedTask.value = null;
+  selectedDownloadTaskIds.value = new Set();
 
   if (!key) {
     tasksLoading.value = false;
@@ -294,6 +296,7 @@ async function fetchTasksForSelectedProject(): Promise<void> {
     const projectNo = project ? formatProjectNo(project) : `P-${String(pid).padStart(4, '0')}`;
     const projectName = project?.projectname ?? '';
     allTasks.value = await mapInspectionTasksToRows(tasks, pid, projectNo, projectName);
+    await refreshOfflineStatuses();
     if (allTasks.value.length === 0) {
       showToast({ message: '当前项目暂无巡检任务' });
     }
@@ -331,6 +334,69 @@ async function restoreSessionProjectIfValid(): Promise<void> {
 const getStatusText = (status: string) => {
   return statusMap[status as keyof typeof statusMap] || status;
 };
+
+function getOfflineStatusText(status: TaskListRow['offlineStatus']): string {
+  if (status === 'downloaded') return '已下载';
+  if (status === 'in-progress') return '执行中';
+  if (status === 'uploaded') return '已上传';
+  return '未下载';
+}
+
+function resolveOfflineStatus(localTask: { status: string; sync_status: string } | null): TaskListRow['offlineStatus'] {
+  if (localTask == null) {
+    return 'not-downloaded';
+  }
+  if (localTask.status === 'uploaded') {
+    return 'uploaded';
+  }
+  if (localTask.status === 'in-progress' || localTask.sync_status === 'pending') {
+    return 'in-progress';
+  }
+  return 'downloaded';
+}
+
+async function refreshOfflineStatuses(): Promise<void> {
+  const localTasks = await offlineTaskRepository.listAll();
+  const localTaskMap = new Map(
+    localTasks.flatMap((task) => {
+      const keys = [task.task_uuid];
+      if (task.server_task_id) {
+        keys.push(task.server_task_id);
+      }
+      return keys.map((key) => [key, task] as const);
+    }),
+  );
+
+  allTasks.value = allTasks.value.map((task) => ({
+    ...task,
+    offlineStatus: resolveOfflineStatus(
+      localTaskMap.get(String(task.rawTaskid)) ?? localTaskMap.get(task.id) ?? null,
+    ),
+  }));
+}
+
+function isDownloadSelectable(task: TaskListRow): boolean {
+  return task.rawTaskid > 0 && !task.isSubTask;
+}
+
+function isTaskChecked(taskId: string): boolean {
+  return selectedDownloadTaskIds.value.has(taskId);
+}
+
+function toggleTaskChecked(task: TaskListRow): void {
+  if (!isDownloadSelectable(task)) {
+    return;
+  }
+
+  const next = new Set(selectedDownloadTaskIds.value);
+  if (next.has(task.id)) {
+    next.delete(task.id);
+  } else {
+    next.add(task.id);
+  }
+  selectedDownloadTaskIds.value = next;
+  updateGridData();
+}
 
 // 过滤后的任务列表（当前项目数据已由接口限定，仅本地搜索）
 const filteredTasks = computed(() => {
@@ -465,6 +531,7 @@ const handleCreateSubTask = (task: TaskListRow | null) => {
     deviceCount: 1,
     remark: `设备序列号：SN-${String(nextSubTaskIndex).padStart(3, '0')}`,
     status: 'pending',
+    offlineStatus: 'not-downloaded',
     engineer: '',
     parentId: task.id,
     isSubTask: true,
@@ -495,21 +562,19 @@ const handleViewScheme = (task: TaskListRow) => {
     path: `/scheme/view/${task.schemeId}`,
     query: {
       taskId: task.rawTaskid > 0 ? String(task.rawTaskid) : task.id,
-      returnPath: '/task/list',
+      returnPath: '/task/list-online',
+      source: 'online',
     },
   });
-};
-
-// 执行任务
-const handleExecuteTask = (task: any) => {
-  const tid = task.rawTaskid > 0 ? String(task.rawTaskid) : task.id;
-  router.push(`/task/collect/${tid}`);
 };
 
 // 查看任务
 const handleReviewTask = (task: TaskListRow) => {
   const tid = task.rawTaskid > 0 ? String(task.rawTaskid) : task.id;
-  router.push(`/task/review/${tid}`);
+  router.push({
+    path: `/task/review/${tid}`,
+    query: { source: 'online' },
+  });
 };
 
 const handleOpenAndroidDebug = () => {
@@ -576,49 +641,48 @@ const handleDownloadTasks = async () => {
     return;
   }
 
-  const downloadableTasks = allTasks.value.filter((task) => task.rawTaskid > 0 && !task.isSubTask);
+  const downloadableTasks = allTasks.value.filter(
+    (task) => isDownloadSelectable(task) && selectedDownloadTaskIds.value.has(task.id),
+  );
   if (downloadableTasks.length === 0) {
-    showToast({ message: '当前项目暂无可下载的巡检任务' });
+    showToast({ message: '请先勾选要下载的任务' });
     return;
   }
 
-  try {
-    let taskCount = 0;
-    let itemCount = 0;
-
-    for (const task of downloadableTasks) {
-      const downloaded = await downloadTaskPackage(String(task.rawTaskid), {
-        projectName: task.projectName,
-      });
-      taskCount += downloaded.taskCount;
-      itemCount += downloaded.itemCount;
+  const existingDownloadedTasks = downloadableTasks.filter(
+    (task) => task.offlineStatus !== 'not-downloaded',
+  );
+  if (existingDownloadedTasks.length > 0) {
+    const taskNames = existingDownloadedTasks.slice(0, 3).map((task) => task.id).join('、');
+    const suffix = existingDownloadedTasks.length > 3 ? ' 等任务' : '';
+    const confirmed = confirm(
+      `以下任务已下载到本地：${taskNames}${suffix}。\n此任务已由用户下载，是否继续？`,
+    );
+    if (!confirmed) {
+      return;
     }
+  }
 
-    showToast({ message: `已下载 ${taskCount} 个任务包，共 ${itemCount} 条任务项` });
+  try {
+    const downloaded = await downloadDemoProjectTaskPackages(
+      downloadableTasks.map((task) => ({
+        taskId: task.rawTaskid,
+        taskNo: task.id,
+        projectId: task.projectId,
+        projectName: task.projectName,
+        templateId: task.schemeId,
+        templateName: task.schemeName,
+        deviceModel: task.deviceModel,
+      })),
+    );
+
+    await refreshOfflineStatuses();
+    selectedDownloadTaskIds.value = new Set();
+    updateGridData();
+    showToast({ message: `已下载 ${downloaded.taskCount} 个任务包，共 ${downloaded.itemCount} 条任务项` });
   } catch (error) {
     console.error('下载任务失败:', error);
     showToast({ message: error instanceof Error ? error.message : '下载任务失败，请稍后重试' });
-  }
-};
-
-// 上传数据（把采集的数据批量上传至云端）
-const handleUploadData = async () => {
-  try {
-    const pendingChanges = await offlineOutboxRepository.listPending();
-
-    if (pendingChanges.length === 0) {
-      alert('当前没有待上传的离线变更。');
-      return;
-    }
-
-    if (!confirm(`当前有 ${pendingChanges.length} 条待同步离线变更。此处仅完成本地统计，云端同步接口仍待实现，是否继续查看？`)) {
-      return;
-    }
-
-    alert(`待同步离线变更数量：${pendingChanges.length}\n云端同步接口尚未接入，本地 outbox 已可累计变更。`);
-  } catch (error) {
-    console.error('上传数据失败:', error);
-    alert('上传数据失败，请稍后重试');
   }
 };
 
@@ -649,6 +713,27 @@ onMounted(() => {
     theme: ixTheme,
     tooltipShowDelay: 500,
     columnDefs: [
+      {
+        field: 'downloadSelect',
+        headerName: '下载',
+        resizable: false,
+        sortable: false,
+        filter: false,
+        width: 72,
+        minWidth: 72,
+        maxWidth: 72,
+        cellRenderer: (params: any) => {
+          const task = params.data as TaskListRow;
+          if (!isDownloadSelectable(task)) {
+            return '';
+          }
+          const checked = isTaskChecked(task.id) ? 'checked' : '';
+          return `<input type="checkbox" class="task-download-checkbox" ${checked} aria-label="选择下载任务" />`;
+        },
+        onCellClicked: (params: any) => {
+          toggleTaskChecked(params.data as TaskListRow);
+        },
+      },
       {
         field: 'taskTypeLabel',
         headerName: '任务类型',
@@ -733,6 +818,20 @@ onMounted(() => {
         },
       },
       {
+        field: 'offlineStatus',
+        headerName: '离线状态',
+        resizable: true,
+        sortable: true,
+        filter: true,
+        flex: 0.9,
+        minWidth: 96,
+        cellRenderer: (params: any) => {
+          const status = params.value as TaskListRow['offlineStatus'];
+          const statusText = getOfflineStatusText(status);
+          return `<span class="status-badge status-${status}">${statusText}</span>`;
+        },
+      },
+      {
         field: 'actions',
         headerName: '操作',
         resizable: true,
@@ -747,7 +846,6 @@ onMounted(() => {
           let buttons = '';
           
           buttons += `<button type="button" class="ag-action-btn ag-action-btn-view" data-action="view" data-id="${taskId}">查看方案</button>`;
-          buttons += `<button type="button" class="ag-action-btn ag-action-btn-execute" data-action="execute" data-id="${taskId}">执行任务</button>`;
           buttons += `<button type="button" class="ag-action-btn ag-action-btn-review" data-action="review" data-id="${taskId}">查看任务</button>`;
           buttons += `<button type="button" class="ag-action-btn ag-action-btn-delete" data-action="delete" data-id="${taskId}">删除任务</button>`;
           
@@ -761,8 +859,6 @@ onMounted(() => {
             const action = btn.getAttribute('data-action');
             if (action === 'view') {
               handleViewScheme(task);
-            } else if (action === 'execute') {
-              handleExecuteTask(task);
             } else if (action === 'review') {
               handleReviewTask(task);
             } else if (action === 'delete') {
@@ -907,9 +1003,25 @@ onBeforeUnmount(() => {
   opacity: 0.8;
 }
 
+.status-not-downloaded {
+  background-color: var(--theme-color-soft);
+  color: var(--theme-color-text-soft);
+  opacity: 0.8;
+}
+
+.status-downloaded {
+  background-color: color-mix(in srgb, var(--theme-color-warning) 14%, white);
+  color: var(--theme-color-warning);
+}
+
 .status-in-progress {
   background-color: var(--theme-color-primary-soft);
   color: var(--theme-color-primary);
+}
+
+.status-uploaded {
+  background-color: var(--theme-color-success-soft);
+  color: var(--theme-color-success);
 }
 
 .status-completed {

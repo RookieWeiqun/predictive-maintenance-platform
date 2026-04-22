@@ -2,6 +2,7 @@
   <div class="android-debug-page">
     <IxContentHeader header-title="Android 离线调试页">
       <IxButton variant="secondary" @click="refreshData">刷新数据</IxButton>
+      <IxButton variant="secondary" @click="refreshSyncPayload">预览同步 Payload</IxButton>
       <IxButton variant="primary" @click="goBack">返回任务列表</IxButton>
     </IxContentHeader>
 
@@ -69,6 +70,11 @@
           <h3>最近 Outbox</h3>
           <pre>{{ outboxPreview }}</pre>
         </IxCard>
+
+        <IxCard class="debug-card debug-card-wide">
+          <h3>待同步 Payload 预览</h3>
+          <pre>{{ syncPayloadPreview }}</pre>
+        </IxCard>
       </div>
     </section>
   </div>
@@ -79,6 +85,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { IxButton, IxCard, IxContentHeader } from '@siemens/ix-vue';
 import {
+  previewPendingSyncBatch,
   isAndroidRuntime,
   isNativeMobileRuntime,
   offlineAttachmentRepository,
@@ -100,6 +107,7 @@ const taskItems = ref<OfflineTaskItemRecord[]>([]);
 const attachments = ref<OfflineAttachmentRecord[]>([]);
 const outbox = ref<OfflineOutboxRecord[]>([]);
 const refreshedAt = ref('-');
+const syncPayloadPreview = ref('点击“预览同步 Payload”查看当前待同步批次');
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '(未配置)';
 
@@ -140,12 +148,21 @@ async function refreshData(): Promise<void> {
   refreshedAt.value = new Date().toLocaleString();
 }
 
+async function refreshSyncPayload(): Promise<void> {
+  try {
+    syncPayloadPreview.value = await previewPendingSyncBatch();
+  } catch (error) {
+    syncPayloadPreview.value = error instanceof Error ? error.message : '生成同步 payload 失败';
+  }
+}
+
 function goBack(): void {
   router.push('/task/list');
 }
 
 onMounted(() => {
   void refreshData();
+  void refreshSyncPayload();
 });
 </script>
 
@@ -169,6 +186,10 @@ onMounted(() => {
 
 .debug-card {
   padding: 1rem;
+}
+
+.debug-card-wide {
+  grid-column: 1 / -1;
 }
 
 .debug-card h3 {

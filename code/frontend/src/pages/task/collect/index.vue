@@ -313,6 +313,24 @@ const router = useRouter();
 const route = useRoute();
 
 const routeTaskId = computed(() => String(route.params.taskId ?? ''));
+const taskListRoute = computed(() => route.query.source === 'offline' ? '/task/list-offline' : '/task/list-online');
+
+function getTaskSchemeStorageKey(taskUuid: string, schemeId: string): string {
+  return `task_scheme_${taskUuid}_${schemeId}`;
+}
+
+function readCachedTaskScheme(taskUuid: string, schemeId: string): { items?: any[] } | null {
+  try {
+    const raw = localStorage.getItem(getTaskSchemeStorageKey(taskUuid, schemeId));
+    if (!raw) {
+      return null;
+    }
+    return JSON.parse(raw);
+  } catch (error) {
+    console.error('读取离线任务模板缓存失败:', error);
+    return null;
+  }
+}
 
 // 任务信息
 const taskInfo = ref<any>(null);
@@ -342,7 +360,10 @@ const getTaskDisplayName = (task: any) => {
 // 切换任务
 const handleTaskChange = (newTaskId: string) => {
   if (newTaskId && newTaskId !== routeTaskId.value) {
-    router.push(`/task/collect/${newTaskId}`);
+    router.push({
+      path: `/task/collect/${newTaskId}`,
+      query: { source: route.query.source === 'offline' ? 'offline' : 'online' },
+    });
   }
 };
 
@@ -465,6 +486,50 @@ function setupFromMockTask(task: any): void {
   loadDraft();
 }
 
+async function setupFromOfflineTask(taskUuid: string): Promise<boolean> {
+  const offlineTask = await offlineTaskRepository.getByTaskUuid(taskUuid);
+  if (offlineTask == null || !offlineTask.scheme_id) {
+    return false;
+  }
+
+  const cachedScheme = readCachedTaskScheme(taskUuid, offlineTask.scheme_id);
+  if (cachedScheme?.items == null) {
+    return false;
+  }
+
+  taskInfo.value = {
+    id: offlineTask.task_no || taskUuid,
+    schemeName: offlineTask.scheme_name || '-',
+    schemeId: offlineTask.scheme_id,
+    taskType: 'equipment',
+    taskTypeLabel: '离线任务',
+    deviceModel: offlineTask.device_model || '-',
+    projectId: offlineTask.project_id || '',
+    projectNo: '',
+    projectName: offlineTask.project_name || '',
+    isSubTask: false,
+  };
+
+  currentTaskId.value = taskUuid;
+
+  const siblings = (await offlineTaskRepository.listAll())
+    .filter((task) => task.project_id === offlineTask.project_id)
+    .sort((a, b) => (a.downloaded_at > b.downloaded_at ? 1 : -1));
+
+  projectTaskList.value = siblings.map((task) => ({
+    id: task.task_uuid,
+    taskType: 'equipment',
+    taskTypeLabel: '离线任务',
+    deviceModel: task.device_model || '-',
+    taskDisplayName: `${task.task_no || task.task_uuid} — ${task.device_model || '-'}`,
+  }));
+
+  buildCategoryList(cachedScheme.items);
+  loadDraft();
+  updateCompletionCounts();
+  return true;
+}
+
 async function setupFromApiTask(numericId: number): Promise<void> {
   const dto = await inspectionTasksApi.getInspectionTask(numericId);
   const [roots, templateMeta] = await Promise.all([
@@ -524,7 +589,7 @@ async function setupFromApiTask(numericId: number): Promise<void> {
   const schemeItems = apiTemplateRootsToCollectSchemeItems(roots);
   if (schemeItems.length === 0) {
     showToast({ message: '模板中暂无检测项，无法采集' });
-    router.push('/task/list');
+    router.push(taskListRoute.value);
     return;
   }
 
@@ -538,7 +603,7 @@ async function initTaskCollect(): Promise<void> {
   const idParam = routeTaskId.value;
   if (!idParam) {
     showToast({ message: '无效的任务参数' });
-    router.push('/task/list');
+    router.push(taskListRoute.value);
     return;
   }
 
@@ -567,7 +632,23 @@ async function initTaskCollect(): Promise<void> {
   const numericId = Number.parseInt(idParam, 10);
   if (!Number.isFinite(numericId) || numericId <= 0) {
     showToast({ message: '未找到任务' });
-    router.push('/task/list');
+    router.push(taskListRoute.value);
+    return;
+  }
+
+  const shouldPreferOffline = route.query.source === 'offline';
+  if (shouldPreferOffline) {
+    const initialized = await setupFromOfflineTask(idParam);
+    if (!initialized) {
+      showToast({ message: '本地任务包不完整，请联网重新下载任务后再离线执行' });
+      router.push(taskListRoute.value);
+      return;
+    }
+    try {
+      await loadOfflineTaskItems();
+    } catch (error) {
+      console.error('加载离线任务项失败:', error);
+    }
     return;
   }
 
@@ -584,7 +665,7 @@ async function initTaskCollect(): Promise<void> {
     }
   } catch (e) {
     showToast({ message: e instanceof Error ? e.message : '加载任务失败' });
-    router.push('/task/list');
+    router.push(taskListRoute.value);
   }
 }
 
@@ -608,7 +689,13 @@ function buildTaskItemUuid(taskItemId: string): string {
   return `${routeTaskId.value}:${taskItemId}`;
 }
 
-function parseOfflineResult(raw: string | null): { result?: string; remarks?: string; dataFields?: Record<string, any> } {
+function parseOfflineResult(raw: string | null): {
+  value?: string;
+  result?: string;
+  resultState?: string;
+  remarks?: string;
+  dataFields?: Record<string, any>;
+} {
   if (raw == null || raw === '') {
     return {};
   }
@@ -616,31 +703,58 @@ function parseOfflineResult(raw: string | null): { result?: string; remarks?: st
   try {
     const parsed = JSON.parse(raw);
     if (parsed && typeof parsed === 'object') {
-      return parsed;
+      const value = typeof parsed.value === 'string'
+        ? parsed.value
+        : parsed.dataFields && typeof parsed.dataFields === 'object' && parsed.dataFields.value != null
+          ? String(parsed.dataFields.value)
+          : undefined;
+
+      return {
+        ...parsed,
+        value,
+        resultState: typeof parsed.resultState === 'string'
+          ? parsed.resultState
+          : typeof parsed.result === 'string' && ['normal', 'warning', 'abnormal'].includes(parsed.result)
+            ? parsed.result
+            : undefined,
+      };
     }
   } catch {
-    return { result: raw };
+    return { value: raw };
   }
 
   return {};
 }
 
-function buildOfflineResult(task: any): string {
-  const dataFields = Object.fromEntries(
-    (task.dataFields ?? []).map((field: any) => [field.id, field.value]),
-  );
+function serializeTaskValue(value: unknown): string | null {
+  if (value == null || value === '') {
+    return null;
+  }
+  if (typeof value === 'string') {
+    return value;
+  }
+  return String(value);
+}
 
+function getPrimaryTaskFieldValue(task: any): string | null {
+  const fields = Array.isArray(task.dataFields) ? task.dataFields : [];
+  const primaryField = fields[0];
+  return primaryField ? serializeTaskValue(primaryField.value) : null;
+}
+
+function buildOfflineResult(task: any): string {
   return JSON.stringify({
-    result: task.result || '',
+    value: getPrimaryTaskFieldValue(task),
     remarks: task.remarks || '',
-    dataFields,
+    resultState: task.result || '',
   });
 }
 
 async function persistTaskRecord(task: any): Promise<void> {
   const taskItemUuid = buildTaskItemUuid(task.id);
   const existing = await offlineTaskItemRepository.getByTaskItemUuid(taskItemUuid);
-  const executionStatus = task.result ? 'completed' : 'pending';
+  const taskValue = getPrimaryTaskFieldValue(task);
+  const executionStatus = taskValue || task.result ? 'completed' : 'pending';
 
   await offlineTaskItemRepository.upsert({
     task_item_uuid: taskItemUuid,
@@ -678,7 +792,8 @@ async function loadOfflineTaskItems(): Promise<void> {
     const payload = parseOfflineResult(record.result);
     taskDataMap.value[itemId] = {
       ...(taskDataMap.value[itemId] ?? {}),
-      result: payload.result ?? '',
+      value: payload.value ?? '',
+      result: payload.resultState ?? payload.result ?? '',
       remarks: payload.remarks ?? '',
       dataFields: payload.dataFields ?? {},
     };
@@ -911,6 +1026,15 @@ const createTaskItem = (item: any, existingData: any) => {
         field.value = existingData.dataFields[field.id];
       }
     });
+  } else if (existingData.value !== undefined && dataFields.length === 1) {
+    const [field] = dataFields;
+    if (field.dataType === 'numeric') {
+      field.value = existingData.value === '' ? '' : Number(existingData.value);
+    } else if (field.dataType === 'boolean') {
+      field.value = existingData.value === 'true';
+    } else {
+      field.value = existingData.value;
+    }
   }
   
   return {
@@ -1246,7 +1370,7 @@ const getCurrentIndices = () => {
 
 // 导航方法
 const goBack = () => {
-  router.push('/task/list');
+  router.push(taskListRoute.value);
 };
 
 const goToPreviousModule = () => {

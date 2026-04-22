@@ -114,12 +114,50 @@ export class OfflineTaskRepository {
       `
         UPDATE offline_task
         SET
+          status = 'in-progress',
           local_updated_at = ?,
           sync_status = ?
         WHERE task_uuid = ?
       `,
       [nowIso(), syncStatus, taskUuid],
     );
+  }
+
+  async setLifecycleStatus(
+    taskUuid: string,
+    status: string,
+    syncStatus?: OfflineSyncStatus,
+  ): Promise<void> {
+    const executor = getOfflineExecutor();
+    if (syncStatus) {
+      await executor.execute(
+        `
+          UPDATE offline_task
+          SET
+            status = ?,
+            local_updated_at = ?,
+            sync_status = ?
+          WHERE task_uuid = ?
+        `,
+        [status, nowIso(), syncStatus, taskUuid],
+      );
+      return;
+    }
+
+    await executor.execute(
+      `
+        UPDATE offline_task
+        SET
+          status = ?,
+          local_updated_at = ?
+        WHERE task_uuid = ?
+      `,
+      [status, nowIso(), taskUuid],
+    );
+  }
+
+  async markUploaded(taskUuid: string): Promise<void> {
+    await this.setLifecycleStatus(taskUuid, 'uploaded', 'synced');
   }
 }
 

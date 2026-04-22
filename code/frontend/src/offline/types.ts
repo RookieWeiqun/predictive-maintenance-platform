@@ -22,7 +22,7 @@ export type OfflineSyncStatus = (typeof OFFLINE_SYNC_STATUSES)[number];
 
 export interface OfflineTaskItemRecord {
   task_item_uuid: string;
-  server_item_id: number | null;
+  server_item_id: string | null;
   task_uuid: string;
   source_type: TaskItemSourceType;
   item_name: string;
