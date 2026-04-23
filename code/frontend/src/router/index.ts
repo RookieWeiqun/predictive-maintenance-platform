@@ -29,9 +29,11 @@ import CustomerList from "../pages/customer/list/index.vue";
 
 // 数据维护界面
 import TaskList from "../pages/task/list/index.vue";
+import OfflineTaskList from "../pages/task/offline-list/index.vue";
 import TaskScheme from "../pages/task/scheme/index.vue";
 import TaskCollect from "../pages/task/collect/index.vue";
 import TaskReview from "../pages/task/review/index.vue";
+import AndroidDebug from "../pages/android/debug/index.vue";
 
 const router = createRouter({
   history: createWebHashHistory(),
@@ -91,7 +93,15 @@ const router = createRouter({
     // 数据维护界面路由
     {
       path: "/task/list",
+      redirect: "/task/list-online",
+    },
+    {
+      path: "/task/list-online",
       component: TaskList,
+    },
+    {
+      path: "/task/list-offline",
+      component: OfflineTaskList,
     },
     {
       path: "/task/scheme/:taskId",
@@ -104,6 +114,10 @@ const router = createRouter({
     {
       path: "/task/review/:taskId",
       component: TaskReview,
+    },
+    {
+      path: "/android/debug",
+      component: AndroidDebug,
     },
   ],
 });

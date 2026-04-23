@@ -146,6 +146,7 @@ import { getSchemeById } from '@/mockdata/scheme/index.ts';
 
 const router = useRouter();
 const route = useRoute();
+const taskListRoute = route.query.source === 'offline' ? '/task/list-offline' : '/task/list-online';
 
 const taskId = route.params.taskId as string;
 
@@ -161,7 +162,7 @@ onMounted(() => {
   const task = tasksData.tasks.find(t => t.id === taskId);
   if (!task) {
     alert('未找到任务');
-    router.push('/task/list');
+    router.push(taskListRoute);
     return;
   }
   
@@ -203,11 +204,14 @@ onMounted(() => {
 });
 
 const handleBack = () => {
-  router.push('/task/list');
+  router.push(taskListRoute);
 };
 
 const handleEdit = () => {
-  router.push(`/task/collect/${taskId}`);
+  router.push({
+    path: `/task/collect/${taskId}`,
+    query: { source: route.query.source === 'offline' ? 'offline' : 'online' },
+  });
 };
 
 const handleSync = () => {

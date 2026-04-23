@@ -288,6 +288,7 @@ import {
   IxSelect,
   IxSelectItem,
   IxModal,
+  showToast,
 } from "@siemens/ix-vue";
 import { 
   iconChevronLeft,
@@ -296,13 +297,40 @@ import {
   iconError,
   iconBulb
 } from "@siemens/ix-icons/icons";
+import { downloadTaskPackage, offlineOutboxRepository, offlineTaskItemRepository, offlineTaskRepository } from '@/android';
 import tasksData from '@/mockdata/task/tasks.json';
 import { getSchemeById } from '@/mockdata/scheme/index.ts';
+import {
+  inspectionTasksApi,
+  inspectionTemplatesApi,
+  productsApi,
+  taskitemsApi,
+} from '@/api';
+import { loadTemplateItemsByTemplateId } from '@/pages/scheme/utils/loadTemplateItems';
+import { isDetectionItem, type SchemeItem } from '@/pages/scheme/utils/schemeUtils';
 
 const router = useRouter();
 const route = useRoute();
 
-const taskId = route.params.taskId as string;
+const routeTaskId = computed(() => String(route.params.taskId ?? ''));
+const taskListRoute = computed(() => route.query.source === 'offline' ? '/task/list-offline' : '/task/list-online');
+
+function getTaskSchemeStorageKey(taskUuid: string, schemeId: string): string {
+  return `task_scheme_${taskUuid}_${schemeId}`;
+}
+
+function readCachedTaskScheme(taskUuid: string, schemeId: string): { items?: any[] } | null {
+  try {
+    const raw = localStorage.getItem(getTaskSchemeStorageKey(taskUuid, schemeId));
+    if (!raw) {
+      return null;
+    }
+    return JSON.parse(raw);
+  } catch (error) {
+    console.error('读取离线任务模板缓存失败:', error);
+    return null;
+  }
+}
 
 // 任务信息
 const taskInfo = ref<any>(null);
@@ -322,19 +350,324 @@ const projectTaskList = ref<any[]>([]);
 
 // 获取任务显示名称
 const getTaskDisplayName = (task: any) => {
+  if (task.taskDisplayName) return task.taskDisplayName;
   if (task.taskType === 'peripheral') {
     return `${task.id} - ${task.taskTypeLabel}`;
-  } else {
-    return `${task.id} - ${task.deviceModel} (${task.taskTypeLabel})`;
   }
+  return `${task.id} - ${task.deviceModel} (${task.taskTypeLabel})`;
 };
 
 // 切换任务
 const handleTaskChange = (newTaskId: string) => {
-  if (newTaskId && newTaskId !== taskId) {
-    router.push(`/task/collect/${newTaskId}`);
+  if (newTaskId && newTaskId !== routeTaskId.value) {
+    router.push({
+      path: `/task/collect/${newTaskId}`,
+      query: { source: route.query.source === 'offline' ? 'offline' : 'online' },
+    });
   }
 };
+
+function clip200(s: string): string {
+  const t = s.trim();
+  if (t.length <= 200) return t;
+  return t.slice(0, 200);
+}
+
+/** 将模板 SchemeItem 树压平为采集页 buildCategoryList 所需的四层结构中的一层「检测模块」子项 */
+function apiTemplateRootsToCollectSchemeItems(roots: SchemeItem[]): SchemeItem[] {
+  const leaves: SchemeItem[] = [];
+  function walk(nodes: SchemeItem[]) {
+    for (const n of nodes || []) {
+      if (isDetectionItem(n)) {
+        leaves.push(n);
+        continue;
+      }
+      if (n.children?.length) walk(n.children);
+    }
+  }
+  walk(roots);
+  if (leaves.length === 0) return [];
+
+  const moduleWrapper: SchemeItem = {
+    id: 'api-collect-module',
+    name: '检测项',
+    children: leaves,
+  };
+  const subWrapper: SchemeItem = {
+    id: 'api-collect-sub',
+    name: '全部模块',
+    children: [moduleWrapper],
+  };
+  const catWrapper: SchemeItem = {
+    id: 'api-collect-category',
+    name: '巡检任务',
+    children: [subWrapper],
+  };
+  return [catWrapper];
+}
+
+function detectionItemIdToNamePath(roots: SchemeItem[]): Map<string, { name: string; categorypath: string }> {
+  const map = new Map<string, { name: string; categorypath: string }>();
+  function walk(nodes: SchemeItem[], path: string[]) {
+    for (const n of nodes || []) {
+      if (isDetectionItem(n)) {
+        const cp = clip200(path.join(' / '));
+        map.set(n.id, {
+          name: clip200((n.name || '').trim() || '未命名'),
+          categorypath: cp,
+        });
+        continue;
+      }
+      const label = (n.name || '').trim();
+      walk(n.children || [], label ? [...path, label] : path);
+    }
+  }
+  walk(roots, []);
+  return map;
+}
+
+function mapBackendResultToUi(raw: string | null | undefined): '' | 'normal' | 'warning' | 'abnormal' {
+  const s = (raw ?? '').trim().toLowerCase();
+  if (!s) return '';
+  if (s === 'normal' || s === '正常') return 'normal';
+  if (s === 'warning' || s === '警告') return 'warning';
+  if (s === 'abnormal' || s === '异常') return 'abnormal';
+  return '';
+}
+
+async function mergeTaskitemsFromApi(taskid: number, roots: SchemeItem[]): Promise<void> {
+  const idToPath = detectionItemIdToNamePath(roots);
+  let items: Awaited<ReturnType<typeof taskitemsApi.listTaskitemsByTask>>;
+  try {
+    items = await taskitemsApi.listTaskitemsByTask(taskid);
+  } catch {
+    return;
+  }
+  for (const ti of items) {
+    const rName = (ti.name ?? '').trim();
+    const rPath = (ti.categorypath ?? '').trim();
+    const schemeId = [...idToPath.entries()].find(
+      ([, v]) => v.name === rName && v.categorypath === rPath,
+    )?.[0];
+    if (!schemeId) continue;
+    const resultUi = mapBackendResultToUi(ti.result);
+    if (!taskDataMap.value[schemeId]) taskDataMap.value[schemeId] = {};
+    if (resultUi) taskDataMap.value[schemeId].result = resultUi;
+  }
+}
+
+function setupFromMockTask(task: any): void {
+  taskInfo.value = task;
+  currentTaskId.value = routeTaskId.value;
+
+  projectTaskList.value = tasksData.tasks.filter(
+    (t: any) => t.projectId === task.projectId && !t.isSubTask,
+  );
+
+  let scheme: any = null;
+  const taskSchemeKey = `task_scheme_${routeTaskId.value}_${task.schemeId}`;
+  try {
+    const taskSchemeData = localStorage.getItem(taskSchemeKey);
+    if (taskSchemeData) {
+      scheme = JSON.parse(taskSchemeData);
+    }
+  } catch (e) {
+    console.error('读取项目方案失败:', e);
+  }
+
+  if (!scheme) {
+    scheme = getSchemeById(task.schemeId);
+  }
+
+  if (scheme && scheme.items) {
+    buildCategoryList(scheme.items);
+  }
+
+  loadDraft();
+}
+
+async function setupFromOfflineTask(taskUuid: string): Promise<boolean> {
+  const offlineTask = await offlineTaskRepository.getByTaskUuid(taskUuid);
+  if (offlineTask == null || !offlineTask.scheme_id) {
+    return false;
+  }
+
+  const cachedScheme = readCachedTaskScheme(taskUuid, offlineTask.scheme_id);
+  if (cachedScheme?.items == null) {
+    return false;
+  }
+
+  taskInfo.value = {
+    id: offlineTask.task_no || taskUuid,
+    schemeName: offlineTask.scheme_name || '-',
+    schemeId: offlineTask.scheme_id,
+    taskType: 'equipment',
+    taskTypeLabel: '离线任务',
+    deviceModel: offlineTask.device_model || '-',
+    projectId: offlineTask.project_id || '',
+    projectNo: '',
+    projectName: offlineTask.project_name || '',
+    isSubTask: false,
+  };
+
+  currentTaskId.value = taskUuid;
+
+  const siblings = (await offlineTaskRepository.listAll())
+    .filter((task) => task.project_id === offlineTask.project_id)
+    .sort((a, b) => (a.downloaded_at > b.downloaded_at ? 1 : -1));
+
+  projectTaskList.value = siblings.map((task) => ({
+    id: task.task_uuid,
+    taskType: 'equipment',
+    taskTypeLabel: '离线任务',
+    deviceModel: task.device_model || '-',
+    taskDisplayName: `${task.task_no || task.task_uuid} — ${task.device_model || '-'}`,
+  }));
+
+  buildCategoryList(cachedScheme.items);
+  loadDraft();
+  updateCompletionCounts();
+  return true;
+}
+
+async function setupFromApiTask(numericId: number): Promise<void> {
+  const dto = await inspectionTasksApi.getInspectionTask(numericId);
+  const [roots, templateMeta] = await Promise.all([
+    loadTemplateItemsByTemplateId(dto.templateid),
+    inspectionTemplatesApi.getInspectionTemplate(dto.templateid).catch(() => null),
+  ]);
+
+  const products = await productsApi.searchProducts({ productid: dto.productid }).catch(() => []);
+  const mlfb = (products[0]?.mlfb ?? '-').trim() || '-';
+
+  const displayTaskNo = (dto.taskNo ?? '').trim() || `任务#${numericId}`;
+  const inspType = templateMeta?.inspectiontype === 1 ? 'equipment' : 'peripheral';
+  const inspLabel = templateMeta?.inspectiontype === 1 ? '设备检测' : '外围检测';
+
+  taskInfo.value = {
+    id: displayTaskNo,
+    schemeName: templateMeta?.name?.trim() || `模板 #${dto.templateid}`,
+    schemeId: String(dto.templateid),
+    taskType: inspType,
+    taskTypeLabel: inspLabel,
+    deviceModel: mlfb,
+    projectId: String(dto.projectid),
+    projectNo: '',
+    projectName: '',
+    isSubTask: false,
+  };
+
+  currentTaskId.value = String(numericId);
+
+  const siblings = await inspectionTasksApi.searchInspectionTasks({ projectid: dto.projectid });
+  const sorted = siblings
+    .filter((t) => t.taskid != null && t.taskid > 0)
+    .sort((a, b) => (a.taskid ?? 0) - (b.taskid ?? 0));
+
+  const productIds = [...new Set(sorted.map((t) => t.productid))];
+  const productMlfb = new Map<number, string>();
+  await Promise.all(
+    productIds.map(async (pid) => {
+      const list = await productsApi.searchProducts({ productid: pid }).catch(() => []);
+      productMlfb.set(pid, (list[0]?.mlfb ?? '-').trim() || '-');
+    }),
+  );
+
+  projectTaskList.value = sorted.map((t) => {
+    const tid = t.taskid as number;
+    const dm = productMlfb.get(t.productid) ?? '-';
+    const label = (t.taskNo ?? '').trim() || `任务#${tid}`;
+    return {
+      id: String(tid),
+      taskType: 'equipment',
+      taskTypeLabel: '巡检',
+      deviceModel: dm,
+      taskDisplayName: `${label} — ${dm}`,
+    };
+  });
+
+  const schemeItems = apiTemplateRootsToCollectSchemeItems(roots);
+  if (schemeItems.length === 0) {
+    showToast({ message: '模板中暂无检测项，无法采集' });
+    router.push(taskListRoute.value);
+    return;
+  }
+
+  buildCategoryList(schemeItems as any[]);
+  await mergeTaskitemsFromApi(numericId, roots);
+  loadDraft();
+  updateCompletionCounts();
+}
+
+async function initTaskCollect(): Promise<void> {
+  const idParam = routeTaskId.value;
+  if (!idParam) {
+    showToast({ message: '无效的任务参数' });
+    router.push(taskListRoute.value);
+    return;
+  }
+
+  expandedCategories.value = [];
+  currentSubCategoryId.value = '';
+  currentSubCategoryName.value = '环境检查';
+  categoryList.value = [];
+  currentTaskList.value = [];
+  taskDataMap.value = {};
+
+  const mockTask = tasksData.tasks.find((t: any) => t.id === idParam);
+  if (mockTask) {
+    setupFromMockTask(mockTask);
+    try {
+      const localTask = await offlineTaskRepository.getByTaskUuid(routeTaskId.value);
+      if (localTask == null) {
+        await downloadTaskPackage(routeTaskId.value);
+      }
+      await loadOfflineTaskItems();
+    } catch (error) {
+      console.error('加载离线任务项失败:', error);
+    }
+    return;
+  }
+
+  const numericId = Number.parseInt(idParam, 10);
+  if (!Number.isFinite(numericId) || numericId <= 0) {
+    showToast({ message: '未找到任务' });
+    router.push(taskListRoute.value);
+    return;
+  }
+
+  const shouldPreferOffline = route.query.source === 'offline';
+  if (shouldPreferOffline) {
+    const initialized = await setupFromOfflineTask(idParam);
+    if (!initialized) {
+      showToast({ message: '本地任务包不完整，请联网重新下载任务后再离线执行' });
+      router.push(taskListRoute.value);
+      return;
+    }
+    try {
+      await loadOfflineTaskItems();
+    } catch (error) {
+      console.error('加载离线任务项失败:', error);
+    }
+    return;
+  }
+
+  try {
+    await setupFromApiTask(numericId);
+    const localTask = await offlineTaskRepository.getByTaskUuid(routeTaskId.value);
+    if (localTask == null) {
+      await downloadTaskPackage(routeTaskId.value);
+    }
+    try {
+      await loadOfflineTaskItems();
+    } catch (error) {
+      console.error('加载离线任务项失败:', error);
+    }
+  } catch (e) {
+    showToast({ message: e instanceof Error ? e.message : '加载任务失败' });
+    router.push(taskListRoute.value);
+  }
+}
 
 // 当前选中的子类别
 const currentSubCategoryId = ref<string>('');
@@ -351,6 +684,131 @@ const currentTaskList = ref<any[]>([]);
 
 // 任务数据（存储所有任务的检测结果）
 const taskDataMap = ref<Record<string, any>>({});
+
+function buildTaskItemUuid(taskItemId: string): string {
+  return `${routeTaskId.value}:${taskItemId}`;
+}
+
+function parseOfflineResult(raw: string | null): {
+  value?: string;
+  result?: string;
+  resultState?: string;
+  remarks?: string;
+  dataFields?: Record<string, any>;
+} {
+  if (raw == null || raw === '') {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object') {
+      const value = typeof parsed.value === 'string'
+        ? parsed.value
+        : parsed.dataFields && typeof parsed.dataFields === 'object' && parsed.dataFields.value != null
+          ? String(parsed.dataFields.value)
+          : undefined;
+
+      return {
+        ...parsed,
+        value,
+        resultState: typeof parsed.resultState === 'string'
+          ? parsed.resultState
+          : typeof parsed.result === 'string' && ['normal', 'warning', 'abnormal'].includes(parsed.result)
+            ? parsed.result
+            : undefined,
+      };
+    }
+  } catch {
+    return { value: raw };
+  }
+
+  return {};
+}
+
+function serializeTaskValue(value: unknown): string | null {
+  if (value == null || value === '') {
+    return null;
+  }
+  if (typeof value === 'string') {
+    return value;
+  }
+  return String(value);
+}
+
+function getPrimaryTaskFieldValue(task: any): string | null {
+  const fields = Array.isArray(task.dataFields) ? task.dataFields : [];
+  const primaryField = fields[0];
+  return primaryField ? serializeTaskValue(primaryField.value) : null;
+}
+
+function buildOfflineResult(task: any): string {
+  return JSON.stringify({
+    value: getPrimaryTaskFieldValue(task),
+    remarks: task.remarks || '',
+    resultState: task.result || '',
+  });
+}
+
+async function persistTaskRecord(task: any): Promise<void> {
+  const taskItemUuid = buildTaskItemUuid(task.id);
+  const existing = await offlineTaskItemRepository.getByTaskItemUuid(taskItemUuid);
+  const taskValue = getPrimaryTaskFieldValue(task);
+  const executionStatus = taskValue || task.result ? 'completed' : 'pending';
+
+  await offlineTaskItemRepository.upsert({
+    task_item_uuid: taskItemUuid,
+    server_item_id: existing?.server_item_id ?? null,
+    task_uuid: routeTaskId.value,
+    source_type: existing?.source_type ?? 'system_generated',
+    item_name: task.name,
+    category_path: existing?.category_path ?? `${currentCategoryPath.value} / ${currentSubCategoryName.value}`,
+    result: buildOfflineResult(task),
+    execution_status: executionStatus,
+    is_normal: task.result === 'normal',
+    is_recheck: false,
+    sync_status: 'pending',
+  });
+
+  await offlineTaskRepository.markDirty(routeTaskId.value);
+  await offlineOutboxRepository.replacePending({
+    entity_type: 'task_item',
+    entity_uuid: taskItemUuid,
+    action: 'upsert_task_item',
+    payload_json: buildOfflineResult(task),
+  });
+}
+
+async function loadOfflineTaskItems(): Promise<void> {
+  const records = await offlineTaskItemRepository.listByTaskUuid(routeTaskId.value);
+  if (records.length === 0) {
+    return;
+  }
+
+  for (const record of records) {
+    const itemId = record.task_item_uuid.startsWith(`${routeTaskId.value}:`)
+      ? record.task_item_uuid.slice(routeTaskId.value.length + 1)
+      : record.task_item_uuid;
+    const payload = parseOfflineResult(record.result);
+    taskDataMap.value[itemId] = {
+      ...(taskDataMap.value[itemId] ?? {}),
+      value: payload.value ?? '',
+      result: payload.resultState ?? payload.result ?? '',
+      remarks: payload.remarks ?? '',
+      dataFields: payload.dataFields ?? {},
+    };
+  }
+
+  if (currentSubCategoryId.value) {
+    const subCategory = categoryList.value
+      .flatMap((category) => category.children || [])
+      .find((sub: any) => sub.id === currentSubCategoryId.value);
+    if (subCategory) {
+      buildTaskList(subCategory);
+    }
+  }
+  updateCompletionCounts();
+}
 
 // 计算属性
 const currentCategoryPath = computed(() => {
@@ -444,47 +902,17 @@ const hasNextModule = computed(() => {
   return false;
 });
 
-// 加载任务信息
 onMounted(() => {
-  // 从任务列表中找到任务
-  const task = tasksData.tasks.find(t => t.id === taskId);
-  if (!task) {
-    alert('未找到任务');
-    router.push('/task/list');
-    return;
-  }
-  
-  taskInfo.value = task;
-  currentTaskId.value = taskId;
-  
-  // 获取同一项目的所有任务（不包括子任务）
-  projectTaskList.value = tasksData.tasks.filter(t => 
-    t.projectId === task.projectId && !t.isSubTask
-  );
-  
-  // 加载方案数据
-  let scheme: any = null;
-  const taskSchemeKey = `task_scheme_${taskId}_${task.schemeId}`;
-  try {
-    const taskSchemeData = localStorage.getItem(taskSchemeKey);
-    if (taskSchemeData) {
-      scheme = JSON.parse(taskSchemeData);
-    }
-  } catch (e) {
-    console.error('读取项目方案失败:', e);
-  }
-  
-  if (!scheme) {
-    scheme = getSchemeById(task.schemeId);
-  }
-  
-  if (scheme && scheme.items) {
-    buildCategoryList(scheme.items);
-  }
-  
-  // 加载草稿数据
-  loadDraft();
+  void initTaskCollect();
 });
+
+watch(
+  () => route.params.taskId,
+  (next, prev) => {
+    if (next === prev) return;
+    void initTaskCollect();
+  },
+);
 
 // 构建类别列表
 const buildCategoryList = (items: any[]) => {
@@ -598,6 +1026,15 @@ const createTaskItem = (item: any, existingData: any) => {
         field.value = existingData.dataFields[field.id];
       }
     });
+  } else if (existingData.value !== undefined && dataFields.length === 1) {
+    const [field] = dataFields;
+    if (field.dataType === 'numeric') {
+      field.value = existingData.value === '' ? '' : Number(existingData.value);
+    } else if (field.dataType === 'boolean') {
+      field.value = existingData.value === 'true';
+    } else {
+      field.value = existingData.value;
+    }
   }
   
   return {
@@ -733,6 +1170,7 @@ const handleFieldUpdate = (fieldId: string, value: any) => {
   taskDataMap.value[task.id].dataFields[fieldId] = field.value;
   
   saveDraft();
+  void persistTaskRecord(task);
 };
 
 // 处理Toggle按钮切换
@@ -753,6 +1191,7 @@ const updateTaskData = (taskId: string, updates: Record<string, any>) => {
   Object.assign(taskDataMap.value[taskId], updates);
   
   saveDraft();
+  void persistTaskRecord(task);
 };
 
 // 获取检测结果按钮的类名
@@ -874,7 +1313,7 @@ const updateCompletionCounts = () => {
 
 // 加载草稿
 const loadDraft = () => {
-  const draftKey = `task_draft_${taskId}`;
+  const draftKey = `task_draft_${routeTaskId.value}`;
   try {
     const draftData = localStorage.getItem(draftKey);
     if (draftData) {
@@ -904,7 +1343,7 @@ const loadDraft = () => {
 
 // 保存草稿
 const saveDraft = () => {
-  const draftKey = `task_draft_${taskId}`;
+  const draftKey = `task_draft_${routeTaskId.value}`;
   try {
     const draft = {
       taskDataMap: taskDataMap.value,
@@ -931,7 +1370,7 @@ const getCurrentIndices = () => {
 
 // 导航方法
 const goBack = () => {
-  router.push('/task/list');
+  router.push(taskListRoute.value);
 };
 
 const goToPreviousModule = () => {

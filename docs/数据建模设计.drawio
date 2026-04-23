@@ -506,14 +506,14 @@
     </mxGraphModel>
   </diagram>
   <diagram id="JL-O_NtJWIyuPKT3OfWt" name="UML">
-    <mxGraphModel dx="1826" dy="961" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+    <mxGraphModel dx="2078" dy="1131" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
         <mxCell id="qdDP7D6DgFl5NaUtgflI-84" style="edgeStyle=orthogonalEdgeStyle;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontSize=10;" parent="1" source="qdDP7D6DgFl5NaUtgflI-26" target="qdDP7D6DgFl5NaUtgflI-75" edge="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="qdDP7D6DgFl5NaUtgflI-26" value="设备信息" style="swimlane;fontStyle=0;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
+        <mxCell id="qdDP7D6DgFl5NaUtgflI-26" value="设备信息" style="swimlane;fontStyle=0;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;fontFamily=Helvetica;fontSize=12;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
           <mxGeometry x="-88" y="518" width="140" height="180" as="geometry">
             <mxRectangle x="120" y="542" width="83" height="30" as="alternateBounds" />
           </mxGeometry>
@@ -697,8 +697,11 @@
         <mxCell id="qdDP7D6DgFl5NaUtgflI-98" value="执行时间" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontSize=12;fontFamily=Helvetica;" parent="qdDP7D6DgFl5NaUtgflI-54" vertex="1">
           <mxGeometry y="280" width="140" height="30" as="geometry" />
         </mxCell>
+        <mxCell id="BaMregSlb25QIMzcFySM-8" style="edgeStyle=orthogonalEdgeStyle;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontSize=10;" edge="1" parent="1" source="qdDP7D6DgFl5NaUtgflI-60" target="BaMregSlb25QIMzcFySM-5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
         <mxCell id="qdDP7D6DgFl5NaUtgflI-60" value="产品信息" style="swimlane;fontStyle=0;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
-          <mxGeometry x="-374" y="661" width="140" height="150" as="geometry" />
+          <mxGeometry x="-376" y="262" width="140" height="150" as="geometry" />
         </mxCell>
         <mxCell id="qdDP7D6DgFl5NaUtgflI-61" value="产品类别：驱动" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontSize=12;fontFamily=Helvetica;" parent="qdDP7D6DgFl5NaUtgflI-60" vertex="1">
           <mxGeometry y="30" width="140" height="30" as="geometry" />
@@ -706,20 +709,22 @@
         <mxCell id="qdDP7D6DgFl5NaUtgflI-62" value="产品家族：masterdrive" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontSize=12;fontFamily=Helvetica;" parent="qdDP7D6DgFl5NaUtgflI-60" vertex="1">
           <mxGeometry y="60" width="140" height="30" as="geometry" />
         </mxCell>
-        <mxCell id="h0Szdju_bqcS8HYTci_e-1" value="模型类别：整流单元" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontSize=12;fontFamily=Helvetica;" vertex="1" parent="qdDP7D6DgFl5NaUtgflI-60">
+        <mxCell id="h0Szdju_bqcS8HYTci_e-1" value="模型类别：整流单元" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontSize=12;fontFamily=Helvetica;" parent="qdDP7D6DgFl5NaUtgflI-60" vertex="1">
           <mxGeometry y="90" width="140" height="30" as="geometry" />
         </mxCell>
         <mxCell id="qdDP7D6DgFl5NaUtgflI-63" value="产品型号：MLFB" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontSize=12;fontFamily=Helvetica;" parent="qdDP7D6DgFl5NaUtgflI-60" vertex="1">
           <mxGeometry y="120" width="140" height="30" as="geometry" />
         </mxCell>
-        <mxCell id="qdDP7D6DgFl5NaUtgflI-64" style="edgeStyle=orthogonalEdgeStyle;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontSize=10;" parent="1" source="qdDP7D6DgFl5NaUtgflI-60" target="qdDP7D6DgFl5NaUtgflI-69" edge="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="qdDP7D6DgFl5NaUtgflI-70" style="edgeStyle=orthogonalEdgeStyle;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontSize=10;" parent="1" source="qdDP7D6DgFl5NaUtgflI-22" target="qdDP7D6DgFl5NaUtgflI-27" edge="1">
-          <mxGeometry relative="1" as="geometry" />
+        <mxCell id="qdDP7D6DgFl5NaUtgflI-70" style="edgeStyle=orthogonalEdgeStyle;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontSize=10;" parent="1" source="qdDP7D6DgFl5NaUtgflI-22" target="BaMregSlb25QIMzcFySM-2" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="-163" y="107" />
+              <mxPoint x="-163" y="247" />
+            </Array>
+          </mxGeometry>
         </mxCell>
         <mxCell id="qdDP7D6DgFl5NaUtgflI-22" value="客户信息" style="swimlane;fontStyle=0;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
-          <mxGeometry x="-374" y="435" width="140" height="180" as="geometry">
+          <mxGeometry x="-376" y="33" width="140" height="180" as="geometry">
             <mxRectangle x="110" y="732" width="83" height="30" as="alternateBounds" />
           </mxGeometry>
         </mxCell>
@@ -766,7 +771,7 @@
           <mxGeometry x="574" y="393" width="148" height="30" as="geometry" />
         </mxCell>
         <mxCell id="qdDP7D6DgFl5NaUtgflI-104" value="&lt;h1 style=&quot;margin-top: 0px;&quot;&gt;实体说明&lt;/h1&gt;&lt;p&gt;未包含如创建人，创建时间，修改人，修改时间等基本数据字段&lt;/p&gt;" style="text;html=1;whiteSpace=wrap;overflow=hidden;rounded=0;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
-          <mxGeometry x="-125.5" y="386" width="219" height="95" as="geometry" />
+          <mxGeometry x="195" y="156" width="219" height="95" as="geometry" />
         </mxCell>
         <mxCell id="qdDP7D6DgFl5NaUtgflI-116" value="&lt;font style=&quot;font-size: 12px;&quot;&gt;检测项为报告的基本单元&lt;/font&gt;&lt;div&gt;&lt;font style=&quot;font-size: 12px;&quot;&gt;Json数据格式存储在mongoDB&lt;/font&gt;&lt;/div&gt;" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
           <mxGeometry x="859" y="382" width="169" height="37" as="geometry" />
@@ -835,6 +840,29 @@
         </mxCell>
         <mxCell id="JRGrmizH180OQtssX7iG-2" value="&lt;h1 style=&quot;margin-top: 0px;&quot;&gt;报告修改方式&lt;/h1&gt;&lt;p&gt;线上修改逻辑&lt;/p&gt;&lt;p&gt;&lt;br&gt;&lt;/p&gt;" style="text;html=1;whiteSpace=wrap;overflow=hidden;rounded=0;fontFamily=Helvetica;fontSize=12;" parent="1" vertex="1">
           <mxGeometry x="1047" y="445" width="180" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="BaMregSlb25QIMzcFySM-7" style="edgeStyle=none;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;fontSize=10;" edge="1" parent="1" source="BaMregSlb25QIMzcFySM-1" target="qdDP7D6DgFl5NaUtgflI-26">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="BaMregSlb25QIMzcFySM-1" value="设备信息（独立）" style="swimlane;fontStyle=0;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;fontFamily=Helvetica;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="-88" y="202" width="140" height="180" as="geometry">
+            <mxRectangle x="120" y="542" width="83" height="30" as="alternateBounds" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="BaMregSlb25QIMzcFySM-2" value="客户名称" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontSize=12;fontFamily=Helvetica;" vertex="1" parent="BaMregSlb25QIMzcFySM-1">
+          <mxGeometry y="30" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="BaMregSlb25QIMzcFySM-3" value="工厂" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontSize=12;fontFamily=Helvetica;" vertex="1" parent="BaMregSlb25QIMzcFySM-1">
+          <mxGeometry y="60" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="BaMregSlb25QIMzcFySM-4" value="车间" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontSize=12;fontFamily=Helvetica;" vertex="1" parent="BaMregSlb25QIMzcFySM-1">
+          <mxGeometry y="90" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="BaMregSlb25QIMzcFySM-5" value="产品型号" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontSize=12;fontFamily=Helvetica;" vertex="1" parent="BaMregSlb25QIMzcFySM-1">
+          <mxGeometry y="120" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="BaMregSlb25QIMzcFySM-6" value="数量" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontSize=12;fontFamily=Helvetica;" vertex="1" parent="BaMregSlb25QIMzcFySM-1">
+          <mxGeometry y="150" width="140" height="30" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>

@@ -5,6 +5,14 @@
 export interface SchemeItem {
   id: string;
   name: string;
+  // 模板标准字段
+  dataType?: string;
+  priority?: string;
+  operationGuide?: string;
+  ruleType?: string;
+  param1?: string;
+  param2?: string;
+  // 兼容历史字段
   type?: string;
   required?: boolean;
   standardValue?: number;
@@ -125,6 +133,12 @@ export interface FlatRow {
   name: string;
   level: number;
   parentId?: string;
+  dataType?: string;
+  priority?: string;
+  operationGuide?: string;
+  ruleType?: string;
+  param1?: string;
+  param2?: string;
   type?: string;
   typeLabel?: string;
   required?: boolean;
@@ -156,6 +170,12 @@ export const convertToFlatRows = (items: SchemeItem[], parentId?: string, level:
       name: item.name,
       level: level,
       parentId: parentId,
+      dataType: item.dataType,
+      priority: item.priority,
+      operationGuide: item.operationGuide ?? item.testProcedure,
+      ruleType: item.ruleType,
+      param1: item.param1 ?? (item.minThreshold !== undefined ? String(item.minThreshold) : undefined),
+      param2: item.param2 ?? (item.maxThreshold !== undefined ? String(item.maxThreshold) : undefined),
       type: item.type,
       typeLabel: item.type ? getTypeLabel(item.type) : undefined,
       required: item.required,
