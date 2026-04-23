@@ -206,16 +206,57 @@ namespace premaintainProjects.Controllers
 
                 _context.InspectionTasks.AddRange(inspectionTasks);
                 await _context.SaveChangesAsync();
+
+                var inspectionItems = await _context.InspectionItems
+                    .Where(x => x.Templateid == inspectionTask4Equipment.Templateid)
+                    .OrderBy(x => x.SortOrder)
+                    .ToListAsync();
+
+                var categoryPathMap = await BuildCategoryPathMapAsync(inspectionTask4Equipment.Templateid);
+
+                var taskitems = new List<Taskitem>();
+
+                foreach (var task in inspectionTasks)
+                {
+                    foreach (var inspectionItem in inspectionItems)
+                    {
+                        taskitems.Add(new Taskitem
+                        {
+                            Itemid = Guid.NewGuid(),
+                            Taskid = task.Taskid,
+                            Inspectionitemid = inspectionItem.Itemid,
+                            Taskname = inspectionItem.Name,
+                            Categorypath = inspectionItem.Categoryid.HasValue &&
+                                           categoryPathMap.ContainsKey(inspectionItem.Categoryid.Value)
+                                ? categoryPathMap[inspectionItem.Categoryid.Value]
+                                : null,
+                            Taskresult = null,
+                            Isnormal = true,
+                            Isrecheck = false,
+                            Photopath = null,
+                            Createtime = DateTime.Now,
+                            ExecutionStatus = 1,
+                            Updatetime = DateTime.Now,
+                            Version = 1,
+                            SourceType = 1,
+                            RenderSchemaJson = await _serviceTools.BuildRenderSchemaJsonAsync(inspectionItem.Itemid)
+                        });
+                    }
+                }
+
+                _context.Taskitems.AddRange(taskitems);
+                await _context.SaveChangesAsync();
+
                 await transaction.CommitAsync();
 
-                _logger.LogInformation("按设备批量新增巡检任务成功，EquipmentId：{EquipmentId}，数量：{Count}",
-                    inspectionTask4Equipment.Equipmentid, inspectionTasks.Count);
+                _logger.LogInformation("按设备批量新增巡检任务成功，EquipmentId：{EquipmentId}，任务数：{TaskCount}，任务项数：{ItemCount}",
+                    inspectionTask4Equipment.Equipmentid, inspectionTasks.Count, taskitems.Count);
 
                 return new JsonResult(new
                 {
                     code = ResponseCode.成功,
-                    data = "",
-                    msg = "成功生成巡检任务"
+                    data = inspectionTasks.Select(x => x.Taskid).ToList(),
+                    msg = "成功生成巡检任务及任务项"
                 });
             }
             catch (Exception ex)
@@ -282,7 +323,41 @@ namespace premaintainProjects.Controllers
             return _context.InspectionTasks.Any(e => e.Taskid == id);
         }
 
+        private async Task<Dictionary<int, string>> BuildCategoryPathMapAsync(int templateId)
+        {
+            var categories = await _context.InspectionCategories
+                .Where(x => x.Templateid == templateId)
+                .OrderBy(x => x.SortOrder)
+                .ToListAsync();
 
+            var dict = categories.ToDictionary(x => x.Categoryid, x => x);
+            var result = new Dictionary<int, string>();
+
+            string BuildPath(int categoryId)
+            {
+                if (result.ContainsKey(categoryId))
+                    return result[categoryId];
+
+                var current = dict[categoryId];
+
+                if (current.ParentId == 0 || !dict.ContainsKey(current.ParentId))
+                {
+                    result[categoryId] = current.Name ?? string.Empty;
+                    return result[categoryId];
+                }
+
+                var parentPath = BuildPath(current.ParentId);
+                result[categoryId] = $"{parentPath}/{current.Name}";
+                return result[categoryId];
+            }
+
+            foreach (var category in categories)
+            {
+                BuildPath(category.Categoryid);
+            }
+
+            return result;
+        }
 
 
     }
