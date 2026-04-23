@@ -1,13 +1,17 @@
-﻿using System;
+﻿using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Build.Framework;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using premaintainProjects.Models;
+using premaintainProjects.Services;
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using premaintainProjects.Models;
 using static premaintainProjects.Models.otherModels;
-using Microsoft.Extensions.Logging;
 
 namespace premaintainProjects.Controllers
 {
@@ -17,11 +21,13 @@ namespace premaintainProjects.Controllers
     {
         private readonly PredictiveMaintenancePlatformContext _context;
         private readonly ILogger<TaskitemsController> _logger;
+        private readonly ServiceTools _serviceTools;
 
-        public TaskitemsController(PredictiveMaintenancePlatformContext context, ILogger<TaskitemsController> logger)
+        public TaskitemsController(PredictiveMaintenancePlatformContext context, ILogger<TaskitemsController> logger, ServiceTools serviceTools)
         {
             _context = context;
             _logger = logger;
+            _serviceTools = serviceTools;
         }
 
         // GET: api/Taskitems
@@ -29,6 +35,12 @@ namespace premaintainProjects.Controllers
         public async Task<IActionResult> GetTaskitems()
         {
             var items = await _context.Taskitems.ToListAsync();
+
+            foreach (var item in items)
+            {
+                await _serviceTools.RefreshRenderSchemaAsync(item);
+            }
+
             _logger.LogInformation("获取所有任务项，数量：{Count}", items.Count);
             return new JsonResult(new { code = ResponseCode.成功, data = items, msg = "" });
         }
@@ -43,6 +55,9 @@ namespace premaintainProjects.Controllers
                 _logger.LogWarning("未找到任务项，ID：{Id}", id);
                 return new JsonResult(new { code = ResponseCode.记录不存在, data = (object)null, msg = "记录不存在" });
             }
+
+            await _serviceTools.RefreshRenderSchemaAsync(item);
+
             _logger.LogInformation("获取任务项，ID：{Id}", id);
             return new JsonResult(new { code = ResponseCode.成功, data = item, msg = "" });
         }
@@ -55,6 +70,12 @@ namespace premaintainProjects.Controllers
                 .Where(t => t.Taskid == taskid)
                 .ToListAsync();
 
+            foreach (var item in items)
+            {
+                
+                await _serviceTools.RefreshRenderSchemaAsync(item);
+            }
+
             _logger.LogInformation("按Taskid检索任务项，Taskid：{Taskid}，数量：{Count}", taskid, items.Count);
 
             return new JsonResult(new { code = ResponseCode.成功, data = items, msg = "" });
@@ -64,36 +85,44 @@ namespace premaintainProjects.Controllers
         [HttpPut]
         public async Task<IActionResult> PutTaskitem(Taskitem taskitem)
         {
-            _context.Entry(taskitem).State = EntityState.Modified;
-
-            try
+            var existing = await _context.Taskitems.FindAsync(taskitem.Itemid);
+            if (existing == null)
             {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!TaskitemExists(taskitem.Itemid))
-
-                {
-                    _logger.LogWarning("更新失败，任务项不存在，ID：{Id}", taskitem.Itemid);
-                    return new JsonResult(new { code = ResponseCode.记录不存在, data = (object)null, msg = "记录不存在" });
-                }
-                else
-                {
-                    _logger.LogError("更新任务项时发生并发异常，ID：{Id}", taskitem.Itemid);
-                    throw;
-                }
+                _logger.LogWarning("更新失败，任务项不存在，ID：{Id}", taskitem.Itemid);
+                return new JsonResult(new { code = ResponseCode.记录不存在, data = (object)null, msg = "记录不存在" });
             }
 
-            _logger.LogInformation("更新任务项成功，ID：{Id}", taskitem.Itemid);
-            return new JsonResult(new { code = ResponseCode.成功, data = taskitem.Itemid, msg = "" });
+            existing.Taskid = taskitem.Taskid;
+            existing.Taskname = taskitem.Taskname;
+            existing.Categorypath = taskitem.Categorypath;
+            existing.Taskresult = taskitem.Taskresult;
+            existing.Isnormal = taskitem.Isnormal;
+            existing.Isrecheck = taskitem.Isrecheck;
+            existing.Photopath = taskitem.Photopath;
+            existing.ExecutionStatus = taskitem.ExecutionStatus;
+            existing.Version = taskitem.Version;
+            existing.SourceType = taskitem.SourceType;
+            existing.Inspectionitemid = taskitem.Inspectionitemid;
+            existing.Updatetime = DateTime.Now;
+
+            await _serviceTools.RefreshRenderSchemaAsync(existing);
+
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("更新任务项成功，ID：{Id}", existing.Itemid);
+            return new JsonResult(new { code = ResponseCode.成功, data = existing.Itemid, msg = "" });
         }
 
-        // POST: api/Taskitems
         [HttpPost]
         public async Task<IActionResult> PostTaskitem(Taskitem taskitem)
         {
-            taskitem.Itemid = Guid.NewGuid(); // 强制让数据库分配主键
+            taskitem.Itemid = Guid.NewGuid();
+            taskitem.Createtime = DateTime.Now;
+            taskitem.Updatetime = DateTime.Now;
+
+            
+            await _serviceTools.RefreshRenderSchemaAsync(taskitem);
+
             _context.Taskitems.Add(taskitem);
             await _context.SaveChangesAsync();
 
@@ -123,5 +152,6 @@ namespace premaintainProjects.Controllers
         {
             return _context.Taskitems.Any(e => e.Itemid == id);
         }
+
     }
 }

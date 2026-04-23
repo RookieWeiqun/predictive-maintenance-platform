@@ -1,9 +1,9 @@
-using premaintainProjects.Models; 
 using Microsoft.EntityFrameworkCore;
+using premaintainProjects.Dtos;
+using premaintainProjects.Models;
+using premaintainProjects.Services;
 
 var builder = WebApplication.CreateBuilder(args);
-
-// Add services to the container.
 
 builder.Services.AddControllers();
 builder.Services.AddCors(options =>
@@ -17,16 +17,13 @@ builder.Services.AddCors(options =>
     });
 });
 
-//builder.Services.AddOpenApi();
-
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 builder.Services.AddDbContext<PredictiveMaintenancePlatformContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-//var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-
+builder.Services.AddScoped<ServiceTools>();
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing"))

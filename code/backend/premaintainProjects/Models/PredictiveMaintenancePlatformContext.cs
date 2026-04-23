@@ -41,9 +41,7 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
 
     public virtual DbSet<User> Users { get; set; }
 
-    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-    { }
-
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder) { }
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Company>(entity =>
@@ -311,6 +309,7 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
                 .HasDefaultValue((short)1)
                 .HasComment("1.pending 待执行。任务包刚下发或尚未填写结果时使用。\r\n2.\r\ncompleted 已执行并已填写结果。\r\n\r\n3.skipped 本次现场决定跳过该项，但该项原本是计划中的标准检查项。\r\n4. not_applicable 该项对当前设备或现场不适用。\r\n5.\r\nrecheck_required 已执行，但需要后续复检或二次确认。")
                 .HasColumnName("execution_status");
+            entity.Property(e => e.Inspectionitemid).HasColumnName("inspectionitemid");
             entity.Property(e => e.Isnormal)
                 .HasDefaultValue(true)
                 .HasColumnName("isnormal");
@@ -318,6 +317,9 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
             entity.Property(e => e.Photopath)
                 .HasMaxLength(400)
                 .HasColumnName("photopath");
+            entity.Property(e => e.RenderSchemaJson)
+                .HasColumnType("jsonb")
+                .HasColumnName("render_schema_json");
             entity.Property(e => e.SourceType)
                 .HasDefaultValue((short)1)
                 .HasComment("1. system_generated\r\n2.manual_added")
