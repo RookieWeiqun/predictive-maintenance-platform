@@ -222,14 +222,12 @@ namespace premaintainProjects.Controllers
                     .Select(p => p.Productid)
                     .ToListAsync();
                 
-                if (productIds.Count == 0)
-                {
-
-                    if (equipment.Number.HasValue && equipment.Number.Value > 0)
+                
+                    if (equipment.Number.HasValue && equipment.Number.Value > 0 && productIds.Count < equipment.Number.Value)
                     {
                         var products = new List<Product>();
 
-                        for (int i = 0; i < equipment.Number.Value; i++)
+                        for (int i = productIds.Count; i < equipment.Number.Value; i++)
                         {
                             products.Add(new Product
                             {
@@ -240,8 +238,12 @@ namespace premaintainProjects.Controllers
                         }
                         _context.Products.AddRange(products);
                         await _context.SaveChangesAsync();
+                        productIds = await _context.Products
+                             .Where(p => p.Equipid == projectEquipment.Equipmentid)
+                             .Select(p => p.Productid)
+                             .ToListAsync();
                     }
-                 }               
+                               
 
                 var template = await _context.InspectionTemplates.FindAsync(projectEquipment.Templateid);
 
@@ -275,6 +277,45 @@ namespace premaintainProjects.Controllers
                 _context.InspectionTasks.AddRange(tasks);
                 await _context.SaveChangesAsync();
 
+                var inspectionItems = await _context.InspectionItems
+                        .Where(x => x.Templateid == template.Templateid)
+                        .OrderBy(x => x.SortOrder)
+                        .ToListAsync();
+
+                var categoryPathMap = await BuildCategoryPathMapAsync(template.Templateid);
+
+                var taskitems = new List<Taskitem>();
+
+                foreach (var task in tasks)
+                {
+                    foreach (var inspectionItem in inspectionItems)
+                    {
+                        taskitems.Add(new Taskitem
+                        {
+                            Itemid = Guid.NewGuid(),
+                            Taskid = task.Taskid,
+                            Inspectionitemid = inspectionItem.Itemid,
+                            Taskname = inspectionItem.Name,
+                            Categorypath = inspectionItem.Categoryid.HasValue &&
+                                           categoryPathMap.ContainsKey(inspectionItem.Categoryid.Value)
+                                ? categoryPathMap[inspectionItem.Categoryid.Value]
+                                : null,
+                            Taskresult = null,
+                            Isnormal = true,
+                            Isrecheck = false,
+                            Photopath = null,
+                            Createtime = DateTime.Now,
+                            ExecutionStatus = 1,
+                            Updatetime = DateTime.Now,
+                            Version = 1,
+                            SourceType = 1,
+                            RenderSchemaJson = await _serviceTools.BuildRenderSchemaJsonAsync(inspectionItem.Itemid)
+                        });
+                    }
+                }
+
+                _context.Taskitems.AddRange(taskitems);
+                await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
 
                 _logger.LogInformation("新增项目设备成功，ID：{Id}，同步生成任务数量：{Count}", projectEquipment.Peid, tasks.Count);
@@ -309,6 +350,42 @@ namespace premaintainProjects.Controllers
         private bool ProjectEquipmentExists(int id)
         {
             return _context.ProjectEquipments.Any(e => e.Peid == id);
+        }
+
+        private async Task<Dictionary<int, string>> BuildCategoryPathMapAsync(int templateId)
+        {
+            var categories = await _context.InspectionCategories
+                .Where(x => x.Templateid == templateId)
+                .OrderBy(x => x.SortOrder)
+                .ToListAsync();
+
+            var dict = categories.ToDictionary(x => x.Categoryid, x => x);
+            var result = new Dictionary<int, string>();
+
+            string BuildPath(int categoryId)
+            {
+                if (result.ContainsKey(categoryId))
+                    return result[categoryId];
+
+                var current = dict[categoryId];
+
+                if (current.ParentId == 0 || !dict.ContainsKey(current.ParentId))
+                {
+                    result[categoryId] = current.Name ?? string.Empty;
+                    return result[categoryId];
+                }
+
+                var parentPath = BuildPath(current.ParentId);
+                result[categoryId] = $"{parentPath}/{current.Name}";
+                return result[categoryId];
+            }
+
+            foreach (var category in categories)
+            {
+                BuildPath(category.Categoryid);
+            }
+
+            return result;
         }
     }
 }
