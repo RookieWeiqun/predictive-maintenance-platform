@@ -1,6 +1,11 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using Microsoft.EntityFrameworkCore;
+using premaintainProjects.Controllers;
+using premaintainProjects.Models;
+using System.ComponentModel.DataAnnotations;
+using System.Security.Cryptography;
 using System.Text.Json;
 
+namespace premaintainProjects.Dtos { 
 /// <summary>
 /// 完整导入模板请求DTO
 /// </summary>
@@ -68,23 +73,16 @@ public class InspectionItemImportDto
 public partial class InspectionTask4Equipment
 {
     public int Projectid { get; set; }
-
     public int Templateid { get; set; }
-
-    /// <summary>
-    /// 1、进行中/2、完成/3、未开始
-    /// </summary>
-    public int Status { get; set; }
-
-    public string? TaskNo { get; set; }
-
-    public int? Assigneduserid { get; set; }
-
     public int Equipmentid { get; set; }
+}
 
-    /// <summary>
-    /// 1、设备检测
-    /// 2、外围检测
-    /// </summary>
-    public int Inspectiontype { get; set; }
+public class InspectionTaskDetailDto
+{
+    public InspectionTask Task { get; set; } = null!;
+    public List<Taskitem> Taskitems { get; set; } = new();
+}
+
+
+   
 }

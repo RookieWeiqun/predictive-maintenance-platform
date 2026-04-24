@@ -1,13 +1,18 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using premaintainProjects.Models;
-using static premaintainProjects.Models.otherModels;
 using Microsoft.Extensions.Logging;
+using premaintainProjects.Dtos;
+using premaintainProjects.Models;
+using premaintainProjects.Services;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Security.Cryptography;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Threading.Tasks;
+using static premaintainProjects.Models.otherModels;
 
 namespace premaintainProjects.Controllers
 {
@@ -17,11 +22,16 @@ namespace premaintainProjects.Controllers
     {
         private readonly PredictiveMaintenancePlatformContext _context;
         private readonly ILogger<InspectionTasksController> _logger;
+        private readonly ServiceTools _serviceTools;
 
-        public InspectionTasksController(PredictiveMaintenancePlatformContext context, ILogger<InspectionTasksController> logger)
+        public InspectionTasksController(
+            PredictiveMaintenancePlatformContext context,
+            ILogger<InspectionTasksController> logger,
+            ServiceTools serviceTools)
         {
             _context = context;
             _logger = logger;
+            _serviceTools = serviceTools;
         }
 
         // GET: api/InspectionTasks
@@ -102,7 +112,7 @@ namespace premaintainProjects.Controllers
             return new JsonResult(new { code = ResponseCode.成功, data = inspectionTask.Taskid, msg = "" });
         }
 
-        [HttpPut("batch")]
+        [HttpPut("UpdateTasklist")]
         public async Task<IActionResult> BatchUpdateInspectionTasks([FromBody] List<InspectionTask> tasks)
         {
             if (tasks == null || tasks.Count == 0)
@@ -149,60 +159,35 @@ namespace premaintainProjects.Controllers
             return new JsonResult(new { code = ResponseCode.成功, data = inspectionTask.Taskid, msg = "" });
         }
 
-        // POST: api/InspectionTasks/equipment
-        [HttpPost("equipment")]
-        public async Task<IActionResult> PostInspectionTask4Equipment(InspectionTask4Equipment inspectionTask4Equipment)
+        // GET: api/InspectionTasks/{id}/detail
+        [HttpGet("{id}/detail")]
+        public async Task<IActionResult> GetInspectionTaskDetail(int id)
         {
-            using var transaction = await _context.Database.BeginTransactionAsync();
-
-            try
+            var task = await _context.InspectionTasks.FindAsync(id);
+            if (task == null)
             {
-                var productIds = await _context.Products
-                    .Where(p => p.Equipid == inspectionTask4Equipment.Equipmentid)
-                    .Select(p => p.Productid)
-                    .ToListAsync();
-
-                if (productIds.Count == 0)
-                {
-                    _logger.LogWarning("未找到设备对应的产品，EquipmentId：{EquipmentId}", inspectionTask4Equipment.Equipmentid);
-                    return new JsonResult(new { code = ResponseCode.记录不存在, data = (object)null, msg = "未找到设备对应的产品" });
-                }
-
-                var inspectionTasks = productIds.Select(productId => new InspectionTask
-                {
-                    Taskid = 0,
-                    Projectid = inspectionTask4Equipment.Projectid,
-                    Templateid = inspectionTask4Equipment.Templateid,
-                    Status = inspectionTask4Equipment.Status,
-                    TaskNo = inspectionTask4Equipment.TaskNo,
-                    Assigneduserid = inspectionTask4Equipment.Assigneduserid,
-                    Productid = productId,
-                    Inspectiontype = inspectionTask4Equipment.Inspectiontype,
-                    Ifdel = false
-                }).ToList();
-
-                _context.InspectionTasks.AddRange(inspectionTasks);
-                await _context.SaveChangesAsync();
-                await transaction.CommitAsync();
-
-                _logger.LogInformation("按设备批量新增巡检任务成功，EquipmentId：{EquipmentId}，数量：{Count}",
-                    inspectionTask4Equipment.Equipmentid, inspectionTasks.Count);
-
-                return new JsonResult(new
-                {
-                    code = ResponseCode.成功,
-                    data = inspectionTasks.Select(x => x.Taskid).ToList(),
-                    msg = ""
-                });
+                _logger.LogWarning("未找到巡检任务详情，ID：{Id}", id);
+                return new JsonResult(new { code = ResponseCode.记录不存在, data = (object)null, msg = "记录不存在" });
             }
-            catch (Exception ex)
+
+            var taskitems = await _context.Taskitems
+                .Where(x => x.Taskid == id)
+                .ToListAsync();
+
+            foreach (var item in taskitems)
             {
-                await transaction.RollbackAsync();
-                _logger.LogError(ex, "按设备批量新增巡检任务失败，EquipmentId：{EquipmentId}", inspectionTask4Equipment.Equipmentid);
-                return new JsonResult(new { code = ResponseCode.操作失败, data = (object)null, msg = "操作失败" });
-            }
+                await _serviceTools.RefreshRenderSchemaAsync(item);
+            }            
+
+            var data = new InspectionTaskDetailDto
+            {
+                Task = task,
+                Taskitems = taskitems
+            };
+
+            _logger.LogInformation("获取巡检任务详情成功，ID：{Id}，任务项数量：{Count}", id, taskitems.Count);
+            return new JsonResult(new { code = ResponseCode.成功, data, msg = "" });
         }
-
 
         // DELETE: api/InspectionTasks/5
         [HttpDelete("{id}")]
@@ -225,6 +210,14 @@ namespace premaintainProjects.Controllers
         private bool InspectionTaskExists(int id)
         {
             return _context.InspectionTasks.Any(e => e.Taskid == id);
+        }
+
+        private async Task FillRenderSchemaAsync(List<Taskitem> taskitems)
+        {
+            foreach (var item in taskitems)
+            {
+                item.RenderSchemaJson = await _serviceTools.BuildRenderSchemaJsonAsync(item.Inspectionitemid);
+            }
         }
     }
 }

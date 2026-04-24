@@ -60,34 +60,65 @@ namespace premaintainProjects.Controllers
             return new JsonResult(new { code = ResponseCode.成功, data = equipments, msg = "" });
         }
 
-        // PUT: api/Equipments
         [HttpPut]
         public async Task<IActionResult> PutEquipment(Equipment equipment)
         {
-            _context.Entry(equipment).State = EntityState.Modified;
+            using var transaction = await _context.Database.BeginTransactionAsync();
 
             try
             {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!EquipmentExists(equipment.Equipid))
+                var existingEquipment = await _context.Equipments.FindAsync(equipment.Equipid);
+                if (existingEquipment == null)
                 {
                     _logger.LogWarning("更新失败，设备不存在，ID：{Id}", equipment.Equipid);
                     return new JsonResult(new { code = ResponseCode.记录不存在, data = (object)null, msg = "记录不存在" });
                 }
-                else
+
+                var oldCount = existingEquipment.Number ?? 0;
+                var newCount = equipment.Number ?? 0;
+
+                existingEquipment.Companyid = equipment.Companyid;
+                existingEquipment.Factory = equipment.Factory;
+                existingEquipment.Workshop = equipment.Workshop;
+                existingEquipment.Equipmentname = equipment.Equipmentname;
+                existingEquipment.Productcategory = equipment.Productcategory;
+                existingEquipment.Productgroup = equipment.Productgroup;
+                existingEquipment.Number = equipment.Number;
+                existingEquipment.Mlfb = equipment.Mlfb;
+
+                await _context.SaveChangesAsync();
+
+                if (newCount > oldCount)
                 {
-                    _logger.LogError("更新设备时发生并发异常，ID：{Id}", equipment.Equipid);
-                    throw;
+                    var addCount = newCount - oldCount;
+                    var products = new List<Product>();
+
+                    for (int i = 0; i < addCount; i++)
+                    {
+                        products.Add(new Product
+                        {
+                            Equipid = existingEquipment.Equipid,
+                            Mlfb = existingEquipment.Mlfb,
+                            Serialno = null
+                        });
+                    }
+
+                    _context.Products.AddRange(products);
+                    await _context.SaveChangesAsync();
                 }
+
+                await transaction.CommitAsync();
+
+                _logger.LogInformation("更新设备成功，ID：{Id}，产品数量由 {OldCount} 变为 {NewCount}", existingEquipment.Equipid, oldCount, newCount);
+                return new JsonResult(new { code = ResponseCode.成功, data = existingEquipment.Equipid, msg = "" });
             }
-
-            _logger.LogInformation("更新设备成功，ID：{Id}", equipment.Equipid);
-            return new JsonResult(new { code = ResponseCode.成功, data = equipment.Equipid, msg = "" });
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                _logger.LogError(ex, "更新设备失败，ID：{Id}", equipment.Equipid);
+                return new JsonResult(new { code = ResponseCode.操作失败, data = (object)null, msg = "更新失败" });
+            }
         }
-
         // POST: api/Equipments
         [HttpPost]
         public async Task<IActionResult> PostEquipment(Equipment equipment)

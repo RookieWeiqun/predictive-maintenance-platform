@@ -44,4 +44,8 @@ public partial class Taskitem
     /// 2.manual_added
     /// </summary>
     public short SourceType { get; set; }
+
+    public string? RenderSchemaJson { get; set; }
+
+    public int? Inspectionitemid { get; set; }
 }
