@@ -93,10 +93,9 @@ import {
 import * as agGrid from 'ag-grid-community';
 import { IxContentHeader, IxInput, IxSelect, IxSelectItem, IxButton, showToast } from "@siemens/ix-vue";
 import {
-  downloadDemoProjectTaskPackages,
+  downloadTaskPackage,
   offlineTaskRepository,
 } from '@/android';
-import taskStatusData from '@/mockdata/common/taskStatus.json';
 import {
   projectsApi,
   inspectionTasksApi,
@@ -126,8 +125,7 @@ type TaskListRow = {
   schemeName: string;
   deviceCount: number;
   remark: string;
-  status: 'pending' | 'in-progress' | 'completed' | 'synced';
-  offlineStatus: 'not-downloaded' | 'downloaded' | 'in-progress' | 'uploaded';
+  status: 'not-downloaded' | 'downloaded' | 'uploaded';
   engineer: string;
   parentId: string | null;
   isSubTask: boolean;
@@ -146,7 +144,6 @@ const selectedDownloadTaskIds = ref<Set<string>>(new Set());
 const projects = ref<ProjectDto[]>([]);
 const allTasks = ref<TaskListRow[]>([]);
 const tasksLoading = ref(false);
-const statusMap = taskStatusData.statusMap;
 
 watch(selectedProject, (id) => {
   try {
@@ -162,17 +159,23 @@ function formatProjectNo(p: ProjectDto): string {
   return `P-${String(p.projectid).padStart(4, '0')}`;
 }
 
-/** 与后端 InspectionTask.status：1 进行中 / 2 完成 / 3 未开始 */
-function mapInspectionStatusToUi(code: number): TaskListRow['status'] {
-  if (code === 1) return 'in-progress';
-  if (code === 2) return 'completed';
-  if (code === 3) return 'pending';
-  return 'pending';
-}
-
 function taskTypeFromInspectionType(inspectiontype: number): { taskType: string; taskTypeLabel: string } {
   if (inspectiontype === 1) return { taskType: 'equipment', taskTypeLabel: '设备检测' };
   return { taskType: 'peripheral', taskTypeLabel: '外围检测' };
+}
+
+function getOnlineLifecycleMeta(status: TaskListRow['status']): {
+  key: TaskListRow['status'];
+  label: string;
+  percent: number;
+} {
+  if (status === 'uploaded') {
+    return { key: 'uploaded', label: '已上传', percent: 100 };
+  }
+  if (status === 'downloaded') {
+    return { key: 'downloaded', label: '已下载', percent: 60 };
+  }
+  return { key: 'not-downloaded', label: '未下载', percent: 15 };
 }
 
 async function mapInspectionTasksToRows(
@@ -235,8 +238,7 @@ async function mapInspectionTasksToRows(
           schemeName,
           deviceCount: 1,
           remark: prod?.serialno ? `序列号：${prod.serialno}` : '',
-          status: mapInspectionStatusToUi(t.status),
-          offlineStatus: 'not-downloaded',
+          status: 'not-downloaded',
           engineer: t.assigneduserid != null ? `用户#${t.assigneduserid}` : '',
           parentId: null,
           isSubTask: false,
@@ -330,27 +332,12 @@ async function restoreSessionProjectIfValid(): Promise<void> {
   await fetchTasksForSelectedProject();
 }
 
-// 获取状态文本
-const getStatusText = (status: string) => {
-  return statusMap[status as keyof typeof statusMap] || status;
-};
-
-function getOfflineStatusText(status: TaskListRow['offlineStatus']): string {
-  if (status === 'downloaded') return '已下载';
-  if (status === 'in-progress') return '执行中';
-  if (status === 'uploaded') return '已上传';
-  return '未下载';
-}
-
-function resolveOfflineStatus(localTask: { status: string; sync_status: string } | null): TaskListRow['offlineStatus'] {
+function resolveOfflineStatus(localTask: { status: string; sync_status: string } | null): TaskListRow['status'] {
   if (localTask == null) {
     return 'not-downloaded';
   }
   if (localTask.status === 'uploaded') {
     return 'uploaded';
-  }
-  if (localTask.status === 'in-progress' || localTask.sync_status === 'pending') {
-    return 'in-progress';
   }
   return 'downloaded';
 }
@@ -369,7 +356,7 @@ async function refreshOfflineStatuses(): Promise<void> {
 
   allTasks.value = allTasks.value.map((task) => ({
     ...task,
-    offlineStatus: resolveOfflineStatus(
+    status: resolveOfflineStatus(
       localTaskMap.get(String(task.rawTaskid)) ?? localTaskMap.get(task.id) ?? null,
     ),
   }));
@@ -530,8 +517,7 @@ const handleCreateSubTask = (task: TaskListRow | null) => {
     schemeName: task.schemeName,
     deviceCount: 1,
     remark: `设备序列号：SN-${String(nextSubTaskIndex).padStart(3, '0')}`,
-    status: 'pending',
-    offlineStatus: 'not-downloaded',
+    status: 'not-downloaded',
     engineer: '',
     parentId: task.id,
     isSubTask: true,
@@ -650,7 +636,7 @@ const handleDownloadTasks = async () => {
   }
 
   const existingDownloadedTasks = downloadableTasks.filter(
-    (task) => task.offlineStatus !== 'not-downloaded',
+    (task) => task.status !== 'not-downloaded',
   );
   if (existingDownloadedTasks.length > 0) {
     const taskNames = existingDownloadedTasks.slice(0, 3).map((task) => task.id).join('、');
@@ -664,22 +650,21 @@ const handleDownloadTasks = async () => {
   }
 
   try {
-    const downloaded = await downloadDemoProjectTaskPackages(
-      downloadableTasks.map((task) => ({
-        taskId: task.rawTaskid,
-        taskNo: task.id,
-        projectId: task.projectId,
+    let taskCount = 0;
+    let itemCount = 0;
+    for (const task of downloadableTasks) {
+      const downloaded = await downloadTaskPackage(String(task.rawTaskid), {
         projectName: task.projectName,
-        templateId: task.schemeId,
-        templateName: task.schemeName,
         deviceModel: task.deviceModel,
-      })),
-    );
+      });
+      taskCount += downloaded.taskCount;
+      itemCount += downloaded.itemCount;
+    }
 
     await refreshOfflineStatuses();
     selectedDownloadTaskIds.value = new Set();
     updateGridData();
-    showToast({ message: `已下载 ${downloaded.taskCount} 个任务包，共 ${downloaded.itemCount} 条任务项` });
+    showToast({ message: `已下载 ${taskCount} 个任务包，共 ${itemCount} 条任务项` });
   } catch (error) {
     console.error('下载任务失败:', error);
     showToast({ message: error instanceof Error ? error.message : '下载任务失败，请稍后重试' });
@@ -808,27 +793,21 @@ onMounted(() => {
         resizable: true,
         sortable: true,
         filter: true,
-        flex: 0.7,
-        minWidth: 84,
+        flex: 1.05,
+        minWidth: 150,
         cellRenderer: (params: any) => {
-          const status = params.value;
-          const statusText = getStatusText(status);
-          const statusClass = `status-${status}`;
-          return `<span class="status-badge ${statusClass}">${statusText}</span>`;
-        },
-      },
-      {
-        field: 'offlineStatus',
-        headerName: '离线状态',
-        resizable: true,
-        sortable: true,
-        filter: true,
-        flex: 0.9,
-        minWidth: 96,
-        cellRenderer: (params: any) => {
-          const status = params.value as TaskListRow['offlineStatus'];
-          const statusText = getOfflineStatusText(status);
-          return `<span class="status-badge status-${status}">${statusText}</span>`;
+          const meta = getOnlineLifecycleMeta(params.value as TaskListRow['status']);
+          return `
+            <div class="task-status-progress task-status-progress-online">
+              <div class="task-status-progress-header">
+                <span>${meta.label}</span>
+                <span>${meta.percent}%</span>
+              </div>
+              <div class="task-status-progress-track">
+                <div class="task-status-progress-fill task-status-progress-${meta.key}" style="width: ${meta.percent}%"></div>
+              </div>
+            </div>
+          `;
         },
       },
       {
@@ -987,51 +966,42 @@ onBeforeUnmount(() => {
   align-items: center;
 }
 
-.status-badge {
-  display: inline-block;
-  padding: 0.375rem 0.75rem;
-  border-radius: 0.25rem;
+.task-status-progress {
+  min-width: 160px;
+}
+
+.task-status-progress-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.35rem;
   font-size: 0.8125rem;
-  font-weight: 500;
-  white-space: nowrap;
-  line-height: 1;
+  color: var(--theme-color-text);
 }
 
-.status-pending {
-  background-color: var(--theme-color-soft);
-  color: var(--theme-color-text-soft);
-  opacity: 0.8;
+.task-status-progress-track {
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--theme-color-soft);
+  overflow: hidden;
 }
 
-.status-not-downloaded {
-  background-color: var(--theme-color-soft);
-  color: var(--theme-color-text-soft);
-  opacity: 0.8;
+.task-status-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  transition: width 0.2s ease;
 }
 
-.status-downloaded {
-  background-color: color-mix(in srgb, var(--theme-color-warning) 14%, white);
-  color: var(--theme-color-warning);
+.task-status-progress-not-downloaded {
+  background: color-mix(in srgb, var(--theme-color-warning) 70%, white);
 }
 
-.status-in-progress {
-  background-color: var(--theme-color-primary-soft);
-  color: var(--theme-color-primary);
+.task-status-progress-downloaded {
+  background: color-mix(in srgb, var(--theme-color-primary) 80%, white);
 }
 
-.status-uploaded {
-  background-color: var(--theme-color-success-soft);
-  color: var(--theme-color-success);
-}
-
-.status-completed {
-  background-color: var(--theme-color-success-soft);
-  color: var(--theme-color-success);
-}
-
-.status-synced {
-  background-color: var(--theme-color-info-soft);
-  color: var(--theme-color-info);
+.task-status-progress-uploaded {
+  background: color-mix(in srgb, var(--theme-color-success) 80%, white);
 }
 
 .modal-content {

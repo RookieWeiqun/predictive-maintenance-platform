@@ -9,7 +9,7 @@ function quoteList(values: readonly string[]): string {
   return values.map((value) => `'${value}'`).join(', ');
 }
 
-export const OFFLINE_DB_VERSION = 1;
+export const OFFLINE_DB_VERSION = 2;
 
 export const OFFLINE_TASK_TABLE = 'offline_task';
 export const OFFLINE_TASK_ITEM_TABLE = 'offline_task_item';
@@ -21,6 +21,8 @@ CREATE TABLE IF NOT EXISTS ${OFFLINE_TASK_TABLE} (
   task_uuid TEXT PRIMARY KEY NOT NULL,
   server_task_id TEXT,
   task_no TEXT,
+  serial_no TEXT,
+  assigned_user_name TEXT,
   project_id TEXT,
   project_name TEXT,
   scheme_id TEXT,
@@ -32,6 +34,11 @@ CREATE TABLE IF NOT EXISTS ${OFFLINE_TASK_TABLE} (
   sync_status TEXT NOT NULL CHECK (sync_status IN (${quoteList(OFFLINE_SYNC_STATUSES)}))
 );
 `;
+
+export const OFFLINE_DB_MIGRATION_V2_SQL = [
+  `ALTER TABLE ${OFFLINE_TASK_TABLE} ADD COLUMN serial_no TEXT;`,
+  `ALTER TABLE ${OFFLINE_TASK_TABLE} ADD COLUMN assigned_user_name TEXT;`,
+];
 
 export const CREATE_OFFLINE_TASK_ITEM_TABLE_SQL = `
 CREATE TABLE IF NOT EXISTS ${OFFLINE_TASK_ITEM_TABLE} (

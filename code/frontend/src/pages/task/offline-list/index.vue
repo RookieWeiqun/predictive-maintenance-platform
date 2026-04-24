@@ -43,6 +43,14 @@
             <div class="summary-label">待同步</div>
             <div class="summary-value">{{ pendingOutboxCount }}</div>
           </IxCard>
+          <IxCard class="summary-card">
+            <div class="summary-label">可上传任务</div>
+            <div class="summary-value">{{ pendingTaskCount }}</div>
+          </IxCard>
+          <IxCard class="summary-card">
+            <div class="summary-label">已勾选</div>
+            <div class="summary-value">{{ selectedTaskUuids.size }}</div>
+          </IxCard>
         </div>
 
         <div class="table-container">
@@ -58,6 +66,14 @@
             <table class="offline-table">
               <thead>
                 <tr>
+                  <th class="checkbox-col">
+                    <input
+                      type="checkbox"
+                      :checked="allPendingVisibleSelected"
+                      :disabled="pendingVisibleTaskIds.length === 0"
+                      @change="toggleSelectAllVisible($event)"
+                    />
+                  </th>
                   <th>任务编号</th>
                   <th>项目</th>
                   <th>设备型号</th>
@@ -69,19 +85,38 @@
               </thead>
               <tbody>
                 <tr v-for="task in filteredTasks" :key="task.task_uuid">
+                  <td class="checkbox-col">
+                    <input
+                      type="checkbox"
+                      :checked="selectedTaskUuids.has(task.task_uuid)"
+                      :disabled="!isTaskPending(task.task_uuid)"
+                      @change="toggleTaskSelection(task.task_uuid, $event)"
+                    />
+                  </td>
                   <td>{{ task.task_no || task.task_uuid }}</td>
                   <td>{{ task.project_name || task.project_id || '-' }}</td>
                   <td>{{ task.device_model || '-' }}</td>
                   <td>{{ task.scheme_name || task.scheme_id || '-' }}</td>
                   <td>{{ formatTime(task.downloaded_at) }}</td>
                   <td>
-                    <span class="status-badge" :class="`status-${task.status}`">{{ statusLabel(task.status) }}</span>
+                    <div class="task-status-progress">
+                      <div class="task-status-progress-header">
+                        <span>{{ getOfflineLifecycleMeta(task.status).label }}</span>
+                        <span>{{ getOfflineLifecycleMeta(task.status).percent }}%</span>
+                      </div>
+                      <div class="task-status-progress-track">
+                        <div
+                          class="task-status-progress-fill"
+                          :class="`task-status-progress-${getOfflineLifecycleMeta(task.status).key}`"
+                          :style="{ width: `${getOfflineLifecycleMeta(task.status).percent}%` }"
+                        ></div>
+                      </div>
+                    </div>
                   </td>
                   <td>
                     <div class="task-actions">
-                      <IxButton variant="secondary" @click="handleViewScheme(task)">
-                        查看方案
-                      </IxButton>
+                      <span v-if="isTaskPending(task.task_uuid)" class="sync-tag sync-tag-pending">待上传</span>
+                      <span v-else class="sync-tag">无变更</span>
                       <IxButton variant="primary" @click="handleExecuteTask(task)">
                         执行任务
                       </IxButton>
@@ -102,6 +137,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { IxButton, IxCard, IxContentHeader, IxInput, IxSelect, IxSelectItem, showToast } from '@siemens/ix-vue';
 import {
+  buildTaskSyncPayload,
   offlineOutboxRepository,
   offlineTaskRepository,
   simulateUploadPendingSyncBatch,
@@ -114,6 +150,8 @@ const searchText = ref('');
 const selectedProject = ref('');
 const tasks = ref<OfflineTaskRecord[]>([]);
 const pendingOutboxCount = ref(0);
+const pendingTaskUuids = ref<Set<string>>(new Set());
+const selectedTaskUuids = ref<Set<string>>(new Set());
 
 const projectList = computed(() => {
   const map = new Map<string, string>();
@@ -150,13 +188,30 @@ const filteredTasks = computed(() => {
   );
 });
 
-function statusLabel(status: string): string {
-  if (status === 'in-progress') return '进行中';
-  if (status === 'downloaded') return '已下载';
-  if (status === 'completed') return '已完成';
-  if (status === 'uploaded') return '已上传';
-  if (status === 'synced') return '已同步';
-  return '待执行';
+const pendingTaskCount = computed(() => pendingTaskUuids.value.size);
+
+const pendingVisibleTaskIds = computed(() =>
+  filteredTasks.value
+    .filter((task) => pendingTaskUuids.value.has(task.task_uuid))
+    .map((task) => task.task_uuid),
+);
+
+const allPendingVisibleSelected = computed(() =>
+  pendingVisibleTaskIds.value.length > 0 && pendingVisibleTaskIds.value.every((taskUuid) => selectedTaskUuids.value.has(taskUuid)),
+);
+
+function getOfflineLifecycleMeta(status: string): {
+  key: 'pending' | 'in-progress' | 'uploaded';
+  label: string;
+  percent: number;
+} {
+  if (status === 'uploaded' || status === 'completed' || status === 'synced') {
+    return { key: 'uploaded', label: '已上传', percent: 100 };
+  }
+  if (status === 'in-progress') {
+    return { key: 'in-progress', label: '进行中', percent: 55 };
+  }
+  return { key: 'pending', label: '待执行', percent: 20 };
 }
 
 function formatTime(value: string): string {
@@ -172,27 +227,48 @@ async function refreshTasks(): Promise<void> {
       offlineTaskRepository.listAll(),
       offlineOutboxRepository.listPending(),
     ]);
+    const payloads = await Promise.all(localTasks.map((task) => buildTaskSyncPayload(task.task_uuid)));
     tasks.value = localTasks;
     pendingOutboxCount.value = pendingOutbox.length;
+    pendingTaskUuids.value = new Set(
+      payloads
+        .filter((payload): payload is NonNullable<typeof payload> => payload != null)
+        .map((payload) => payload.task_uuid),
+    );
+    selectedTaskUuids.value = new Set(
+      [...selectedTaskUuids.value].filter((taskUuid) => localTasks.some((task) => task.task_uuid === taskUuid)),
+    );
   } catch (error) {
     showToast({ message: error instanceof Error ? error.message : '读取本地离线任务失败' });
   }
 }
 
-function handleViewScheme(task: OfflineTaskRecord): void {
-  if (!task.scheme_id) {
-    showToast({ message: '该离线任务未关联维护模板' });
-    return;
-  }
+function isTaskPending(taskUuid: string): boolean {
+  return pendingTaskUuids.value.has(taskUuid);
+}
 
-  router.push({
-    path: `/scheme/view/${task.scheme_id}`,
-    query: {
-      taskId: task.server_task_id || task.task_uuid,
-      returnPath: '/task/list-offline',
-      source: 'offline',
-    },
-  });
+function toggleTaskSelection(taskUuid: string, event: Event): void {
+  const target = event.target as HTMLInputElement;
+  const next = new Set(selectedTaskUuids.value);
+  if (target.checked) {
+    next.add(taskUuid);
+  } else {
+    next.delete(taskUuid);
+  }
+  selectedTaskUuids.value = next;
+}
+
+function toggleSelectAllVisible(event: Event): void {
+  const target = event.target as HTMLInputElement;
+  const next = new Set(selectedTaskUuids.value);
+  for (const taskUuid of pendingVisibleTaskIds.value) {
+    if (target.checked) {
+      next.add(taskUuid);
+    } else {
+      next.delete(taskUuid);
+    }
+  }
+  selectedTaskUuids.value = next;
 }
 
 function handleExecuteTask(task: OfflineTaskRecord): void {
@@ -205,13 +281,18 @@ function handleExecuteTask(task: OfflineTaskRecord): void {
 
 async function handleUploadData(): Promise<void> {
   try {
-    const pendingChanges = await offlineOutboxRepository.listPending();
-    if (pendingChanges.length === 0) {
-      showToast({ message: '当前没有待上传的离线变更' });
+    const selectedTaskIds = [...selectedTaskUuids.value].filter((taskUuid) => pendingTaskUuids.value.has(taskUuid));
+    if (selectedTaskIds.length === 0) {
+      showToast({ message: '请先勾选至少一个待上传任务' });
       return;
     }
-    const result = await simulateUploadPendingSyncBatch();
+    const result = await simulateUploadPendingSyncBatch(selectedTaskIds);
+    if (result.changeCount === 0) {
+      showToast({ message: '所选任务当前没有待上传变更' });
+      return;
+    }
     showToast({ message: `已模拟上传 ${result.changeCount} 条变更，涉及 ${result.taskCount} 个任务` });
+    selectedTaskUuids.value = new Set();
     await refreshTasks();
   } catch (error) {
     showToast({ message: error instanceof Error ? error.message : '读取待同步数据失败' });
@@ -317,6 +398,11 @@ onMounted(() => {
   vertical-align: middle;
 }
 
+.checkbox-col {
+  width: 3rem;
+  text-align: center;
+}
+
 .offline-table th {
   background: var(--theme-color-soft);
   font-size: 0.875rem;
@@ -333,37 +419,60 @@ onMounted(() => {
   display: flex;
   gap: 0.75rem;
   flex-wrap: wrap;
+  align-items: center;
 }
 
-.status-badge {
-  display: inline-block;
-  padding: 0.375rem 0.75rem;
-  border-radius: 0.25rem;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  white-space: nowrap;
-  line-height: 1;
-}
-
-.status-pending {
-  background-color: var(--theme-color-soft);
+.sync-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.75rem;
+  padding: 0 0.625rem;
+  border-radius: 999px;
+  background: var(--theme-color-soft);
   color: var(--theme-color-text-soft);
+  font-size: 0.75rem;
 }
 
-.status-in-progress {
-  background-color: var(--theme-color-primary-soft);
-  color: var(--theme-color-primary);
-}
-
-.status-downloaded {
-  background-color: color-mix(in srgb, var(--theme-color-warning) 14%, white);
+.sync-tag-pending {
+  background: color-mix(in srgb, var(--theme-color-warning) 16%, white);
   color: var(--theme-color-warning);
 }
 
-.status-completed,
-.status-synced,
-.status-uploaded {
-  background-color: var(--theme-color-success-soft);
-  color: var(--theme-color-success);
+.task-status-progress {
+  min-width: 160px;
+}
+
+.task-status-progress-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.35rem;
+  font-size: 0.8125rem;
+  color: var(--theme-color-text);
+}
+
+.task-status-progress-track {
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--theme-color-soft);
+  overflow: hidden;
+}
+
+.task-status-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  transition: width 0.2s ease;
+}
+
+.task-status-progress-pending {
+  background: color-mix(in srgb, var(--theme-color-warning) 70%, white);
+}
+
+.task-status-progress-in-progress {
+  background: color-mix(in srgb, var(--theme-color-primary) 80%, white);
+}
+
+.task-status-progress-uploaded {
+  background: color-mix(in srgb, var(--theme-color-success) 80%, white);
 }
 </style>

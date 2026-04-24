@@ -1,5 +1,10 @@
 import * as XLSX from 'xlsx';
 import type { SchemeItem } from './schemeUtils';
+import {
+  normalizeSupportedRuleType,
+  normalizeSupportedValueType,
+  validateRuleDefinition,
+} from './templateRuleSchema';
 
 type RawRow = Record<string, unknown>;
 
@@ -15,13 +20,14 @@ const TYPE_MAP: Record<string, SchemeItem['type']> = {
 };
 
 const LEVEL_KEY_GROUPS = [
+  ['2-装置级', '3-模块级', '4-检测项目', '5-检测项明细'],
   ['一级', '二级', '三级', '四级', '五级'],
   ['1-系统级', '2-装置级', '3-模块级', '4-检测项目', '5-检测项明细'],
 ] as const;
 
 const ITEM_NAME_KEYS = ['检测项目', '项目名称', '名称', '5-检测项明细', '4-检测项目'] as const;
 const TYPE_KEYS = ['检测类型', '类型', '数据类型'] as const;
-const REQUIRED_KEYS = ['必填', '是否必填', '权重'] as const;
+const REQUIRED_KEYS = ['必填', '是否必填'] as const;
 const UNIT_KEYS = ['单位'] as const;
 const STANDARD_VALUE_KEYS = ['标准值'] as const;
 const MIN_KEYS = ['最小阈值', '参数1'] as const;
@@ -30,6 +36,7 @@ const PROCEDURE_KEYS = ['测试步骤', '操作指导'] as const;
 const EXPECTED_RESULT_KEYS = ['预期结果'] as const;
 const TOLERANCE_KEYS = ['允许偏差'] as const;
 const RULE_TYPE_KEYS = ['规则类型'] as const;
+const THRESHOLD_KEYS = ['规则', 'threshold', 'Threshold'] as const;
 const DATA_TYPE_KEYS = ['数据类型'] as const;
 const PRIORITY_KEYS = ['权重', '优先级'] as const;
 const OPERATION_GUIDE_KEYS = ['操作指导', '测试步骤'] as const;
@@ -56,18 +63,30 @@ function parseRequired(value: unknown): boolean {
 }
 
 function parseType(value: unknown): SchemeItem['type'] {
+  const normalized = normalizeSupportedValueType(value);
+  if (normalized === 'number') return 'electrical';
+  if (normalized === 'boolean') return 'functional';
+  if (normalized === 'enum') return 'functional';
+  if (normalized === 'text') return 'visual';
   const text = getString(value).toLowerCase();
-  if (text === '数值' || text === 'numeric' || text === 'number') return 'electrical';
-  if (text === '布尔' || text === 'boolean' || text === 'bool') return 'visual';
   return TYPE_MAP[text] ?? 'visual';
 }
 
 function parseRuleType(value: unknown): string {
+  const normalized = normalizeSupportedRuleType(value);
+  if (normalized) {
+    return normalized;
+  }
   const text = getString(value);
   if (!text) return 'number_range';
   if (text.includes('判断')) return 'boolean_equal';
   if (text.includes('阈值')) return 'number_range';
   return text;
+}
+
+function parseThresholdRaw(value: unknown): string | undefined {
+  const text = getString(value);
+  return text || undefined;
 }
 
 function getFirstValue(row: RawRow, keys: readonly string[]): unknown {
@@ -196,7 +215,16 @@ export function importInspectionItemsFromExcel(file: File): Promise<SchemeItem[]
           const parent = chain[chain.length - 1];
           const siblings = parent ? (parent.children ?? (parent.children = [])) : roots;
 
-          const ruleType = getString(getFirstValue(row, RULE_TYPE_KEYS)).toLowerCase();
+          const rawDataType = getFirstValue(row, DATA_TYPE_KEYS);
+          const rawRuleType = getFirstValue(row, RULE_TYPE_KEYS);
+          const rawThreshold = parseThresholdRaw(getFirstValue(row, THRESHOLD_KEYS));
+          const validatedRule = validateRuleDefinition({
+            valueTypeRaw: rawDataType,
+            ruleTypeRaw: rawRuleType,
+            ruleRaw: rawThreshold,
+            context: `Excel 第 ${index + 2} 行「${itemName}」`,
+          });
+          const ruleType = validatedRule.ruleType;
           const param1 = getFirstValue(row, ['参数1']);
           const param2 = getFirstValue(row, ['参数2']);
           const minThreshold = parseNumber(getFirstValue(row, MIN_KEYS));
@@ -209,13 +237,14 @@ export function importInspectionItemsFromExcel(file: File): Promise<SchemeItem[]
           const detectionItem: SchemeItem = {
             id: `import-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}`,
             name: itemName,
-            dataType: getString(getFirstValue(row, DATA_TYPE_KEYS)) || undefined,
+            dataType: validatedRule.valueType,
             priority: getString(getFirstValue(row, PRIORITY_KEYS)) || undefined,
             operationGuide: getString(getFirstValue(row, OPERATION_GUIDE_KEYS)) || undefined,
-            ruleType: parseRuleType(getFirstValue(row, RULE_TYPE_KEYS)),
+            ruleType: parseRuleType(rawRuleType),
+            thresholdRaw: validatedRule.ruleRaw ?? undefined,
             param1: getString(getFirstValue(row, PARAM1_KEYS)) || undefined,
             param2: getString(getFirstValue(row, PARAM2_KEYS)) || undefined,
-            type: parseType(getFirstValue(row, TYPE_KEYS)),
+            type: parseType(validatedRule.valueType || getFirstValue(row, TYPE_KEYS)),
             required: parseRequired(getFirstValue(row, REQUIRED_KEYS)),
             unit: getString(getFirstValue(row, UNIT_KEYS)) || undefined,
             standardValue: parseNumber(getFirstValue(row, STANDARD_VALUE_KEYS)),

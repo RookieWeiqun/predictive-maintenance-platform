@@ -43,6 +43,8 @@ export interface OfflineTaskRecord {
   task_uuid: string;
   server_task_id: string | null;
   task_no: string | null;
+  serial_no: string | null;
+  assigned_user_name: string | null;
   project_id: string | null;
   project_name: string | null;
   scheme_id: string | null;

@@ -71,11 +71,7 @@ type TaskPackageItemDto = {
   render_schema_json?: {
     value_type?: string | null;
     rule_type?: string | null;
-    threshold?: {
-      min?: number | null;
-      max?: number | null;
-      unit?: string | null;
-    } | null;
+    threshold?: Record<string, unknown> | null;
     sort_order?: number | null;
     priority?: string | null;
   } | null;
@@ -228,12 +224,14 @@ function createSchemeCacheFromPackageItems(taskItems: TaskPackageItemDto[]): Sch
       id: item.item_id,
       name: item.item_name,
       type: mapValueTypeToSchemeType(item.render_schema_json?.value_type),
+      dataType: item.render_schema_json?.value_type ?? undefined,
       required: true,
       ruleType: item.render_schema_json?.rule_type ?? undefined,
       priority: item.render_schema_json?.priority ?? undefined,
-      minThreshold: threshold?.min ?? undefined,
-      maxThreshold: threshold?.max ?? undefined,
-      unit: threshold?.unit ?? undefined,
+      thresholdRaw: threshold ? JSON.stringify(threshold) : undefined,
+      minThreshold: typeof threshold?.min === 'number' ? threshold.min : undefined,
+      maxThreshold: typeof threshold?.max === 'number' ? threshold.max : undefined,
+      unit: typeof threshold?.unit === 'string' ? threshold.unit : undefined,
     };
 
     if (parentNode) {
@@ -290,6 +288,7 @@ function createDemoTaskPackage(input: DemoProjectTaskInput): TaskPackageResponse
               min: 10,
               max: 40,
               unit: '℃',
+              precision: 0,
             },
             sort_order: 10,
             priority: 'High',
@@ -317,6 +316,7 @@ function createDemoTaskPackage(input: DemoProjectTaskInput): TaskPackageResponse
               min: 20,
               max: 80,
               unit: '%',
+              precision: 0,
             },
             sort_order: 20,
             priority: 'Medium',
@@ -339,8 +339,11 @@ function createDemoTaskPackage(input: DemoProjectTaskInput): TaskPackageResponse
           updated_at: nowIso(),
           render_schema_json: {
             value_type: 'boolean',
-            rule_type: 'boolean',
-            threshold: null,
+            rule_type: 'boolean_equal',
+            threshold: {
+              options: ['是', '否'],
+              normal_value: '否',
+            },
             sort_order: 30,
             priority: 'High',
           },
@@ -371,6 +374,8 @@ async function downloadTaskPackageFromResponse(
     task_uuid: taskUuid,
     server_task_id: String(task.task_id),
     task_no: taskNo,
+    serial_no: null,
+    assigned_user_name: null,
     project_id: String(task.project_id),
     project_name: options?.projectName ?? task.project_name ?? null,
     scheme_id: schemeId,
@@ -529,6 +534,8 @@ function buildOfflineTask(task: MockTask): OfflineTaskUpsert {
     task_uuid: task.id,
     server_task_id: task.id,
     task_no: task.id,
+    serial_no: null,
+    assigned_user_name: null,
     project_id: task.projectId,
     project_name: task.projectName,
     scheme_id: task.schemeId,
@@ -545,74 +552,15 @@ async function downloadServerTaskPackage(
   taskId: number,
   options?: DownloadTaskPackageOptions,
 ): Promise<{ taskCount: number; itemCount: number }> {
-  const [task, template, taskitems, templateRoots] = await Promise.all([
-    inspectionTasksApi.getInspectionTask(taskId),
-    inspectionTasksApi.getInspectionTask(taskId).then((dto) =>
-      inspectionTemplatesApi.getInspectionTemplate(dto.templateid),
-    ),
-    taskitemsApi.listTaskitemsByTask(taskId).catch(() => []),
-    inspectionTasksApi.getInspectionTask(taskId).then((dto) =>
-      loadTemplateItemsByTemplateId(dto.templateid),
-    ),
-  ]);
-
-  const products = await productsApi.searchProducts({ productid: task.productid }).catch(() => []);
-  const product = products[0];
-  const taskUuid = String(task.taskid ?? taskId);
-  const schemeId = String(task.templateid);
-  const taskNo = (task.taskNo ?? '').trim() || `任务#${taskUuid}`;
-
-  writeTaskSchemeCache(taskUuid, schemeId, apiTemplateRootsToCollectSchemeItems(templateRoots));
-
-  await offlineTaskRepository.upsert({
-    task_uuid: taskUuid,
-    server_task_id: taskUuid,
-    task_no: taskNo,
-    project_id: String(task.projectid),
-    project_name: options?.projectName ?? null,
-    scheme_id: schemeId,
-    scheme_name: template.name?.trim() || `模板 #${task.templateid}`,
-    device_model: product?.mlfb?.trim() || '-',
-    status: mapInspectionStatusToOfflineStatus(task.status),
-    downloaded_at: nowIso(),
-    local_updated_at: nowIso(),
-    sync_status: 'synced',
-  });
-
-  const serverTaskitems = new Map(
-    taskitems.map((item) => [serverTaskitemKey(item.name, item.categorypath), item]),
+  const response = await inspectionTasksApi.getInspectionTaskDetail(taskId);
+  return downloadTaskPackageFromResponse(
+    {
+      code: 0,
+      msg: 'ok',
+      data: response,
+    },
+    options,
   );
-
-  const offlineItems = flattenTemplateItems(templateRoots).map<OfflineTaskItemUpsert>((item) => {
-    const matched = serverTaskitems.get(serverTaskitemKey(item.itemName, item.categoryPath));
-    const resultPayload = buildOfflineResultPayload(matched?.result);
-    const mappedResult = mapBackendResultToUi(matched?.result);
-
-    return {
-      task_item_uuid: `${taskUuid}:${item.itemId}`,
-      server_item_id: matched?.itemid ?? null,
-      task_uuid: taskUuid,
-      source_type: 'system_generated',
-      item_name: item.itemName,
-      category_path: item.categoryPath,
-      result: resultPayload,
-      execution_status: mappedResult ? 'completed' : 'pending',
-      is_normal: mappedResult === 'normal',
-      is_recheck: matched?.isrecheck ?? false,
-      sync_status: 'synced',
-      local_updated_at: nowIso(),
-    };
-  });
-
-  for (const item of offlineItems) {
-    const existing = await offlineTaskItemRepository.getByTaskItemUuid(item.task_item_uuid);
-    if (existing?.sync_status === 'pending') {
-      continue;
-    }
-    await offlineTaskItemRepository.upsert(item);
-  }
-
-  return { taskCount: 1, itemCount: offlineItems.length };
 }
 
 export async function downloadTaskPackage(

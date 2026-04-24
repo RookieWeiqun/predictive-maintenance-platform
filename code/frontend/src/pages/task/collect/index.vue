@@ -3,102 +3,99 @@
   <div class="task-collect-page">
     <!-- 左侧边栏 -->
       <div class="left-sidebar">
-        <!-- 返回按钮 -->
-        <div class="back-button-section">
-          <IxIconButton 
-            :icon="iconChevronLeft" 
-            variant="tertiary" 
-            @click="goBack"
-            title="返回设备列表"
-          />
+        <div class="left-sidebar-header">
+          <div class="left-sidebar-header-text">
+            <div class="left-sidebar-header-title">任务导航</div>
+            <div class="left-sidebar-header-subtitle">{{ taskInfo?.schemeName || '检测任务' }}</div>
+          </div>
+          <div class="left-sidebar-header-actions">
+            <IxIconButton 
+              :icon="iconChevronLeft" 
+              variant="tertiary" 
+              @click="goBack"
+              title="返回设备列表"
+            />
+            <IxIconButton
+              :icon="iconBulb"
+              variant="primary"
+              shape="circle"
+              size="24"
+              @click="showHelpModal = true"
+              title="帮助"
+            />
+          </div>
         </div>
-        <!-- 当前任务 -->
-        <IxCard class="device-card">
-          <div class="device-header">
-            <div class="device-name">
-              <IxSelect 
-                v-model="currentTaskId"
-                @update:modelValue="handleTaskChange"
-                class="task-select"
-              >
-                <IxSelectItem
-                  v-for="task in projectTaskList"
-                  :key="task.id"
-                  :value="task.id"
-                  :label="getTaskDisplayName(task)"
-                />
-              </IxSelect>
+        <div ref="leftSidebarScrollRef" class="left-sidebar-scroll">
+          <div class="sidebar-summary-card">
+            <div class="sidebar-field-block">
+              <IxFieldLabel htmlFor="task-no-input">任务编号</IxFieldLabel>
+              <IxInput
+                id="task-no-input"
+                :model-value="String(taskInfo?.id || currentTaskId || '-')"
+                readonly
+                class="meta-input"
+              />
             </div>
-            <div class="device-model">{{ taskInfo?.schemeName || '-' }}</div>
-          </div>
-          <div class="device-progress">
-            <div class="progress-info">
-              <span>{{ overallCompleted }}/{{ overallTotal }} 已完成</span>
-              <span class="progress-percent">{{ overallProgress }}% 进度</span>
-            </div>
-            <div class="progress-bar-container">
-              <div class="progress-bar" :style="{ width: overallProgress + '%' }"></div>
-            </div>
-          </div>
-        </IxCard>
 
-        <!-- 检查人员 -->
-        <IxCard class="inspector-card">
-          <div class="card-title">检查人员</div>
-          <IxInput
-            v-model="inspectorName"
-            placeholder="请输入姓名"
-            class="inspector-input"
-          />
-        </IxCard>
+            <div class="sidebar-field-block">
+              <IxFieldLabel htmlFor="serial-number-input">序列号</IxFieldLabel>
+              <IxInput
+                id="serial-number-input"
+                v-model="serialNumber"
+                placeholder="请输入序列号"
+                class="meta-input"
+              />
+            </div>
+
+            <div class="sidebar-field-block">
+              <IxFieldLabel htmlFor="inspector-name-input">检查人员</IxFieldLabel>
+              <IxInput
+                id="inspector-name-input"
+                v-model="inspectorName"
+                placeholder="请输入姓名"
+                class="meta-input"
+              />
+            </div>
+          </div>
 
         <!-- 检查类别导航 - 使用Event List -->
         <IxCard class="category-nav-card">
-          <IxEventList>
-            <template v-for="category in categoryList" :key="category.id">
-              <IxEventListItem
-                :selected="expandedCategories.includes(category.id)"
-                itemColor="color-primary"
-                @click="toggleCategory(category.id)"
-              >
-                <div class="event-item-content">
-                  <span class="category-name">{{ category.name }}</span>
-                  <span class="category-count">{{ category.completed }}/{{ category.total }}</span>
-                </div>
-              </IxEventListItem>
-              <template v-if="expandedCategories.includes(category.id)">
+          <div class="card-title">检测模块</div>
+          <div class="category-nav-scroll">
+            <IxEventList>
+              <template v-for="category in categoryList" :key="category.id">
                 <IxEventListItem
-                  v-for="subCategory in category.children"
-                  :key="subCategory.id"
-                  :selected="currentSubCategoryId === subCategory.id"
-                  :itemColor="getSubCategoryItemColor(subCategory)"
-                  @click="selectSubCategory(subCategory)"
-                  class="sub-category-event-item"
+                  :selected="expandedCategories.includes(category.id)"
+                  itemColor="color-primary"
+                  @click="toggleCategory(category.id)"
                 >
                   <div class="event-item-content">
-                    <span class="sub-category-icon" :class="{ active: currentSubCategoryId === subCategory.id }">
-                      {{ currentSubCategoryId === subCategory.id ? '●' : '○' }}
-                    </span>
-                    <span class="sub-category-name">{{ subCategory.name }}</span>
-                    <span class="sub-category-count">{{ subCategory.completed }}/{{ subCategory.total }}</span>
+                    <span class="category-name">{{ category.name }}</span>
+                    <span class="category-count">{{ category.completed }}/{{ category.total }}</span>
                   </div>
                 </IxEventListItem>
+                <template v-if="expandedCategories.includes(category.id)">
+                  <IxEventListItem
+                    v-for="subCategory in category.children"
+                    :key="subCategory.id"
+                    :selected="currentSubCategoryId === subCategory.id"
+                    :itemColor="getSubCategoryItemColor(subCategory)"
+                    @click="selectSubCategory(subCategory)"
+                    class="sub-category-event-item"
+                  >
+                    <div class="event-item-content">
+                      <span class="sub-category-icon" :class="{ active: currentSubCategoryId === subCategory.id }">
+                        {{ currentSubCategoryId === subCategory.id ? '●' : '○' }}
+                      </span>
+                      <span class="sub-category-name">{{ subCategory.name }}</span>
+                      <span class="sub-category-count">{{ subCategory.completed }}/{{ subCategory.total }}</span>
+                    </div>
+                  </IxEventListItem>
+                </template>
               </template>
-            </template>
-          </IxEventList>
+            </IxEventList>
+          </div>
         </IxCard>
-
-        <!-- 帮助按钮 -->
-        <div class="help-button">
-          <IxIconButton
-            :icon="iconBulb"
-            variant="primary"
-            shape="circle"
-            size="24"
-            @click="showHelpModal = true"
-            title="帮助"
-          />
-        </div>
         
         <!-- 帮助对话框 -->
         <IxModal
@@ -124,6 +121,7 @@
             </ul>
           </div>
         </IxModal>
+        </div>
       </div>
 
       <!-- 右侧主内容 -->
@@ -166,23 +164,30 @@
                       {{ field.name }}
                       <span v-if="field.required" class="required-mark">*</span>
                     </IxFieldLabel>
-                    <!-- 布尔类型使用Toggle按钮 -->
-                    <IxToggleButton
-                      v-if="field.dataType === 'boolean'"
+                    <IxSelect
+                      v-if="field.dataType === 'boolean' || field.dataType === 'enum'"
                       :id="`field-${field.id}`"
-                      variant="secondary"
-                      :pressed="field.value === true || field.value === 'true'"
-                      @click="handleToggleField(field.id, !(field.value === true || field.value === 'true'))"
-                      class="full-width-toggle"
+                      v-model="field.value"
+                      :placeholder="field.placeholder || '请选择'"
+                      class="full-width-input"
+                      @update:modelValue="handleFieldUpdate(field.id, $event)"
                     >
-                      {{ field.value === true || field.value === 'true' ? '是' : '否' }}
-                    </IxToggleButton>
-                    <!-- 数值类型使用数字输入 -->
+                      <IxSelectItem
+                        v-for="option in field.options"
+                        :key="`${field.id}-${option}`"
+                        :value="option"
+                        :label="option"
+                      />
+                    </IxSelect>
                     <div v-else-if="field.dataType === 'numeric'" class="numeric-input-wrapper">
                       <IxInput
                         :id="`field-${field.id}`"
                         v-model="field.value"
                         :placeholder="field.placeholder || '请输入'"
+                        :min="field.min"
+                        :max="field.max"
+                        :step="field.step"
+                        inputmode="decimal"
                         class="full-width-input"
                         @update:modelValue="handleFieldUpdate(field.id, $event)"
                       />
@@ -194,9 +199,11 @@
                       :id="`field-${field.id}`"
                       v-model="field.value"
                       :placeholder="field.placeholder || '请输入'"
+                      :pattern="field.pattern"
                       class="full-width-input"
                       @update:modelValue="handleFieldUpdate(field.id, $event)"
                     />
+                    <div v-if="field.hint" class="data-field-hint">{{ field.hint }}</div>
                   </div>
                 </div>
                 
@@ -209,6 +216,48 @@
                     textarea-width="400px"
                     @update:modelValue="handleRemarksUpdate(task.id, $event)"
                   />
+                </div>
+
+                <div class="task-photos-section">
+                  <div class="task-photos-header">
+                    <div class="section-title">现场照片</div>
+                    <div class="task-photos-count">{{ getTaskPhotoCount(task.id) }}/{{ MAX_TASK_PHOTOS }}</div>
+                  </div>
+                  <div class="task-photos-actions">
+                    <IxButton
+                      variant="secondary"
+                      size="sm"
+                      :disabled="isTaskPhotoLimitReached(task.id)"
+                      @click="handleCaptureTaskPhoto(task)"
+                    >
+                      拍照
+                    </IxButton>
+                    <IxButton
+                      variant="secondary"
+                      size="sm"
+                      :disabled="isTaskPhotoLimitReached(task.id)"
+                      @click="openTaskPhotoFilePicker(task.id)"
+                    >
+                      从相册选择
+                    </IxButton>
+                  </div>
+                  <div class="task-photos-hint">每项最多 {{ MAX_TASK_PHOTOS }} 张，照片先保存在本地。</div>
+                  <div v-if="getTaskPhotoCount(task.id) > 0" class="task-photos-grid">
+                    <div
+                      v-for="photo in getTaskPhotos(task.id)"
+                      :key="photo.attachment_uuid"
+                      class="task-photo-card"
+                    >
+                      <img :src="photo.preview_url" alt="任务照片" class="task-photo-image" />
+                      <button
+                        type="button"
+                        class="task-photo-remove"
+                        @click="removeTaskPhoto(task, photo)"
+                      >
+                        删除
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -224,25 +273,9 @@
                   <div class="guide-text">{{ getDetectionGuide(task) }}</div>
                 </div>
 
-                <!-- 检查结果选择 - 使用IxButton -->
-                <div class="result-selection">
-                  <IxButton
-                    v-for="resultType in resultTypes"
-                    :key="resultType.value"
-                    variant="secondary"
-                    :icon="resultType.icon"
-                    :class="getResultButtonClass(task.result, resultType.value)"
-                    @click="selectResult(task.id, resultType.value)"
-                    class="result-button-ix"
-                  >
-                    <div class="result-button-content">
-                      <div class="result-label">{{ resultType.label }}</div>
-                    </div>
-                  </IxButton>
-                </div>
-
-                <div class="result-hint">
-                  选择"警告"或"异常"时,请在下方备注中详细说明
+                <div class="result-status-card" :class="getResultStatusClass(task.result)">
+                  <div class="result-status-label">{{ getResultDisplayLabel(task.result) }}</div>
+                  <div class="result-status-hint">{{ getResultHint(task.result) }}</div>
                 </div>
               </div>
             </div>
@@ -268,11 +301,19 @@
         </div>
       </div>
   </div>
+  <input
+    ref="taskPhotoFileInputRef"
+    type="file"
+    accept="image/*"
+    capture="environment"
+    style="display: none"
+    @change="handleTaskPhotoFileSelected"
+  />
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
+import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue';
+import { useRouter, useRoute, onBeforeRouteLeave } from 'vue-router';
 import {
   IxButton,
   IxCard,
@@ -281,7 +322,6 @@ import {
   IxFieldLabel,
   IxBreadcrumb,
   IxBreadcrumbItem,
-  IxToggleButton,
   IxIconButton,
   IxEventList,
   IxEventListItem,
@@ -292,12 +332,20 @@ import {
 } from "@siemens/ix-vue";
 import { 
   iconChevronLeft,
-  iconCheck,
-  iconWarning,
-  iconError,
   iconBulb
 } from "@siemens/ix-icons/icons";
-import { downloadTaskPackage, offlineOutboxRepository, offlineTaskItemRepository, offlineTaskRepository } from '@/android';
+import {
+  captureTaskPhoto,
+  deleteStoredTaskPhoto,
+  downloadTaskPackage,
+  isPhotoCaptureCancelled,
+  offlineAttachmentRepository,
+  offlineOutboxRepository,
+  offlineTaskItemRepository,
+  offlineTaskRepository,
+  resolveStoredPhotoPreviewUrl,
+  saveTaskPhotoFromFile,
+} from '@/android';
 import tasksData from '@/mockdata/task/tasks.json';
 import { getSchemeById } from '@/mockdata/scheme/index.ts';
 import {
@@ -308,12 +356,30 @@ import {
 } from '@/api';
 import { loadTemplateItemsByTemplateId } from '@/pages/scheme/utils/loadTemplateItems';
 import { isDetectionItem, type SchemeItem } from '@/pages/scheme/utils/schemeUtils';
+import { buildDynamicFieldConfig, evaluateFieldValueAgainstRule } from '@/pages/scheme/utils/templateRuleSchema';
 
 const router = useRouter();
 const route = useRoute();
 
 const routeTaskId = computed(() => String(route.params.taskId ?? ''));
 const taskListRoute = computed(() => route.query.source === 'offline' ? '/task/list-offline' : '/task/list-online');
+const MAX_TASK_PHOTOS = 3;
+
+type SidebarModuleNode = {
+  id: string;
+  name: string;
+  total: number;
+  completed: number;
+  moduleData: any;
+};
+
+type SidebarCategoryNode = {
+  id: string;
+  name: string;
+  children: SidebarModuleNode[];
+  total: number;
+  completed: number;
+};
 
 function getTaskSchemeStorageKey(taskUuid: string, schemeId: string): string {
   return `task_scheme_${taskUuid}_${schemeId}`;
@@ -339,33 +405,35 @@ const taskInfo = ref<any>(null);
 // 检查人员
 const inspectorName = ref('');
 
+// 序列号
+const serialNumber = ref('');
+
 // 帮助对话框显示状态
 const showHelpModal = ref(false);
 
 // 当前任务ID（用于下拉选择）
 const currentTaskId = ref<string>('');
 
-// 项目任务列表
-const projectTaskList = ref<any[]>([]);
+const leftSidebarScrollRef = ref<HTMLElement | null>(null);
 
-// 获取任务显示名称
-const getTaskDisplayName = (task: any) => {
-  if (task.taskDisplayName) return task.taskDisplayName;
-  if (task.taskType === 'peripheral') {
-    return `${task.id} - ${task.taskTypeLabel}`;
-  }
-  return `${task.id} - ${task.deviceModel} (${task.taskTypeLabel})`;
+type TaskPhotoView = {
+  attachment_uuid: string;
+  task_item_uuid: string;
+  local_path: string;
+  preview_url: string;
+  mime_type: string | null;
+  size_bytes: number | null;
+  created_at: string;
+  sync_status: 'pending' | 'synced' | 'failed';
 };
 
-// 切换任务
-const handleTaskChange = (newTaskId: string) => {
-  if (newTaskId && newTaskId !== routeTaskId.value) {
-    router.push({
-      path: `/task/collect/${newTaskId}`,
-      query: { source: route.query.source === 'offline' ? 'offline' : 'online' },
-    });
-  }
-};
+const taskPhotoMap = ref<Record<string, TaskPhotoView[]>>({});
+const taskPhotoFileInputRef = ref<HTMLInputElement | null>(null);
+const pendingPhotoTaskId = ref<string>('');
+
+function resetLeftSidebarScroll(): void {
+  leftSidebarScrollRef.value?.scrollTo({ top: 0, behavior: 'auto' });
+}
 
 function clip200(s: string): string {
   const t = s.trim();
@@ -460,10 +528,6 @@ function setupFromMockTask(task: any): void {
   taskInfo.value = task;
   currentTaskId.value = routeTaskId.value;
 
-  projectTaskList.value = tasksData.tasks.filter(
-    (t: any) => t.projectId === task.projectId && !t.isSubTask,
-  );
-
   let scheme: any = null;
   const taskSchemeKey = `task_scheme_${routeTaskId.value}_${task.schemeId}`;
   try {
@@ -510,19 +574,52 @@ async function setupFromOfflineTask(taskUuid: string): Promise<boolean> {
     isSubTask: false,
   };
 
+  inspectorName.value = offlineTask.assigned_user_name || '';
+  serialNumber.value = offlineTask.serial_no || '';
+
   currentTaskId.value = taskUuid;
 
-  const siblings = (await offlineTaskRepository.listAll())
-    .filter((task) => task.project_id === offlineTask.project_id)
-    .sort((a, b) => (a.downloaded_at > b.downloaded_at ? 1 : -1));
+  const serverTaskId = Number.parseInt(String(offlineTask.server_task_id ?? ''), 10);
+  const missingTaskNo = !String(offlineTask.task_no ?? '').trim();
+  const missingDeviceModel = !String(offlineTask.device_model ?? '').trim() || offlineTask.device_model === '-';
 
-  projectTaskList.value = siblings.map((task) => ({
-    id: task.task_uuid,
-    taskType: 'equipment',
-    taskTypeLabel: '离线任务',
-    deviceModel: task.device_model || '-',
-    taskDisplayName: `${task.task_no || task.task_uuid} — ${task.device_model || '-'}`,
-  }));
+  if (Number.isFinite(serverTaskId) && serverTaskId > 0) {
+    try {
+      const dto = await inspectionTasksApi.getInspectionTask(serverTaskId);
+      const products = dto.productid > 0
+        ? await productsApi.searchProducts({ productid: dto.productid }).catch(() => [])
+        : [];
+      const product = products[0];
+
+      const resolvedTaskNo = (dto.taskNo ?? '').trim();
+      const resolvedDeviceModel = (product?.mlfb ?? '').trim();
+      if (missingTaskNo && resolvedTaskNo) {
+        taskInfo.value = {
+          ...taskInfo.value,
+          id: resolvedTaskNo,
+        };
+      }
+
+      if (missingDeviceModel && resolvedDeviceModel) {
+        taskInfo.value = {
+          ...taskInfo.value,
+          deviceModel: resolvedDeviceModel,
+        };
+      }
+
+      if ((missingTaskNo && resolvedTaskNo) || (missingDeviceModel && resolvedDeviceModel)) {
+        await offlineTaskRepository.upsert({
+          ...offlineTask,
+          serial_no: offlineTask.serial_no,
+          assigned_user_name: offlineTask.assigned_user_name,
+          task_no: resolvedTaskNo || offlineTask.task_no,
+          device_model: resolvedDeviceModel || offlineTask.device_model,
+        });
+      }
+    } catch (error) {
+      console.warn('回填离线任务展示信息失败:', error);
+    }
+  }
 
   buildCategoryList(cachedScheme.items);
   loadDraft();
@@ -557,34 +654,11 @@ async function setupFromApiTask(numericId: number): Promise<void> {
     isSubTask: false,
   };
 
+  const localTask = await offlineTaskRepository.getByTaskUuid(String(numericId));
+  inspectorName.value = localTask?.assigned_user_name || '';
+  serialNumber.value = localTask?.serial_no || '';
+
   currentTaskId.value = String(numericId);
-
-  const siblings = await inspectionTasksApi.searchInspectionTasks({ projectid: dto.projectid });
-  const sorted = siblings
-    .filter((t) => t.taskid != null && t.taskid > 0)
-    .sort((a, b) => (a.taskid ?? 0) - (b.taskid ?? 0));
-
-  const productIds = [...new Set(sorted.map((t) => t.productid))];
-  const productMlfb = new Map<number, string>();
-  await Promise.all(
-    productIds.map(async (pid) => {
-      const list = await productsApi.searchProducts({ productid: pid }).catch(() => []);
-      productMlfb.set(pid, (list[0]?.mlfb ?? '-').trim() || '-');
-    }),
-  );
-
-  projectTaskList.value = sorted.map((t) => {
-    const tid = t.taskid as number;
-    const dm = productMlfb.get(t.productid) ?? '-';
-    const label = (t.taskNo ?? '').trim() || `任务#${tid}`;
-    return {
-      id: String(tid),
-      taskType: 'equipment',
-      taskTypeLabel: '巡检',
-      deviceModel: dm,
-      taskDisplayName: `${label} — ${dm}`,
-    };
-  });
 
   const schemeItems = apiTemplateRootsToCollectSchemeItems(roots);
   if (schemeItems.length === 0) {
@@ -600,6 +674,8 @@ async function setupFromApiTask(numericId: number): Promise<void> {
 }
 
 async function initTaskCollect(): Promise<void> {
+  resetLeftSidebarScroll();
+
   const idParam = routeTaskId.value;
   if (!idParam) {
     showToast({ message: '无效的任务参数' });
@@ -613,6 +689,9 @@ async function initTaskCollect(): Promise<void> {
   categoryList.value = [];
   currentTaskList.value = [];
   taskDataMap.value = {};
+  taskPhotoMap.value = {};
+  inspectorName.value = '';
+  serialNumber.value = '';
 
   const mockTask = tasksData.tasks.find((t: any) => t.id === idParam);
   if (mockTask) {
@@ -653,11 +732,13 @@ async function initTaskCollect(): Promise<void> {
   }
 
   try {
-    await setupFromApiTask(numericId);
     const localTask = await offlineTaskRepository.getByTaskUuid(routeTaskId.value);
     if (localTask == null) {
       await downloadTaskPackage(routeTaskId.value);
     }
+
+    await setupFromApiTask(numericId);
+
     try {
       await loadOfflineTaskItems();
     } catch (error) {
@@ -677,7 +758,7 @@ const currentSubCategoryName = ref('环境检查');
 const expandedCategories = ref<string[]>([]);
 
 // 类别列表（从方案数据生成）
-const categoryList = ref<any[]>([]);
+const categoryList = ref<SidebarCategoryNode[]>([]);
 
 // 当前任务列表
 const currentTaskList = ref<any[]>([]);
@@ -687,6 +768,35 @@ const taskDataMap = ref<Record<string, any>>({});
 
 function buildTaskItemUuid(taskItemId: string): string {
   return `${routeTaskId.value}:${taskItemId}`;
+}
+
+function getTaskPhotos(taskId: string): TaskPhotoView[] {
+  return taskPhotoMap.value[taskId] ?? [];
+}
+
+function getTaskPhotoCount(taskId: string): number {
+  return getTaskPhotos(taskId).length;
+}
+
+function isTaskPhotoLimitReached(taskId: string): boolean {
+  return getTaskPhotoCount(taskId) >= MAX_TASK_PHOTOS;
+}
+
+async function loadTaskPhotosByTaskId(taskId: string): Promise<void> {
+  const taskItemUuid = buildTaskItemUuid(taskId);
+  const records = await offlineAttachmentRepository.listByTaskItemUuid(taskItemUuid);
+  const photos = await Promise.all(
+    records.map(async (record) => ({
+      ...record,
+      preview_url: await resolveStoredPhotoPreviewUrl(record.local_path),
+    })),
+  );
+  taskPhotoMap.value[taskId] = photos;
+}
+
+async function loadVisibleTaskPhotos(): Promise<void> {
+  const taskIds = currentTaskList.value.map((task) => String(task.id));
+  await Promise.all(taskIds.map((taskId) => loadTaskPhotosByTaskId(taskId)));
 }
 
 function parseOfflineResult(raw: string | null): {
@@ -743,8 +853,16 @@ function getPrimaryTaskFieldValue(task: any): string | null {
 }
 
 function buildOfflineResult(task: any): string {
+  const dataFields = Object.fromEntries(
+    (Array.isArray(task.dataFields) ? task.dataFields : []).map((field: any) => [
+      field.id,
+      field.value == null ? '' : String(field.value),
+    ]),
+  );
+
   return JSON.stringify({
     value: getPrimaryTaskFieldValue(task),
+    dataFields,
     remarks: task.remarks || '',
     resultState: task.result || '',
   });
@@ -810,6 +928,115 @@ async function loadOfflineTaskItems(): Promise<void> {
   updateCompletionCounts();
 }
 
+async function persistTaskPhoto(task: any, photo: TaskPhotoView): Promise<void> {
+  await persistTaskRecord(task);
+  await offlineAttachmentRepository.upsert({
+    attachment_uuid: photo.attachment_uuid,
+    task_item_uuid: photo.task_item_uuid,
+    local_path: photo.local_path,
+    mime_type: photo.mime_type,
+    size_bytes: photo.size_bytes,
+    created_at: photo.created_at,
+    sync_status: 'pending',
+  });
+
+  await offlineTaskRepository.markDirty(routeTaskId.value);
+  await offlineOutboxRepository.replacePending({
+    entity_type: 'attachment',
+    entity_uuid: photo.attachment_uuid,
+    action: 'upsert_attachment',
+    payload_json: JSON.stringify({
+      attachment_uuid: photo.attachment_uuid,
+      task_item_uuid: photo.task_item_uuid,
+      local_path: photo.local_path,
+      mime_type: photo.mime_type,
+      size_bytes: photo.size_bytes,
+      created_at: photo.created_at,
+    }),
+  });
+
+  await loadTaskPhotosByTaskId(task.id);
+}
+
+async function handleCaptureTaskPhoto(task: any): Promise<void> {
+  if (isTaskPhotoLimitReached(task.id)) {
+    showToast({ message: `每项最多上传 ${MAX_TASK_PHOTOS} 张照片` });
+    return;
+  }
+
+  try {
+    const taskItemUuid = buildTaskItemUuid(task.id);
+    const captured = await captureTaskPhoto(routeTaskId.value, taskItemUuid);
+    await persistTaskPhoto(task, {
+      ...captured,
+      preview_url: await resolveStoredPhotoPreviewUrl(captured.local_path),
+    });
+  } catch (error) {
+    if (isPhotoCaptureCancelled(error)) {
+      return;
+    }
+    showToast({ message: error instanceof Error ? error.message : '拍照失败，请重试' });
+  }
+}
+
+function openTaskPhotoFilePicker(taskId: string): void {
+  if (isTaskPhotoLimitReached(taskId)) {
+    showToast({ message: `每项最多上传 ${MAX_TASK_PHOTOS} 张照片` });
+    return;
+  }
+
+  pendingPhotoTaskId.value = taskId;
+  if (taskPhotoFileInputRef.value) {
+    taskPhotoFileInputRef.value.value = '';
+    taskPhotoFileInputRef.value.click();
+  }
+}
+
+async function handleTaskPhotoFileSelected(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  const taskId = pendingPhotoTaskId.value;
+  pendingPhotoTaskId.value = '';
+
+  if (!file || !taskId) {
+    return;
+  }
+
+  const task = currentTaskList.value.find((item) => String(item.id) === taskId);
+  if (!task) {
+    return;
+  }
+
+  if (isTaskPhotoLimitReached(task.id)) {
+    showToast({ message: `每项最多上传 ${MAX_TASK_PHOTOS} 张照片` });
+    return;
+  }
+
+  try {
+    const taskItemUuid = buildTaskItemUuid(task.id);
+    const saved = await saveTaskPhotoFromFile(routeTaskId.value, taskItemUuid, file);
+    await persistTaskPhoto(task, {
+      ...saved,
+      preview_url: await resolveStoredPhotoPreviewUrl(saved.local_path),
+    });
+  } catch (error) {
+    showToast({ message: error instanceof Error ? error.message : '保存照片失败，请重试' });
+  }
+}
+
+async function removeTaskPhoto(task: any, photo: TaskPhotoView): Promise<void> {
+  try {
+    await deleteStoredTaskPhoto(photo.local_path);
+    await offlineAttachmentRepository.deleteByAttachmentUuid(photo.attachment_uuid);
+    await offlineOutboxRepository.deletePending('attachment', photo.attachment_uuid, 'upsert_attachment');
+    await offlineTaskRepository.markDirty(routeTaskId.value);
+    await persistTaskRecord(task);
+    await loadTaskPhotosByTaskId(task.id);
+  } catch (error) {
+    showToast({ message: error instanceof Error ? error.message : '删除照片失败，请重试' });
+  }
+}
+
 // 计算属性
 const currentCategoryPath = computed(() => {
   const category = categoryList.value.find(cat => 
@@ -842,36 +1069,23 @@ const getDetectionGuide = (task: any): string => {
 };
 
 // 检测结果类型
-const resultTypes = [
-  { value: 'normal', icon: iconCheck, label: '正常' },
-  { value: 'warning', icon: iconWarning, label: '警告' },
-  { value: 'abnormal', icon: iconError, label: '异常' },
-];
+const getResultDisplayLabel = (result: string): string => {
+  if (result === 'normal') return '自动判定：正常';
+  if (result === 'abnormal') return '自动判定：异常';
+  return '待判定';
+};
 
-const overallTotal = computed(() => {
-  let total = 0;
-  categoryList.value.forEach(category => {
-    category.children?.forEach((sub: any) => {
-      total += sub.total;
-    });
-  });
-  return total;
-});
+const getResultHint = (result: string): string => {
+  if (result === 'normal') return '当前录入值满足模板规则';
+  if (result === 'abnormal') return '当前录入值不满足模板规则，请复核并补充备注';
+  return '录入值后系统会按模板规则自动判定结果';
+};
 
-const overallCompleted = computed(() => {
-  let completed = 0;
-  categoryList.value.forEach(category => {
-    category.children?.forEach((sub: any) => {
-      completed += sub.completed;
-    });
-  });
-  return completed;
-});
-
-const overallProgress = computed(() => {
-  if (overallTotal.value === 0) return 0;
-  return Math.round((overallCompleted.value / overallTotal.value) * 100);
-});
+const getResultStatusClass = (result: string): string => {
+  if (result === 'normal') return 'result-status-normal';
+  if (result === 'abnormal') return 'result-status-abnormal';
+  return 'result-status-pending';
+};
 
 const hasPreviousModule = computed(() => {
   const currentIndex = categoryList.value.findIndex(cat => 
@@ -903,73 +1117,93 @@ const hasNextModule = computed(() => {
 });
 
 onMounted(() => {
+  resetLeftSidebarScroll();
   void initTaskCollect();
+  window.addEventListener('beforeunload', flushDraftOnExit);
+  document.addEventListener('visibilitychange', handlePageVisibilityChange);
+});
+
+onBeforeUnmount(() => {
+  flushDraftOnExit();
+  window.removeEventListener('beforeunload', flushDraftOnExit);
+  document.removeEventListener('visibilitychange', handlePageVisibilityChange);
+});
+
+onBeforeRouteLeave(() => {
+  flushDraftOnExit();
 });
 
 watch(
   () => route.params.taskId,
   (next, prev) => {
     if (next === prev) return;
+    resetLeftSidebarScroll();
     void initTaskCollect();
   },
 );
 
 // 构建类别列表
-const buildCategoryList = (items: any[]) => {
-  const categories: any[] = [];
-  
-  items.forEach(item => {
-    if (item.children && item.children.length > 0) {
-      const category: any = {
-        id: item.id,
-        name: item.name,
-        children: [],
-        total: 0,
-        completed: 0,
-      };
-      
-      item.children.forEach((subItem: any) => {
-        if (subItem.children && subItem.children.length > 0) {
-          // 查找第三层（检测模块）
-          subItem.children.forEach((module: any) => {
-            if (module.children && module.children.length > 0) {
-              // 计算该子类别的任务总数
-              const taskCount = countTasks(module.children);
-              category.total += taskCount;
-              
-              const subCategory: any = {
-                id: subItem.id,
-                name: subItem.name,
-                total: taskCount,
-                completed: 0,
-                moduleId: module.id,
-                moduleData: module,
-              };
-              
-              category.children.push(subCategory);
-            }
-          });
-        }
-      });
-      
-      if (category.children.length > 0) {
-        categories.push(category);
-        // 默认展开第一个类别
-        if (categories.length === 1) {
-          expandedCategories.value.push(category.id);
-        }
-      }
+function collectLeafModules(nodes: any[], prefix: string[] = []): SidebarModuleNode[] {
+  const modules: SidebarModuleNode[] = [];
+
+  for (const node of nodes || []) {
+    const currentName = String(node?.name || '').trim();
+    const nextPrefix = currentName ? [...prefix, currentName] : prefix;
+    const children = Array.isArray(node?.children) ? node.children : [];
+
+    if (children.length === 0) {
+      continue;
     }
+
+    const hasDetectionChild = children.some((child: any) => child?.type && child?.required !== undefined);
+    if (hasDetectionChild) {
+      const total = countTasks(children);
+      if (total > 0) {
+        modules.push({
+          id: String(node.id || nextPrefix.join('/')),
+          name: currentName || '未命名模块',
+          total,
+          completed: 0,
+          moduleData: {
+            ...node,
+            children,
+          },
+        });
+      }
+      continue;
+    }
+
+    modules.push(...collectLeafModules(children, nextPrefix));
+  }
+
+  return modules;
+}
+
+const buildCategoryList = (items: any[]) => {
+  const categories: SidebarCategoryNode[] = [];
+
+  items.forEach((item: any) => {
+    const modules = collectLeafModules(item?.children || []);
+    if (modules.length === 0) {
+      return;
+    }
+
+    categories.push({
+      id: item.id,
+      name: item.name,
+      children: modules,
+      total: modules.reduce((sum, module) => sum + module.total, 0),
+      completed: 0,
+    });
   });
-  
+
+  expandedCategories.value = categories.length > 0 ? [categories[0].id] : [];
   categoryList.value = categories;
-  
-  // 默认选择第一个子类别
+
   if (categories.length > 0 && categories[0].children.length > 0) {
     selectSubCategory(categories[0].children[0]);
   }
-  
-  // 初始化完成数量
+
   updateCompletionCounts();
 };
 
@@ -1005,7 +1239,7 @@ const toggleCategory = (categoryId: string) => {
 };
 
 // 选择子类别
-const selectSubCategory = (subCategory: any) => {
+const selectSubCategory = (subCategory: SidebarModuleNode) => {
   currentSubCategoryId.value = subCategory.id;
   currentSubCategoryName.value = subCategory.name;
   
@@ -1023,32 +1257,27 @@ const createTaskItem = (item: any, existingData: any) => {
   if (existingData.dataFields) {
     dataFields.forEach((field: any) => {
       if (existingData.dataFields[field.id] !== undefined) {
-        field.value = existingData.dataFields[field.id];
+        restoreFieldValue(field, existingData.dataFields[field.id]);
       }
     });
   } else if (existingData.value !== undefined && dataFields.length === 1) {
     const [field] = dataFields;
-    if (field.dataType === 'numeric') {
-      field.value = existingData.value === '' ? '' : Number(existingData.value);
-    } else if (field.dataType === 'boolean') {
-      field.value = existingData.value === 'true';
-    } else {
-      field.value = existingData.value;
-    }
+    restoreFieldValue(field, existingData.value);
   }
+  const computedResult = evaluateTaskResult({ dataFields });
   
   return {
     id: item.id,
     name: item.name,
     description: getTaskDescription(item),
     dataFields,
-    result: existingData.result || '',
+    result: existingData.result || computedResult,
     remarks: existingData.remarks || '',
   };
 };
 
 // 构建任务列表
-const buildTaskList = (subCategory: any) => {
+const buildTaskList = (subCategory: SidebarModuleNode) => {
   const tasks: any[] = [];
   
   if (!subCategory.moduleData?.children) {
@@ -1070,6 +1299,7 @@ const buildTaskList = (subCategory: any) => {
   });
   
   currentTaskList.value = tasks;
+  void loadVisibleTaskPhotos();
 };
 
 // 获取任务描述
@@ -1085,24 +1315,129 @@ const getTaskDescription = (item: any): string => {
   return '请根据实际情况进行检测并填写数据';
 };
 
-// 判断数据类型
-const getDataType = (item: any): 'boolean' | 'numeric' | 'string' => {
-  const name = item.name || '';
-  const type = item.type || '';
-  const unit = item.unit || '';
-  
-  // 如果名称包含"是否"、"是否正常"、"是否符合"等，判断为布尔类型
-  if (name.includes('是否') || name.includes('是否正常') || name.includes('是否符合')) {
-    return 'boolean';
+const buildFieldHint = (field: any): string => {
+  if (field.dataType === 'numeric') {
+    const hintParts: string[] = [];
+    hintParts.push(field.precision > 0 ? `最多 ${field.precision} 位小数` : '仅支持整数');
+    if (field.min != null) {
+      hintParts.push(`最小值 ${field.min}`);
+    }
+    if (field.max != null) {
+      hintParts.push(`最大值 ${field.max}`);
+    }
+    return hintParts.join('，');
   }
-  
-  // 如果有单位或者是electrical/environment类型，判断为数值类型
-  if (unit || type === 'electrical' || type === 'environment') {
-    return 'numeric';
+
+  if ((field.dataType === 'string' || field.dataType === 'text') && field.validationMessage) {
+    return field.validationMessage;
   }
-  
-  // 默认字符串类型
-  return 'string';
+  if ((field.dataType === 'string' || field.dataType === 'text') && field.pattern) {
+    return `格式要求：${field.pattern}`;
+  }
+  if (field.dataType === 'enum' && Array.isArray(field.normalValues) && field.normalValues.length > 0) {
+    return `正常值：${field.normalValues.join(' / ')}`;
+  }
+  if (field.dataType === 'boolean' && field.normalValue != null) {
+    return `正常值：${String(field.normalValue)}`;
+  }
+  return '';
+};
+
+const createFieldDefinition = (sourceItem: any, fieldId: string, fieldName: string) => {
+  const dynamicConfig = buildDynamicFieldConfig({
+    dataType: sourceItem.dataType,
+    ruleType: sourceItem.ruleType,
+    thresholdRaw: sourceItem.thresholdRaw,
+    unit: sourceItem.unit,
+    minThreshold: sourceItem.minThreshold,
+    maxThreshold: sourceItem.maxThreshold,
+  });
+
+  const field = {
+    id: fieldId,
+    name: fieldName,
+    sourceDataType: sourceItem.dataType,
+    sourceRuleType: sourceItem.ruleType,
+    sourceThresholdRaw: sourceItem.thresholdRaw,
+    placeholder:
+      dynamicConfig.dataType === 'numeric'
+        ? dynamicConfig.precision > 0
+          ? '请输入数值'
+          : '请输入整数'
+        : dynamicConfig.dataType === 'boolean' || dynamicConfig.dataType === 'enum'
+          ? '请选择'
+          : '请输入',
+    dataType: dynamicConfig.dataType,
+    type: dynamicConfig.dataType === 'numeric' ? 'number' : 'text',
+    required: sourceItem.required !== false,
+    unit: dynamicConfig.unit || sourceItem.unit || '',
+    min: dynamicConfig.min,
+    max: dynamicConfig.max,
+    step: dynamicConfig.step,
+    precision: dynamicConfig.precision,
+    pattern: dynamicConfig.pattern,
+    validationMessage: dynamicConfig.message,
+    options: dynamicConfig.options || [],
+    normalValue: dynamicConfig.normalValue,
+    normalValues: dynamicConfig.normalValues,
+    value: '',
+  };
+
+  return {
+    ...field,
+    hint: buildFieldHint(field),
+  };
+};
+
+const restoreFieldValue = (field: any, rawValue: any) => {
+  if (rawValue == null || rawValue === '') {
+    field.value = '';
+    return;
+  }
+
+  if (field.dataType === 'boolean') {
+    if (rawValue === true || rawValue === 'true') {
+      field.value = field.options?.[0] ?? 'true';
+      return;
+    }
+    if (rawValue === false || rawValue === 'false') {
+      field.value = field.options?.[1] ?? 'false';
+      return;
+    }
+  }
+
+  field.value = String(rawValue);
+};
+
+const evaluateTaskResult = (task: any): string => {
+  const fields = Array.isArray(task.dataFields) ? task.dataFields : [];
+  const nonEmptyFields = fields.filter((field: any) => String(field.value ?? '').trim() !== '');
+  if (nonEmptyFields.length === 0) {
+    return '';
+  }
+
+  let hasAbnormal = false;
+  let hasNormal = false;
+  for (const field of nonEmptyFields) {
+    const result = evaluateFieldValueAgainstRule({
+      dataType: field.sourceDataType,
+      ruleType: field.sourceRuleType,
+      thresholdRaw: field.sourceThresholdRaw,
+      value: field.value,
+    });
+    if (result === 'abnormal') {
+      hasAbnormal = true;
+      break;
+    }
+    if (result === 'normal') {
+      hasNormal = true;
+    }
+  }
+
+  if (hasAbnormal) {
+    return 'abnormal';
+  }
+  return hasNormal ? 'normal' : '';
 };
 
 // 构建数据字段
@@ -1112,34 +1447,14 @@ const buildDataFields = (item: any): any[] => {
   // 如果有子项，为每个子项创建字段
   if (item.children && item.children.length > 0) {
     item.children.forEach((child: any) => {
-      const dataType = getDataType(child);
       const fieldName = child.name || item.name;
-      
-      fields.push({
-        id: child.id,
-        name: fieldName,
-        placeholder: dataType === 'boolean' ? '' : '请输入',
-        dataType: dataType,
-        type: dataType === 'numeric' ? 'number' : 'text',
-        required: child.required !== false,
-        unit: child.unit || '',
-        value: dataType === 'boolean' ? false : '',
-      });
+
+      fields.push(createFieldDefinition(child, child.id, fieldName));
     });
   } else {
     // 没有子项，为当前项创建字段
-    const dataType = getDataType(item);
-    
-    fields.push({
-      id: item.id + '_value',
-      name: item.name,
-      placeholder: dataType === 'boolean' ? '' : '请输入',
-      dataType: dataType,
-      type: dataType === 'numeric' ? 'number' : 'text',
-      required: item.required !== false,
-      unit: item.unit || '',
-      value: dataType === 'boolean' ? false : '',
-    });
+
+    fields.push(createFieldDefinition(item, item.id + '_value', item.name));
   }
   
   return fields;
@@ -1155,10 +1470,8 @@ const handleFieldUpdate = (fieldId: string, value: any) => {
   const field = task.dataFields.find((f: any) => f.id === fieldId);
   if (!field) return;
   
-  // 数值类型转换为数字
-  field.value = field.dataType === 'numeric' && value !== '' 
-    ? Number(value) 
-    : value;
+  field.value = value == null ? '' : value;
+  task.result = evaluateTaskResult(task);
   
   // 保存到任务数据
   if (!taskDataMap.value[task.id]) {
@@ -1168,14 +1481,11 @@ const handleFieldUpdate = (fieldId: string, value: any) => {
     taskDataMap.value[task.id].dataFields = {};
   }
   taskDataMap.value[task.id].dataFields[fieldId] = field.value;
+  taskDataMap.value[task.id].result = task.result;
   
   saveDraft();
   void persistTaskRecord(task);
-};
-
-// 处理Toggle按钮切换
-const handleToggleField = (fieldId: string, value: boolean) => {
-  handleFieldUpdate(fieldId, value);
+  updateCompletionCounts();
 };
 
 // 更新任务数据
@@ -1192,35 +1502,6 @@ const updateTaskData = (taskId: string, updates: Record<string, any>) => {
   
   saveDraft();
   void persistTaskRecord(task);
-};
-
-// 获取检测结果按钮的类名
-const getResultButtonClass = (currentResult: string, resultType: string) => {
-  const classes: string[] = [];
-  
-  if (currentResult === resultType) {
-    classes.push('result-button-active');
-    // 根据结果类型添加对应的颜色类
-    if (resultType === 'normal') {
-      classes.push('result-button-success');
-    } else if (resultType === 'warning') {
-      classes.push('result-button-warning');
-    } else if (resultType === 'abnormal') {
-      classes.push('result-button-error');
-    }
-  }
-  
-  return classes.join(' ');
-};
-
-// 选择检测结果
-const selectResult = (taskId: string, result: string) => {
-  const task = currentTaskList.value.find(t => t.id === taskId);
-  if (task) {
-    task.result = result;
-  }
-  updateTaskData(taskId, { result });
-  updateCompletionCounts();
 };
 
 // 更新备注
@@ -1324,6 +1605,9 @@ const loadDraft = () => {
       if (draft.inspectorName) {
         inspectorName.value = draft.inspectorName;
       }
+      if (typeof draft.serialNumber === 'string') {
+        serialNumber.value = draft.serialNumber;
+      }
       // 如果已经选择了子类别，重新构建任务列表以恢复数据
       if (currentSubCategoryId.value) {
         const subCategory = categoryList.value
@@ -1348,12 +1632,45 @@ const saveDraft = () => {
     const draft = {
       taskDataMap: taskDataMap.value,
       inspectorName: inspectorName.value,
+      serialNumber: serialNumber.value,
     };
     localStorage.setItem(draftKey, JSON.stringify(draft));
   } catch (e) {
     console.error('保存草稿失败:', e);
   }
 };
+
+function flushDraftOnExit(): void {
+  saveDraft();
+}
+
+async function persistTaskMeta(): Promise<void> {
+  const existing = await offlineTaskRepository.getByTaskUuid(routeTaskId.value);
+  if (existing == null) {
+    return;
+  }
+
+  await offlineTaskRepository.updateCollectedMeta(routeTaskId.value, {
+    serialNo: serialNumber.value.trim() || null,
+    assignedUserName: inspectorName.value.trim() || null,
+  });
+
+  await offlineOutboxRepository.replacePending({
+    entity_type: 'task',
+    entity_uuid: routeTaskId.value,
+    action: 'upsert_task',
+    payload_json: JSON.stringify({
+      serial_no: serialNumber.value.trim() || null,
+      assigned_user_name: inspectorName.value.trim() || null,
+    }),
+  });
+}
+
+function handlePageVisibilityChange(): void {
+  if (document.visibilityState === 'hidden') {
+    flushDraftOnExit();
+  }
+}
 
 // 获取当前类别和子类别索引
 const getCurrentIndices = () => {
@@ -1408,6 +1725,12 @@ const goToNextModule = () => {
 // 监听检查人员变化
 watch(inspectorName, () => {
   saveDraft();
+  void persistTaskMeta();
+});
+
+watch(serialNumber, () => {
+  saveDraft();
+  void persistTaskMeta();
 });
 </script>
 
@@ -1422,24 +1745,69 @@ watch(inspectorName, () => {
 
 /* 左侧边栏 */
 .left-sidebar {
-  width: 280px;
+  width: clamp(300px, 28vw, 360px);
   background: var(--theme-color-surface);
   border-right: 1px solid var(--theme-color-soft-border);
   padding: 0.5rem;
+  padding-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+.left-sidebar-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 0.75rem 0.9rem;
+  margin-bottom: 0.75rem;
+  border: 1px solid var(--theme-color-soft-border);
+  border-radius: 0.75rem;
+  background: var(--theme-color-background);
+}
+
+.left-sidebar-header-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.left-sidebar-header-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--theme-color-text);
+}
+
+.left-sidebar-header-subtitle {
+  font-size: 0.8rem;
+  color: var(--theme-color-text-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.left-sidebar-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.left-sidebar-scroll {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
   overflow-y: auto;
-  position: relative;
+  padding-right: 0.25rem;
 }
 
-/* 返回按钮区域 */
-.back-button-section {
-  margin-bottom: 0.5rem;
-}
-
-.device-card,
-.inspector-card,
+.sidebar-summary-card,
 .category-nav-card {
   width: 100%;
   border: 1px solid var(--theme-color-soft-border);
@@ -1447,52 +1815,20 @@ watch(inspectorName, () => {
   padding: 1rem;
 }
 
-.device-header {
-  margin-bottom: 1rem;
-}
-
-.device-name {
-  width: 100%;
-  margin-bottom: 0.5rem;
-}
-
-.task-select {
-  width: 100%;
-}
-
-.device-model {
-  font-size: 0.875rem;
-  color: var(--theme-color-text-soft);
-}
-
-.device-progress {
-  margin-top: 1rem;
-}
-
-.progress-info {
+.sidebar-summary-card {
   display: flex;
-  justify-content: space-between;
-  font-size: 0.875rem;
-  color: var(--theme-color-text-soft);
-  margin-bottom: 0.5rem;
+  flex-direction: column;
+  gap: 1rem;
 }
 
-.progress-percent {
-  font-weight: 500;
-  color: var(--theme-color-text);
+.sidebar-field-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
 }
 
-.progress-bar-container {
-  height: 8px;
-  background: var(--theme-color-soft);
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.progress-bar {
-  height: 100%;
-  background: var(--theme-color-primary);
-  transition: width 0.3s ease;
+.meta-input {
+  width: 100%;
 }
 
 .card-title {
@@ -1502,8 +1838,31 @@ watch(inspectorName, () => {
   margin-bottom: 0.75rem;
 }
 
-.inspector-input {
-  width: 100%;
+.category-nav-card {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 1024px) {
+  .task-collect-page {
+    height: 100dvh;
+  }
+
+  .left-sidebar {
+    width: clamp(320px, 34vw, 380px);
+  }
+
+  .left-sidebar-header {
+    padding: 0.65rem 0.75rem 0.8rem;
+  }
+
+  .sidebar-summary-card,
+  .category-nav-card {
+    padding: 0.875rem;
+  }
+
+  .left-sidebar-scroll {
+    gap: 1rem;
+  }
 }
 
 /* Event List 样式 */
@@ -1550,12 +1909,6 @@ watch(inspectorName, () => {
 .sub-category-count {
   font-size: 0.75rem;
   color: var(--theme-color-text-soft);
-}
-
-.help-button {
-  position: absolute;
-  bottom: 1.5rem;
-  left: 1.5rem;
 }
 
 /* 右侧主内容 */
@@ -1657,6 +2010,67 @@ watch(inspectorName, () => {
   border-top: 1px solid var(--theme-color-soft-border);
 }
 
+.task-photos-section {
+  margin-top: 0.25rem;
+  padding-top: 0.85rem;
+  border-top: 1px dashed var(--theme-color-soft-border);
+}
+
+.task-photos-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.task-photos-count {
+  font-size: 0.8rem;
+  color: var(--theme-color-text-soft);
+}
+
+.task-photos-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.task-photos-hint {
+  margin-top: 0.4rem;
+  font-size: 0.75rem;
+  color: var(--theme-color-text-soft);
+}
+
+.task-photos-grid {
+  margin-top: 0.65rem;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.task-photo-card {
+  border: 1px solid var(--theme-color-soft-border);
+  border-radius: 0.4rem;
+  overflow: hidden;
+  background: var(--theme-color-background);
+}
+
+.task-photo-image {
+  display: block;
+  width: 100%;
+  height: 6rem;
+  object-fit: cover;
+}
+
+.task-photo-remove {
+  width: 100%;
+  border: none;
+  border-top: 1px solid var(--theme-color-soft-border);
+  background: transparent;
+  color: var(--theme-color-alarm);
+  cursor: pointer;
+  font-size: 0.75rem;
+  line-height: 1.8;
+}
+
 .section-title {
   font-size: 0.875rem;
   font-weight: 600;
@@ -1706,6 +2120,12 @@ watch(inspectorName, () => {
   flex-shrink: 0;
 }
 
+.data-field-hint {
+  font-size: 0.75rem;
+  color: var(--theme-color-text-soft);
+  line-height: 1.4;
+}
+
 .detection-guide {
   background: var(--theme-color-soft);
   border: 1px solid var(--theme-color-soft-border);
@@ -1721,73 +2141,38 @@ watch(inspectorName, () => {
   white-space: pre-line;
 }
 
-.result-selection {
-  display: flex;
-  gap: 0.75rem;
+.result-status-card {
+  border-radius: 0.5rem;
+  border: 1px solid var(--theme-color-soft-border);
+  padding: 0.875rem 1rem;
   margin-bottom: 0.5rem;
-  width: 100%;
 }
 
-.result-button-ix {
-  flex: 1;
-  padding: 0;
-  min-height: auto;
-  height: auto;
-}
-
-.result-button-ix .result-button-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.375rem;
-  padding: 0.75rem;
-  width: 100%;
-}
-
-.result-button-ix :deep(ix-icon) {
-  width: 1.5rem;
-  height: 1.5rem;
-}
-
-.result-button-ix.result-button-active {
-  border-width: 2px !important;
+.result-status-label {
+  font-size: 0.95rem;
   font-weight: 600;
-}
-
-.result-button-ix.result-button-success {
-  background: var(--theme-color-success-soft) !important;
-  border-color: var(--theme-color-success) !important;
-}
-
-.result-button-ix.result-button-success :deep(button) {
-  background: var(--theme-color-success-soft) !important;
-  border-color: var(--theme-color-success) !important;
-}
-
-.result-button-ix.result-button-warning {
-  background: var(--theme-color-warning-soft) !important;
-  border-color: var(--theme-color-warning) !important;
-}
-
-.result-button-ix.result-button-warning :deep(button) {
-  background: var(--theme-color-warning-soft) !important;
-  border-color: var(--theme-color-warning) !important;
-}
-
-.result-button-ix.result-button-error {
-  background: var(--theme-color-alarm-soft) !important;
-  border-color: var(--theme-color-alarm) !important;
-}
-
-.result-button-ix.result-button-error :deep(button) {
-  background: var(--theme-color-alarm-soft) !important;
-  border-color: var(--theme-color-alarm) !important;
-}
-
-.result-label {
-  font-size: 0.8125rem;
-  font-weight: 500;
   color: var(--theme-color-text);
+}
+
+.result-status-hint {
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--theme-color-text-soft);
+  line-height: 1.5;
+}
+
+.result-status-normal {
+  background: color-mix(in srgb, var(--theme-color-success) 10%, white);
+  border-color: color-mix(in srgb, var(--theme-color-success) 35%, var(--theme-color-soft-border));
+}
+
+.result-status-abnormal {
+  background: color-mix(in srgb, var(--theme-color-alarm) 10%, white);
+  border-color: color-mix(in srgb, var(--theme-color-alarm) 35%, var(--theme-color-soft-border));
+}
+
+.result-status-pending {
+  background: var(--theme-color-soft);
 }
 
 .result-hint {

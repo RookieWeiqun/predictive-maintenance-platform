@@ -33,7 +33,7 @@ export async function initializeOfflineDatabase(): Promise<void> {
   const executor = getOfflineExecutor();
   const version = await executor.getUserVersion();
 
-  if (version >= 1) {
+  if (version >= 2) {
     return;
   }
 

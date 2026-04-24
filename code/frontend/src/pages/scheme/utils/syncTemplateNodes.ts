@@ -1,5 +1,6 @@
 import { inspectionCategoriesApi, inspectionItemsApi } from '@/api';
 import type { SchemeItem } from './schemeUtils';
+import { validateRuleDefinition } from './templateRuleSchema';
 
 type FlatCategoryNode = {
   tempId: string;
@@ -29,6 +30,10 @@ function isDetectionNode(node: SchemeItem): boolean {
 }
 
 function toThreshold(node: SchemeItem): string | null {
+  if (node.thresholdRaw?.trim()) {
+    return node.thresholdRaw.trim();
+  }
+
   const hasNumeric =
     node.standardValue !== undefined ||
     node.minThreshold !== undefined ||
@@ -47,7 +52,10 @@ function toThreshold(node: SchemeItem): string | null {
   if (node.expectedResult) {
     const options = node.expectedResult.split('/').map((x) => x.trim()).filter(Boolean);
     if (options.length > 1) {
-      return JSON.stringify({ normal_values: options });
+      if (node.dataType === 'enum' || node.ruleType === 'enum' || node.type === 'functional') {
+        return JSON.stringify({ options, normal_values: options.slice(0, 1) });
+      }
+      return JSON.stringify({ options, normal_value: options[0] });
     }
     const text = node.expectedResult.trim().toLowerCase();
     if (['是', 'true', 'yes', '正常'].includes(text)) {
@@ -71,7 +79,7 @@ function mapRule(node: SchemeItem): { valueType: string; ruleType: string } {
     return { valueType: 'number', ruleType: 'number_range' };
   }
   if (node.type === 'functional') {
-    return { valueType: 'select', ruleType: 'select_include' };
+    return { valueType: 'enum', ruleType: 'enum' };
   }
   return { valueType: 'boolean', ruleType: 'boolean_equal' };
 }
@@ -86,16 +94,22 @@ function flattenScheme(items: SchemeItem[]): {
   const walk = (nodes: SchemeItem[], parentTempId: string | null) => {
     nodes.forEach((node, idx) => {
       if (isDetectionNode(node)) {
-        const { valueType, ruleType } = mapRule(node);
+        const mappedRule = mapRule(node);
+        const validatedRule = validateRuleDefinition({
+          valueTypeRaw: node.dataType || mappedRule.valueType,
+          ruleTypeRaw: node.ruleType || mappedRule.ruleType,
+          ruleRaw: toThreshold(node),
+          context: `检测项「${node.name}」`,
+        });
         inspectionItems.push({
           categoryTempId: parentTempId,
           name: node.name,
           sortOrder: idx + 1,
           required: node.required !== false,
           priority: node.priority,
-          valueType,
-          ruleType,
-          threshold: toThreshold(node),
+          valueType: validatedRule.valueType,
+          ruleType: validatedRule.ruleType,
+          threshold: validatedRule.ruleRaw,
         });
         return;
       }

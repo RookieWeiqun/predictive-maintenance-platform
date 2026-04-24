@@ -10,6 +10,7 @@ export interface SchemeItem {
   priority?: string;
   operationGuide?: string;
   ruleType?: string;
+  thresholdRaw?: string;
   param1?: string;
   param2?: string;
   // 兼容历史字段
