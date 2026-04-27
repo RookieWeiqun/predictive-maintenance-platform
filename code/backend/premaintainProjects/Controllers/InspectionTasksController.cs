@@ -84,11 +84,39 @@ namespace premaintainProjects.Controllers
             return new JsonResult(new { code = ResponseCode.成功, data = tasks, msg = "" });
         }
 
-        // PUT: api/InspectionTasks
         [HttpPut]
         public async Task<IActionResult> PutInspectionTask(InspectionTask inspectionTask)
         {
-            _context.Entry(inspectionTask).State = EntityState.Modified;
+            var existingTask = await _context.InspectionTasks.FindAsync(inspectionTask.Taskid);
+            if (existingTask == null)
+            {
+                _logger.LogWarning("更新失败，巡检任务不存在，ID：{Id}", inspectionTask.Taskid);
+                return new JsonResult(new { code = ResponseCode.记录不存在, data = (object)null, msg = "记录不存在" });
+            }
+
+            if (inspectionTask.Version != existingTask.Version + 1)
+            {
+                _logger.LogWarning(
+                    "更新失败，版本号不正确，ID：{Id}，当前版本：{CurrentVersion}，提交版本：{SubmitVersion}",
+                    inspectionTask.Taskid, existingTask.Version, inspectionTask.Version);
+
+                return new JsonResult(new
+                {
+                    code = ResponseCode.参数无效,
+                    data = (object)null,
+                    msg = $"版本冲突"
+                });
+            }
+
+            existingTask.Projectid = inspectionTask.Projectid;
+            existingTask.Templateid = inspectionTask.Templateid;
+            existingTask.Productid = inspectionTask.Productid;
+            existingTask.Status = inspectionTask.Status;
+            existingTask.TaskNo = inspectionTask.TaskNo;
+            existingTask.Assigneduserid = inspectionTask.Assigneduserid;
+            existingTask.Inspectiontype = inspectionTask.Inspectiontype;
+            existingTask.Ifdel = inspectionTask.Ifdel;
+            existingTask.Version = inspectionTask.Version;
 
             try
             {
@@ -96,19 +124,11 @@ namespace premaintainProjects.Controllers
             }
             catch (DbUpdateConcurrencyException)
             {
-                if (!InspectionTaskExists(inspectionTask.Taskid))
-                {
-                    _logger.LogWarning("更新失败，巡检任务不存在，ID：{Id}", inspectionTask.Taskid);
-                    return new JsonResult(new { code = ResponseCode.记录不存在, data = (object)null, msg = "记录不存在" });
-                }
-                else
-                {
-                    _logger.LogError("更新巡检任务时发生并发异常，ID：{Id}", inspectionTask.Taskid);
-                    throw;
-                }
+                _logger.LogError("更新巡检任务时发生并发异常，ID：{Id}", inspectionTask.Taskid);
+                throw;
             }
 
-            _logger.LogInformation("更新巡检任务成功，ID：{Id}", inspectionTask.Taskid);
+            _logger.LogInformation("更新巡检任务成功，ID：{Id}，版本：{Version}", inspectionTask.Taskid, inspectionTask.Version);
             return new JsonResult(new { code = ResponseCode.成功, data = inspectionTask.Taskid, msg = "" });
         }
 
