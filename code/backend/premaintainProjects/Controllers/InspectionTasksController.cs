@@ -167,6 +167,139 @@ namespace premaintainProjects.Controllers
             return new JsonResult(new { code = ResponseCode.成功, data = ids, msg = "" });
         }
 
+
+        [HttpPut("{id}/detail")]
+        public async Task<IActionResult> PutInspectionTaskDetail([FromBody] UpdateInspectionTaskDetailDto dto)
+        {
+
+            using var transaction = await _context.Database.BeginTransactionAsync();
+
+            try
+            {
+                var existingTask = await _context.InspectionTasks.FindAsync(dto.Task.Taskid);
+                if (existingTask == null)
+                {
+                    _logger.LogWarning("整单更新失败，巡检任务不存在，ID：{Id}", dto.Task.Taskid);
+                    return new JsonResult(new { code = ResponseCode.记录不存在, data = (object)null, msg = "记录不存在" });
+                }
+
+                if (dto.Task.Version != existingTask.Version + 1)
+                {
+                    _logger.LogWarning("整单更新失败，版本冲突，ID：{Id}，当前版本：{CurrentVersion}，提交版本：{SubmitVersion}",
+                        dto.Task.Taskid, existingTask.Version, dto.Task.Version);
+
+                    return new JsonResult(new
+                    {
+                        code = ResponseCode.参数无效,
+                        data = (object)null,
+                        msg = "版本冲突"
+                    });
+                }
+
+                // 更新 task 主表
+                existingTask.Projectid = dto.Task.Projectid;
+                existingTask.Templateid = dto.Task.Templateid;
+                existingTask.Productid = dto.Task.Productid;
+                existingTask.Status = dto.Task.Status;
+                existingTask.TaskNo = dto.Task.TaskNo;
+                existingTask.Assigneduserid = dto.Task.Assigneduserid;
+                existingTask.Inspectiontype = dto.Task.Inspectiontype;
+                existingTask.Ifdel = dto.Task.Ifdel;
+                existingTask.Version = dto.Task.Version;
+
+                // 取现有 items
+                var existingItems = await _context.Taskitems
+                    .Where(x => x.Taskid == dto.Task.Taskid)
+                    .ToListAsync();
+
+                var existingItemMap = existingItems.ToDictionary(x => x.Itemid, x => x);
+                var inputItems = dto.Taskitems ?? new List<Taskitem>();
+
+                // 传入中已有ID
+                var inputIds = inputItems
+                    .Where(x => x.Itemid != Guid.Empty)
+                    .Select(x => x.Itemid)
+                    .ToHashSet();
+
+                // 删除被移除的 items + 其附件
+                var deletedItems = existingItems
+                    .Where(x => !inputIds.Contains(x.Itemid))
+                    .ToList();
+
+                if (deletedItems.Count > 0)
+                {
+                    var deletedIds = deletedItems.Select(x => x.Itemid).ToList();
+
+                    var attachments = await _context.Attachments
+                        .Where(x => deletedIds.Contains(x.Taskitemid))
+                        .ToListAsync();
+
+                    if (attachments.Count > 0)
+                    {
+                        _context.Attachments.RemoveRange(attachments);
+                    }
+
+                    _context.Taskitems.RemoveRange(deletedItems);
+                }
+
+                // 新增 / 更新 items
+                foreach (var input in inputItems)
+                {
+                    if (input.Itemid != Guid.Empty && existingItemMap.TryGetValue(input.Itemid, out var existingItem))
+                    {
+                        existingItem.Inspectionitemid = input.Inspectionitemid;
+                        existingItem.Taskname = input.Taskname;
+                        existingItem.Categorypath = input.Categorypath;
+                        existingItem.Taskresult = input.Taskresult;
+                        existingItem.Isnormal = input.Isnormal;
+                        existingItem.Isrecheck = input.Isrecheck;
+                        existingItem.Photopath = input.Photopath;
+                        existingItem.ExecutionStatus = input.ExecutionStatus;
+                        existingItem.Updatetime = DateTime.Now;
+                        existingItem.Version = input.Version;
+                        existingItem.SourceType = input.SourceType;
+
+                        await _serviceTools.RefreshRenderSchemaAsync(existingItem);
+                    }
+                    else
+                    {
+                        var newItem = new Taskitem
+                        {
+                            Itemid = Guid.NewGuid(),
+                            Taskid = dto.Task.Taskid,
+                            Inspectionitemid = input.Inspectionitemid,
+                            Taskname = input.Taskname,
+                            Categorypath = input.Categorypath,
+                            Taskresult = input.Taskresult,
+                            Isnormal = input.Isnormal,
+                            Isrecheck = input.Isrecheck,
+                            Photopath = input.Photopath,
+                            Createtime = input.Createtime ?? DateTime.Now,
+                            ExecutionStatus = input.ExecutionStatus,
+                            Updatetime = DateTime.Now,
+                            Version = input.Version <= 0 ? 1 : input.Version,
+                            SourceType = input.SourceType
+                        };
+
+                        await _serviceTools.RefreshRenderSchemaAsync(newItem);
+                        _context.Taskitems.Add(newItem);
+                    }
+                }
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                _logger.LogInformation("整单更新巡检任务成功，ID：{Id}", dto.Task.Taskid);
+                return new JsonResult(new { code = ResponseCode.成功, data = dto.Task.Taskid, msg = "" });
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                _logger.LogError(ex, "整单更新巡检任务失败，ID：{Id}", dto.Task.Taskid);
+                return new JsonResult(new { code = ResponseCode.操作失败, data = (object)null, msg = "更新失败" });
+            }
+        }
+
         // POST: api/InspectionTasks
         [HttpPost]
         public async Task<IActionResult> PostInspectionTask(InspectionTask inspectionTask)

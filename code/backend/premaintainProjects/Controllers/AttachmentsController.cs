@@ -57,6 +57,24 @@ namespace premaintainProjects.Controllers
             return new JsonResult(new { code = ResponseCode.成功, data = attachment, msg = "" });
         }
 
+        // GET: api/Attachments/ByTaskitem/{taskitemid}
+        [HttpGet("ByTaskitem/{taskitemid:guid}")]
+        public async Task<IActionResult> GetAttachmentsByTaskitem(Guid taskitemid)
+        {
+            var attachments = await _context.Attachments
+                .Where(a => a.Taskitemid == taskitemid)
+                .ToListAsync();
+
+            _logger.LogInformation("按任务项ID获取附件成功，Taskitemid：{Taskitemid}，数量：{Count}", taskitemid, attachments.Count);
+
+            return new JsonResult(new
+            {
+                code = ResponseCode.成功,
+                data = attachments,
+                msg = ""
+            });
+        }
+
         // PUT: api/Attachments/5
         [HttpPut("{id:guid}")]
         public async Task<IActionResult> PutAttachment(Guid id, Attachment attachment)
@@ -123,7 +141,6 @@ namespace premaintainProjects.Controllers
             return _context.Attachments.Any(e => e.Attaid == id);
         }
 
-
         [HttpPost("upload")]
         [Consumes("multipart/form-data")]
         public async Task<IActionResult> UploadFile([FromForm] UploadAttachmentDto dto)
@@ -133,59 +150,71 @@ namespace premaintainProjects.Controllers
                 return new JsonResult(new { code = ResponseCode.参数无效, data = (object)null, msg = "itemid不能为空" });
             }
 
-            if (dto.file == null || dto.file.Length == 0)
+            if (dto.Files == null || dto.Files.Count == 0)
             {
                 return new JsonResult(new { code = ResponseCode.参数无效, data = (object)null, msg = "文件不能为空" });
             }
 
             const long maxFileSize = 20 * 1024 * 1024;
-            if (dto.file.Length > maxFileSize)
-            {
-                return new JsonResult(new { code = ResponseCode.参数无效, data = (object)null, msg = "文件大小不能超过20MB" });
-            }
-
             var attachDir = Path.Combine(_env.ContentRootPath, "Attach");
             if (!Directory.Exists(attachDir))
             {
                 Directory.CreateDirectory(attachDir);
             }
 
-            var extension = Path.GetExtension(dto.file.FileName);
-            if (string.IsNullOrWhiteSpace(extension))
+            var result = new List<object>();
+
+            foreach (var file in dto.Files)
             {
-                extension = ".bin";
+                if (file == null || file.Length == 0)
+                    continue;
+
+                if (file.Length > maxFileSize)
+                {
+                    return new JsonResult(new { code = ResponseCode.参数无效, data = (object)null, msg = $"文件 {file.FileName} 超过20MB" });
+                }
+
+                var extension = Path.GetExtension(file.FileName);
+                if (string.IsNullOrWhiteSpace(extension))
+                {
+                    extension = ".bin";
+                }
+
+                var attaid = Guid.NewGuid();
+                var fileName = $"{attaid}{extension}";
+                var fullPath = Path.Combine(attachDir, fileName);
+
+                await using (var stream = new FileStream(fullPath, FileMode.Create))
+                {
+                    await file.CopyToAsync(stream);
+                }
+
+                var relativePath = Path.Combine("Attach", fileName).Replace("\\", "/");
+
+                var attachment = new Attachment
+                {
+                    Attaid = attaid,
+                    Taskitemid = dto.Itemid,
+                    Filepath = relativePath
+                };
+
+                _context.Attachments.Add(attachment);
+
+                result.Add(new
+                {
+                    attaid = attachment.Attaid,
+                    filepath = attachment.Filepath
+                });
             }
 
-            var fileName = $"{dto.Itemid}{extension}";
-            var fullPath = Path.Combine(attachDir, fileName);
-
-            await using (var stream = new FileStream(fullPath, FileMode.Create))
-            {
-                await dto.file.CopyToAsync(stream);
-            }
-
-            var relativePath = Path.Combine("Attach", fileName).Replace("\\", "/");
-
-            var attachment = new Attachment
-            {
-                Attaid = Guid.NewGuid(),
-                Taskitemid = dto.Itemid,
-                Filepath = relativePath
-            };
-
-            _context.Attachments.Add(attachment);
             await _context.SaveChangesAsync();
 
-            _logger.LogInformation("上传附件成功，Attaid：{Attaid}，Taskitemid：{Taskitemid}", attachment.Attaid, dto.Itemid);
+            _logger.LogInformation("批量上传附件成功，Taskitemid：{Taskitemid}，数量：{Count}", dto.Itemid, result.Count);
 
             return new JsonResult(new
             {
                 code = ResponseCode.成功,
-                data = new
-                {
-                    attaid = attachment.Attaid,
-                    filepath = attachment.Filepath
-                },
+                data = result,
                 msg = "上传成功"
             });
         }

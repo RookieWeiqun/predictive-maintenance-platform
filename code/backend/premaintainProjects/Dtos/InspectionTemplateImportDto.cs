@@ -79,7 +79,7 @@ public class InspectionTaskDetailDto
     public class UploadAttachmentDto
     {
         public Guid Itemid { get; set; }
-        public IFormFile file { get; set; } = null!;
+        public List<IFormFile> Files { get; set; } = new();
     }
 
     public class TaskitemDetailDto
@@ -136,5 +136,11 @@ public class InspectionTaskDetailDto
 
         public string? LocalUpdatedAt { get; set; }
         public List<Attachment> Attachments { get; set; } = new();
+    }
+
+    public class UpdateInspectionTaskDetailDto
+    {
+        public InspectionTask Task { get; set; } = null!;
+        public List<Taskitem> Taskitems { get; set; } = new();
     }
 }

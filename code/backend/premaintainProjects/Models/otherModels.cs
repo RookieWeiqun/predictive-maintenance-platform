@@ -4,7 +4,6 @@ namespace premaintainProjects.Models
 {
     public class otherModels
     {
-
         public enum ResponseCode
         {
             [Description("成功")]
