@@ -154,6 +154,7 @@ import {
   inspectionTemplatesApi,
   projectEquipmentsApi,
   projectsApi,
+  productsApi,
 } from '@/api';
 import type { InspectionTemplateDto } from '@/api/modules/inspectionTemplates';
 import type { ProjectDto } from '@/api/modules/projects';
@@ -180,7 +181,6 @@ import {
   convertSchemeItemsToTreeModel,
   getAllRequiredItemIdsFromSchemeTree,
 } from '@/pages/project/utils/schemeTreeModel';
-import { syncProjectInspectionTasksFromWizard } from './utils/syncProjectInspectionTasks';
 import type { SchemeItem } from '@/pages/scheme/utils/schemeUtils';
 import BasicInfoStep from './components/BasicInfoStep.vue';
 import DeviceSelectionStep from './components/DeviceSelectionStep.vue';
@@ -963,6 +963,106 @@ async function resolvePersistedEquipmentIds(): Promise<number[]> {
   return Array.from(new Set(result));
 }
 
+type PersistedEquipmentBinding = {
+  equipmentId: number;
+  device: Device;
+};
+
+async function resolvePersistedEquipmentBindings(): Promise<PersistedEquipmentBinding[]> {
+  const companyid = Number.parseInt(formData.value.customerId, 10);
+  if (Number.isNaN(companyid)) return [];
+
+  const result: PersistedEquipmentBinding[] = [];
+  for (const d of deviceList.value) {
+    const idStr = String(d.id ?? '').trim();
+    const numeric = /^(\d+)$/.exec(idStr)?.[1];
+    if (numeric) {
+      result.push({ equipmentId: Number(numeric), device: d });
+      continue;
+    }
+    const cat = productCategoriesData.categories.find((c) => c.id === d.categoryId);
+    const sub = cat?.subCategories.find((s) => s.id === d.subCategoryId);
+    const created = await equipmentsApi.createEquipment({
+      companyid,
+      factory: (d.factoryName ?? formData.value.factory ?? '').trim() || null,
+      workshop: (d.workshopName ?? '').trim() || null,
+      equipmentname: d.model || null,
+      productcategory: cat?.name ?? null,
+      productgroup: sub?.name ?? null,
+      number: d.quantity,
+    });
+    const eqId = created.equipid;
+    if (eqId == null || Number.isNaN(Number(eqId)) || Number(eqId) <= 0) {
+      throw new Error('新建设备档案失败：未返回有效 equipid');
+    }
+    d.id = String(eqId);
+    result.push({ equipmentId: Number(eqId), device: d });
+  }
+  return result;
+}
+
+function clipProjectText(text: string): string {
+  const normalized = text.trim();
+  return normalized.length <= 100 ? normalized : normalized.slice(0, 100);
+}
+
+async function ensureProductsForEquipment(binding: PersistedEquipmentBinding): Promise<void> {
+  const { equipmentId, device } = binding;
+  const existing = await productsApi.searchProducts({ equipmentid: equipmentId });
+  const existingIds = existing
+    .map((product) => product.productid)
+    .filter((id): id is number => id != null && id > 0);
+  const requiredCount = Math.max(1, device.quantity);
+  if (existingIds.length >= requiredCount) {
+    return;
+  }
+
+  let createdCount = existingIds.length;
+  while (createdCount < requiredCount) {
+    const serial =
+      createdCount === 0 && device.serialNumber?.trim()
+        ? device.serialNumber.trim()
+        : `EQ${equipmentId}-U${createdCount + 1}`;
+    await productsApi.createProduct({
+      productid: 0,
+      equipid: equipmentId,
+      mlfb: device.model?.trim() ? device.model.trim() : null,
+      serialno: clipProjectText(serial),
+    });
+    createdCount += 1;
+  }
+}
+
+function buildProjectEquipmentTemplateBindings(
+  persistedBindings: PersistedEquipmentBinding[],
+): Array<{ equipmentid: number; templateid: number }> {
+  const bindings: Array<{ equipmentid: number; templateid: number }> = [];
+  const maintenanceTemplateId = Number.parseInt(formData.value.maintenanceSchemeId ?? '', 10);
+  const workshopTemplateMap = peripheralSchemeIdByWorkshop.value;
+
+  for (const binding of persistedBindings) {
+    if (Number.isFinite(maintenanceTemplateId) && maintenanceTemplateId > 0) {
+      bindings.push({
+        equipmentid: binding.equipmentId,
+        templateid: maintenanceTemplateId,
+      });
+    }
+
+    const workshopTemplateId = Number.parseInt(
+      workshopTemplateMap[workshopKey(binding.device)] ?? '',
+      10,
+    );
+    if (Number.isFinite(workshopTemplateId) && workshopTemplateId > 0) {
+      bindings.push({
+        equipmentid: binding.equipmentId,
+        templateid: workshopTemplateId,
+      });
+    }
+  }
+
+  return bindings;
+}
+
 /** 后端 Project：1 进行中（与列表页 PROJECT_STATUS 映射一致） */
 const PROJECT_STATUS_IN_PROGRESS = 1;
 
@@ -1065,13 +1165,21 @@ const submitProject = async () => {
 
     saveProjectSchemeSelection(savedId, buildSchemeSelectionForStorage());
 
-    setSubmitProgress(50, '正在同步项目设备关联...');
-    const equipIds = await resolvePersistedEquipmentIds();
+    setSubmitProgress(50, '正在同步项目设备与产品数据...');
+    const persistedBindings = await resolvePersistedEquipmentBindings();
+    const equipIds = [...new Set(persistedBindings.map((binding) => binding.equipmentId))];
+    for (const binding of persistedBindings) {
+      await ensureProductsForEquipment(binding);
+    }
+
     /** 新建：有设备才写关联；编辑：即使清空设备也要删光原有关联 */
-    const needEquipmentSync = equipIds.length > 0 || isEditMode.value;
+    const needEquipmentSync = persistedBindings.length > 0 || isEditMode.value;
     if (needEquipmentSync) {
       try {
-        await projectEquipmentsApi.syncProjectEquipmentLinks(savedId, equipIds);
+        await projectEquipmentsApi.syncProjectEquipmentTemplateLinks(
+          savedId,
+          buildProjectEquipmentTemplateBindings(persistedBindings),
+        );
       } catch (linkErr) {
         showToast({
           message:
@@ -1084,34 +1192,10 @@ const submitProject = async () => {
       }
     }
 
-    let taskSyncWarning = '';
-    try {
-      setSubmitProgress(70, '正在生成并同步维护任务...');
-      await syncProjectInspectionTasksFromWizard({
-        projectId: savedId,
-        maintenanceSchemeId: formData.value.maintenanceSchemeId?.trim() ?? '',
-        peripheralSchemeIdByWorkshop: { ...peripheralSchemeIdByWorkshop.value },
-        equipIds,
-        deviceList: deviceList.value.map((d) => ({
-          quantity: d.quantity,
-          model: d.model,
-          serialNumber: d.serialNumber,
-          assignedEngineerId: d.assignedEngineerId,
-          factoryName: d.factoryName,
-          workshopName: d.workshopName,
-        })),
-        adjustedSchemeItems: adjustedSchemeItems.value as SchemeItem[],
-        checkedItemIds: checkedItems.value,
-      });
-    } catch (taskErr) {
-      taskSyncWarning =
-        taskErr instanceof Error ? taskErr.message : '巡检任务同步失败';
-    }
-
     const baseOk = isEditMode.value ? '项目更新成功' : '项目创建成功';
-    setSubmitProgress(100, taskSyncWarning ? '项目已保存，任务同步部分失败' : '全部保存成功');
+    setSubmitProgress(100, '全部保存成功');
     showToast({
-      message: taskSyncWarning ? `${baseOk}；但 ${taskSyncWarning}` : baseOk,
+      message: baseOk,
     });
     router.push('/project/list');
   } catch (e) {

@@ -97,6 +97,28 @@ export class OfflineOutboxRepository {
     await this.enqueue(record);
   }
 
+  async deletePending(entityType: string, entityUuid: string, action?: string): Promise<void> {
+    const executor = getOfflineExecutor();
+    if (action) {
+      await executor.execute(
+        `
+          DELETE FROM offline_outbox
+          WHERE entity_type = ? AND entity_uuid = ? AND action = ? AND status = 'pending'
+        `,
+        [entityType, entityUuid, action],
+      );
+      return;
+    }
+
+    await executor.execute(
+      `
+        DELETE FROM offline_outbox
+        WHERE entity_type = ? AND entity_uuid = ? AND status = 'pending'
+      `,
+      [entityType, entityUuid],
+    );
+  }
+
   async markStatus(opId: string, status: OfflineSyncStatus, lastError: string | null = null): Promise<void> {
     const executor = getOfflineExecutor();
     await executor.execute(

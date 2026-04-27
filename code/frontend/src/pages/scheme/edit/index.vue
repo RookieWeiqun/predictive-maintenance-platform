@@ -123,25 +123,6 @@
                   label="项目名称" 
                   placeholder="请输入项目名称"
                 />
-                <IxInput 
-                  v-model="itemForm.levelName" 
-                  label="层级名称" 
-                  placeholder="如：系统或设备级、装置级、模块级、检测项目、检测项明细"
-                />
-                <IxInput 
-                  v-model="itemForm.levelStr" 
-                  label="层级" 
-                  placeholder="层级数字（1-5）"
-                />
-                <IxSelect 
-                  v-model="itemForm.type" 
-                  label="项目类型"
-                >
-                  <IxSelectItem label="外观检查" value="visual" />
-                  <IxSelectItem label="电气参数" value="electrical" />
-                  <IxSelectItem label="功能测试" value="functional" />
-                  <IxSelectItem label="环境数据" value="environment" />
-                </IxSelect>
                 <div class="form-checkbox">
                   <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
                     <input 
@@ -154,65 +135,50 @@
                 </div>
               </div>
 
-              <div class="form-section" v-if="itemForm.type === 'electrical'">
-                <h4>电气参数设置</h4>
-                <IxInput 
-                  v-model="itemForm.standardValueStr" 
-                  label="标准值" 
-                  placeholder="请输入标准值"
+              <div v-if="selectedItemIsDetection" class="form-section">
+                <h4>规则设置</h4>
+                <IxSelect 
+                  v-model="itemForm.dataType" 
+                  label="数据类型"
+                  @update:modelValue="handleDataTypeChange"
+                >
+                  <IxSelectItem label="number" value="number" />
+                  <IxSelectItem label="boolean" value="boolean" />
+                  <IxSelectItem label="enum" value="enum" />
+                  <IxSelectItem label="text" value="text" />
+                </IxSelect>
+                <IxSelect 
+                  v-model="itemForm.ruleType" 
+                  label="规则类型"
+                >
+                  <IxSelectItem :label="itemForm.ruleType" :value="itemForm.ruleType" />
+                </IxSelect>
+                <IxSelect 
+                  v-model="itemForm.priority" 
+                  label="权重"
+                >
+                  <IxSelectItem label="High" value="High" />
+                  <IxSelectItem label="Medium" value="Medium" />
+                  <IxSelectItem label="Low" value="Low" />
+                </IxSelect>
+                <IxTextarea
+                  v-model="itemForm.operationGuide"
+                  label="操作指导"
+                  placeholder="请输入执行提示或检测步骤"
+                  textarea-height="120px"
                 />
-                <IxInput 
-                  v-model="itemForm.minThresholdStr" 
-                  label="最小值阈值" 
-                  placeholder="请输入最小值阈值"
+                <IxTextarea
+                  v-model="itemForm.thresholdRaw"
+                  label="规则 JSON"
+                  placeholder='例如：{"options":["是","否"],"normal_value":"是"}'
+                  textarea-height="180px"
                 />
-                <IxInput 
-                  v-model="itemForm.maxThresholdStr" 
-                  label="最大值阈值" 
-                  placeholder="请输入最大值阈值"
-                />
-                <IxInput 
-                  v-model="itemForm.unit" 
-                  label="单位" 
-                  placeholder="请输入单位（如：V, A, Ω）"
-                />
-              </div>
-
-              <div class="form-section" v-if="itemForm.type === 'functional'">
-                <h4>功能测试设置</h4>
-                <div>
-                  <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">测试步骤</label>
-                  <textarea 
-                    v-model="itemForm.testProcedure" 
-                    placeholder="请输入测试步骤说明"
-                    rows="4"
-                    style="width: 100%; padding: 0.5rem; border: 1px solid var(--theme-color-soft-border); border-radius: 0.25rem; font-family: inherit; font-size: 0.875rem;"
-                  />
+                <div class="rule-editor-actions">
+                  <IxButton variant="secondary" size="sm" @click="applyDefaultRuleTemplate">套用默认规则模板</IxButton>
                 </div>
-                <IxInput 
-                  v-model="itemForm.expectedResult" 
-                  label="预期结果" 
-                  placeholder="请输入预期结果"
-                />
-              </div>
-
-              <div class="form-section" v-if="itemForm.type === 'environment'">
-                <h4>环境数据设置</h4>
-                <IxInput 
-                  v-model="itemForm.standardValueStr" 
-                  label="标准值" 
-                  placeholder="请输入标准值"
-                />
-                <IxInput 
-                  v-model="itemForm.unit" 
-                  label="单位" 
-                  placeholder="请输入单位（如：℃, %RH）"
-                />
-                <IxInput 
-                  v-model="itemForm.toleranceStr" 
-                  label="允许偏差" 
-                  placeholder="请输入允许偏差"
-                />
+                <div class="rule-editor-hint">
+                  仅支持 number_range、boolean_equal、enum、text_pattern 四种组合；text_pattern 可以留空。
+                </div>
               </div>
 
               <div class="form-actions">
@@ -243,6 +209,7 @@ import {
   IxInput,
   IxSelect,
   IxSelectItem,
+  IxTextarea,
   showToast,
 } from '@siemens/ix-vue';
 import productCategoriesData from '@/mockdata/common/productCategories.json';
@@ -264,6 +231,12 @@ import {
 import { importInspectionItemsFromExcel } from '../utils/importInspectionItemsFromExcel';
 import { syncTemplateNodesWithProgress } from '../utils/syncTemplateNodes';
 import { loadTemplateItemsByTemplateId } from '../utils/loadTemplateItems';
+import {
+  getDefaultRuleJsonForValueType,
+  getDefaultRuleTypeForValueType,
+  normalizeSupportedValueType,
+  validateRuleDefinition,
+} from '../utils/templateRuleSchema';
 
 const route = useRoute();
 const router = useRouter();
@@ -328,22 +301,34 @@ const selectedItem = computed(() => {
   return findItemById(currentAtomicScheme.value.items, selectedItemId.value);
 });
 
+const selectedItemIsDetection = computed(() => !!selectedItem.value && isDetectionItem(selectedItem.value));
+
+function mapLegacyTypeToValueType(type?: string): 'number' | 'boolean' | 'enum' | 'text' {
+  if (type === 'electrical' || type === 'environment') return 'number';
+  if (type === 'functional') return 'boolean';
+  return 'text';
+}
+
+function mapValueTypeToSchemeType(valueType: string): string {
+  if (valueType === 'number') return 'electrical';
+  if (valueType === 'boolean' || valueType === 'enum') return 'functional';
+  return 'visual';
+}
+
+function createEmptyItemForm() {
+  return {
+    name: '',
+    required: true,
+    dataType: 'boolean',
+    ruleType: 'boolean_equal',
+    thresholdRaw: getDefaultRuleJsonForValueType('boolean'),
+    priority: 'High',
+    operationGuide: '',
+  };
+}
+
 // 项目编辑表单
-const itemForm = ref({
-  name: '',
-  type: 'visual',
-  required: true,
-  level: 1,
-  levelStr: '1',
-  levelName: '',
-  standardValueStr: '',
-  minThresholdStr: '',
-  maxThresholdStr: '',
-  unit: '',
-  testProcedure: '',
-  expectedResult: '',
-  toleranceStr: '',
-});
+const itemForm = ref(createEmptyItemForm());
 const excelInputRef = ref<HTMLInputElement | null>(null);
 const syncProgress = ref({ visible: false, percent: 0, message: '' });
 
@@ -364,21 +349,29 @@ const canSave = computed(() => {
 const loadItemToForm = (item: SchemeItem) => {
   // 只有检测项目（有 type 和 required）才能编辑
   const isItem = isDetectionItem(item);
+  const valueType = normalizeSupportedValueType(item.dataType) ?? mapLegacyTypeToValueType(item.type);
   itemForm.value = {
     name: item.name,
-    type: item.type || 'visual',
     required: isItem ? (item.required !== false) : true,
-    level: 1,
-    levelStr: '1',
-    levelName: '',
-    standardValueStr: item.standardValue?.toString() || '',
-    minThresholdStr: item.minThreshold?.toString() || '',
-    maxThresholdStr: item.maxThreshold?.toString() || '',
-    unit: item.unit || '',
-    testProcedure: item.testProcedure || '',
-    expectedResult: item.expectedResult || '',
-    toleranceStr: item.tolerance?.toString() || '',
+    dataType: valueType,
+    ruleType: item.ruleType || getDefaultRuleTypeForValueType(valueType),
+    thresholdRaw: item.thresholdRaw || getDefaultRuleJsonForValueType(valueType),
+    priority: item.priority || 'High',
+    operationGuide: item.operationGuide || item.testProcedure || '',
   };
+};
+
+const handleDataTypeChange = (value: string) => {
+  const normalized = normalizeSupportedValueType(value) ?? 'text';
+  itemForm.value.dataType = normalized;
+  itemForm.value.ruleType = getDefaultRuleTypeForValueType(normalized);
+  itemForm.value.thresholdRaw = getDefaultRuleJsonForValueType(normalized);
+};
+
+const applyDefaultRuleTemplate = () => {
+  const normalized = normalizeSupportedValueType(itemForm.value.dataType) ?? 'text';
+  itemForm.value.ruleType = getDefaultRuleTypeForValueType(normalized);
+  itemForm.value.thresholdRaw = getDefaultRuleJsonForValueType(normalized);
 };
 
 // 处理项目选择（由 SchemeTree 组件调用）
@@ -401,10 +394,9 @@ const handleAddItem = () => {
     dataType: 'boolean',
     priority: 'High',
     ruleType: 'boolean_equal',
+    thresholdRaw: getDefaultRuleJsonForValueType('boolean'),
     operationGuide: '',
-    param1: '',
-    param2: '',
-    type: 'visual',
+    type: 'functional',
     required: true,
     children: [],
   };
@@ -430,10 +422,9 @@ const handleAddChildItem = () => {
     dataType: parentItem.dataType || 'boolean',
     priority: parentItem.priority || 'High',
     ruleType: parentItem.ruleType || 'boolean_equal',
+    thresholdRaw: parentItem.thresholdRaw || getDefaultRuleJsonForValueType('boolean'),
     operationGuide: parentItem.operationGuide || '',
-    param1: parentItem.param1 || '',
-    param2: parentItem.param2 || '',
-    type: parentItem.type || 'visual',
+    type: parentItem.type || 'functional',
     required: true,
   };
   
@@ -474,18 +465,43 @@ const handleExcelSelected = async (event: Event) => {
 // 保存项目
 const handleSaveItem = () => {
   if (!selectedItem.value) return;
-  
+
+  if (!selectedItemIsDetection.value) {
+    selectedItem.value.name = itemForm.value.name;
+    return;
+  }
+
+  let validatedRule;
+  try {
+    validatedRule = validateRuleDefinition({
+      valueTypeRaw: itemForm.value.dataType,
+      ruleTypeRaw: itemForm.value.ruleType,
+      ruleRaw: itemForm.value.thresholdRaw,
+      context: `检测项「${itemForm.value.name || selectedItem.value.name}」`,
+    });
+  } catch (error) {
+    showToast({ message: error instanceof Error ? error.message : '规则校验失败' });
+    return;
+  }
+
   Object.assign(selectedItem.value, {
     name: itemForm.value.name,
-    type: itemForm.value.type,
     required: itemForm.value.required,
-    standardValue: itemForm.value.standardValueStr ? parseFloat(itemForm.value.standardValueStr) : undefined,
-    minThreshold: itemForm.value.minThresholdStr ? parseFloat(itemForm.value.minThresholdStr) : undefined,
-    maxThreshold: itemForm.value.maxThresholdStr ? parseFloat(itemForm.value.maxThresholdStr) : undefined,
-    unit: itemForm.value.unit,
-    testProcedure: itemForm.value.testProcedure,
-    expectedResult: itemForm.value.expectedResult,
-    tolerance: itemForm.value.toleranceStr ? parseFloat(itemForm.value.toleranceStr) : undefined,
+    dataType: validatedRule.valueType,
+    ruleType: validatedRule.ruleType,
+    thresholdRaw: validatedRule.ruleRaw ?? undefined,
+    priority: itemForm.value.priority,
+    operationGuide: itemForm.value.operationGuide,
+    testProcedure: itemForm.value.operationGuide,
+    type: mapValueTypeToSchemeType(validatedRule.valueType),
+    standardValue: undefined,
+    minThreshold: undefined,
+    maxThreshold: undefined,
+    unit: undefined,
+    expectedResult: undefined,
+    tolerance: undefined,
+    param1: undefined,
+    param2: undefined,
   });
   
   // SchemeTree 组件会自动更新
@@ -494,21 +510,7 @@ const handleSaveItem = () => {
 // 取消编辑
 const handleCancelItem = () => {
   selectedItemId.value = null;
-  itemForm.value = {
-    name: '',
-    type: 'visual',
-    required: true,
-    level: 1,
-    levelStr: '1',
-    levelName: '',
-    standardValueStr: '',
-    minThresholdStr: '',
-    maxThresholdStr: '',
-    unit: '',
-    testProcedure: '',
-    expectedResult: '',
-    toleranceStr: '',
-  };
+  itemForm.value = createEmptyItemForm();
 };
 
 // 删除项目

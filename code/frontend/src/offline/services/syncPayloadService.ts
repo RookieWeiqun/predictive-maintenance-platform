@@ -6,7 +6,9 @@ import { offlineTaskRepository } from '../repositories/taskRepository';
 type ParsedOfflineResult = {
   raw: string | null;
   value: string | null;
+  result: string | null;
   remarks: string | null;
+  data_fields: Record<string, unknown> | null;
 };
 
 export type OfflineSyncAttachmentPayload = {
@@ -38,6 +40,8 @@ export type OfflineSyncTaskPayload = {
   task_uuid: string;
   server_task_id: string | null;
   task_no: string | null;
+  serial_no: string | null;
+  assigned_user_name: string | null;
   project_id: string | null;
   project_name: string | null;
   scheme_id: string | null;
@@ -77,29 +81,42 @@ function parseOfflineResult(raw: string | null): ParsedOfflineResult {
     return {
       raw: null,
       value: null,
+      result: null,
       remarks: null,
+      data_fields: null,
     };
   }
 
   try {
     const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const dataFields = parsed.dataFields && typeof parsed.dataFields === 'object'
+      ? parsed.dataFields as Record<string, unknown>
+      : null;
     const explicitValue = typeof parsed.value === 'string'
       ? parsed.value
       : typeof parsed.result === 'string'
         ? parsed.result
-        : parsed.dataFields && typeof parsed.dataFields === 'object' && typeof (parsed.dataFields as Record<string, unknown>).value === 'string'
-          ? String((parsed.dataFields as Record<string, unknown>).value)
+        : dataFields && typeof dataFields.value === 'string'
+          ? String(dataFields.value)
           : null;
     return {
       raw,
       value: explicitValue,
+      result: typeof parsed.resultState === 'string'
+        ? parsed.resultState
+        : typeof parsed.result === 'string'
+          ? parsed.result
+          : null,
       remarks: typeof parsed.remarks === 'string' ? parsed.remarks : null,
+      data_fields: dataFields,
     };
   } catch {
     return {
       raw,
       value: raw,
+      result: null,
       remarks: null,
+      data_fields: null,
     };
   }
 }
@@ -116,12 +133,16 @@ export async function buildTaskSyncPayload(taskUuid: string): Promise<OfflineSyn
   ]);
 
   const changedItems = taskItems.filter((item) => item.sync_status !== 'synced');
-  const changedItemIds = new Set(changedItems.map((item) => item.task_item_uuid));
+  const taskItemIds = new Set(taskItems.map((item) => item.task_item_uuid));
   const changedAttachments = allAttachments.filter(
-    (attachment) => attachment.sync_status !== 'synced' && changedItemIds.has(attachment.task_item_uuid),
+    (attachment) => attachment.sync_status !== 'synced' && taskItemIds.has(attachment.task_item_uuid),
   );
+  const includedTaskItemIds = new Set([
+    ...changedItems.map((item) => item.task_item_uuid),
+    ...changedAttachments.map((attachment) => attachment.task_item_uuid),
+  ]);
 
-  if (task.sync_status === 'synced' && changedItems.length === 0 && changedAttachments.length === 0) {
+  if (task.sync_status === 'synced' && includedTaskItemIds.size === 0) {
     return null;
   }
 
@@ -144,6 +165,8 @@ export async function buildTaskSyncPayload(taskUuid: string): Promise<OfflineSyn
     task_uuid: task.task_uuid,
     server_task_id: task.server_task_id,
     task_no: task.task_no,
+    serial_no: task.serial_no,
+    assigned_user_name: task.assigned_user_name,
     project_id: task.project_id,
     project_name: task.project_name,
     scheme_id: task.scheme_id,
@@ -155,7 +178,7 @@ export async function buildTaskSyncPayload(taskUuid: string): Promise<OfflineSyn
     sync_status: task.sync_status,
     changed_item_count: changedItems.length,
     changed_attachment_count: changedAttachments.length,
-    items: changedItems.map((item) => ({
+    items: taskItems.filter((item) => includedTaskItemIds.has(item.task_item_uuid)).map((item) => ({
       task_item_uuid: item.task_item_uuid,
       server_item_id: item.server_item_id,
       source_type: item.source_type,
@@ -172,9 +195,11 @@ export async function buildTaskSyncPayload(taskUuid: string): Promise<OfflineSyn
   };
 }
 
-export async function buildPendingSyncBatch(): Promise<OfflineSyncBatchPayload> {
+export async function buildPendingSyncBatch(taskUuids?: string[]): Promise<OfflineSyncBatchPayload> {
   const tasks = await offlineTaskRepository.listAll();
-  const payloads = await Promise.all(tasks.map((task) => buildTaskSyncPayload(task.task_uuid)));
+  const taskUuidSet = taskUuids && taskUuids.length > 0 ? new Set(taskUuids) : null;
+  const filteredTasks = taskUuidSet == null ? tasks : tasks.filter((task) => taskUuidSet.has(task.task_uuid));
+  const payloads = await Promise.all(filteredTasks.map((task) => buildTaskSyncPayload(task.task_uuid)));
   const changedTasks = payloads.filter((task): task is OfflineSyncTaskPayload => task != null);
 
   return {
@@ -190,19 +215,48 @@ export async function buildPendingSyncBatch(): Promise<OfflineSyncBatchPayload> 
   };
 }
 
-export async function previewPendingSyncBatch(): Promise<string> {
-  const payload = await buildPendingSyncBatch();
+export async function previewPendingSyncBatch(taskUuids?: string[]): Promise<string> {
+  const payload = await buildPendingSyncBatch(taskUuids);
   return JSON.stringify(payload, null, 2);
 }
 
-export async function simulateUploadPendingSyncBatch(): Promise<{
+function resolvePendingChangeTaskUuid(
+  entityType: string,
+  entityUuid: string,
+  taskAliases: Map<string, string>,
+  taskItemToTask: Map<string, string>,
+  attachmentToTask: Map<string, string>,
+): string | null {
+  if (entityType === 'task') {
+    return taskAliases.get(entityUuid) ?? entityUuid;
+  }
+  if (entityType === 'task_item') {
+    return taskItemToTask.get(entityUuid) ?? entityUuid.split(':')[0] ?? null;
+  }
+  if (entityType === 'attachment') {
+    return attachmentToTask.get(entityUuid) ?? null;
+  }
+  return null;
+}
+
+export async function simulateUploadPendingSyncBatch(taskUuids?: string[]): Promise<{
   taskCount: number;
   changeCount: number;
 }> {
-  const [pendingChanges, localTasks] = await Promise.all([
+  const [pendingChanges, localTasks, taskItems, attachments] = await Promise.all([
     offlineOutboxRepository.listPending(),
     offlineTaskRepository.listAll(),
+    offlineTaskItemRepository.listAll(),
+    offlineAttachmentRepository.listAll(),
   ]);
+
+  const taskItemToTask = new Map(taskItems.map((item) => [item.task_item_uuid, item.task_uuid] as const));
+  const attachmentToTask = new Map(
+    attachments.map((attachment) => [
+      attachment.attachment_uuid,
+      taskItemToTask.get(attachment.task_item_uuid) ?? attachment.task_item_uuid.split(':')[0] ?? '',
+    ] as const),
+  );
 
   if (pendingChanges.length === 0) {
     return {
@@ -220,12 +274,32 @@ export async function simulateUploadPendingSyncBatch(): Promise<{
       return keys.map((key) => [key, task.task_uuid] as const);
     }),
   );
+  const selectedTaskSet = taskUuids && taskUuids.length > 0 ? new Set(taskUuids) : null;
+  const selectedChanges = selectedTaskSet == null
+    ? pendingChanges
+    : pendingChanges.filter((change) => {
+      const taskUuid = resolvePendingChangeTaskUuid(
+        change.entity_type,
+        change.entity_uuid,
+        localTaskMap,
+        taskItemToTask,
+        attachmentToTask,
+      );
+      return taskUuid != null && selectedTaskSet.has(taskUuid);
+    });
   const affectedTaskUuids = new Set<string>();
 
-  for (const change of pendingChanges) {
+  if (selectedChanges.length === 0) {
+    return {
+      taskCount: 0,
+      changeCount: 0,
+    };
+  }
+
+  for (const change of selectedChanges) {
     if (change.entity_type === 'task_item') {
       await offlineTaskItemRepository.markSynced(change.entity_uuid);
-      const taskUuid = change.entity_uuid.split(':')[0];
+      const taskUuid = taskItemToTask.get(change.entity_uuid) ?? change.entity_uuid.split(':')[0];
       if (taskUuid) {
         affectedTaskUuids.add(taskUuid);
       }
@@ -234,18 +308,39 @@ export async function simulateUploadPendingSyncBatch(): Promise<{
       if (taskUuid) {
         affectedTaskUuids.add(taskUuid);
       }
+    } else if (change.entity_type === 'attachment') {
+      await offlineAttachmentRepository.markSynced(change.entity_uuid);
+      const taskUuid = attachmentToTask.get(change.entity_uuid) ?? null;
+      if (taskUuid) {
+        affectedTaskUuids.add(taskUuid);
+      }
     }
 
     await offlineOutboxRepository.markStatus(change.op_id, 'synced');
   }
 
+  const remainingPending = await offlineOutboxRepository.listPending();
+  const remainingPendingTaskUuids = new Set(
+    remainingPending
+      .map((change) => resolvePendingChangeTaskUuid(
+        change.entity_type,
+        change.entity_uuid,
+        localTaskMap,
+        taskItemToTask,
+        attachmentToTask,
+      ))
+      .filter((taskUuid): taskUuid is string => !!taskUuid),
+  );
+
   for (const taskUuid of affectedTaskUuids) {
-    await offlineTaskRepository.markUploaded(taskUuid);
+    if (!remainingPendingTaskUuids.has(taskUuid)) {
+      await offlineTaskRepository.markUploaded(taskUuid);
+    }
   }
 
   return {
     taskCount: affectedTaskUuids.size,
-    changeCount: pendingChanges.length,
+    changeCount: selectedChanges.length,
   };
 }
 

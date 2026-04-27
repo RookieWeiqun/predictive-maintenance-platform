@@ -48,6 +48,7 @@ function toSchemeItemFromApi(item: InspectionItemDto): SchemeItem {
     name: item.name || '未命名检测项',
     dataType: item.valueType || undefined,
     ruleType: item.ruleType || undefined,
+    thresholdRaw: item.threshold || undefined,
     priority: item.priority || undefined,
     type: mapDataTypeToSchemeType(item.valueType),
     required: (item.priority || 'High') !== 'Low',

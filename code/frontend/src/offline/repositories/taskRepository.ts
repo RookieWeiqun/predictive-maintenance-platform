@@ -16,6 +16,8 @@ export class OfflineTaskRepository {
           task_uuid,
           server_task_id,
           task_no,
+          serial_no,
+          assigned_user_name,
           project_id,
           project_name,
           scheme_id,
@@ -39,6 +41,8 @@ export class OfflineTaskRepository {
           task_uuid,
           server_task_id,
           task_no,
+          serial_no,
+          assigned_user_name,
           project_id,
           project_name,
           scheme_id,
@@ -69,6 +73,8 @@ export class OfflineTaskRepository {
           task_uuid,
           server_task_id,
           task_no,
+          serial_no,
+          assigned_user_name,
           project_id,
           project_name,
           scheme_id,
@@ -78,10 +84,12 @@ export class OfflineTaskRepository {
           downloaded_at,
           local_updated_at,
           sync_status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(task_uuid) DO UPDATE SET
           server_task_id = excluded.server_task_id,
           task_no = excluded.task_no,
+          serial_no = excluded.serial_no,
+          assigned_user_name = excluded.assigned_user_name,
           project_id = excluded.project_id,
           project_name = excluded.project_name,
           scheme_id = excluded.scheme_id,
@@ -95,6 +103,8 @@ export class OfflineTaskRepository {
         record.task_uuid,
         record.server_task_id,
         record.task_no,
+        record.serial_no,
+        record.assigned_user_name,
         record.project_id,
         record.project_name,
         record.scheme_id,
@@ -106,6 +116,27 @@ export class OfflineTaskRepository {
         record.sync_status,
       ],
     );
+  }
+
+  async updateCollectedMeta(
+    taskUuid: string,
+    meta: {
+      serialNo?: string | null;
+      assignedUserName?: string | null;
+    },
+  ): Promise<void> {
+    const existing = await this.getByTaskUuid(taskUuid);
+    if (existing == null) {
+      return;
+    }
+
+    await this.upsert({
+      ...existing,
+      serial_no: meta.serialNo ?? existing.serial_no,
+      assigned_user_name: meta.assignedUserName ?? existing.assigned_user_name,
+      local_updated_at: nowIso(),
+      sync_status: 'pending',
+    });
   }
 
   async markDirty(taskUuid: string, syncStatus: OfflineSyncStatus = 'pending'): Promise<void> {

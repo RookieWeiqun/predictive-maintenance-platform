@@ -84,6 +84,14 @@ export class OfflineAttachmentRepository {
       [syncStatus, attachmentUuid],
     );
   }
+
+  async deleteByAttachmentUuid(attachmentUuid: string): Promise<void> {
+    const executor = getOfflineExecutor();
+    await executor.execute(
+      `DELETE FROM offline_attachment WHERE attachment_uuid = ?`,
+      [attachmentUuid],
+    );
+  }
 }
 
 export const offlineAttachmentRepository = new OfflineAttachmentRepository();

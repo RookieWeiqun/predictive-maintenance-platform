@@ -7,4 +7,5 @@ export * from './repositories/taskItemRepository';
 export * from './repositories/attachmentRepository';
 export * from './repositories/outboxRepository';
 export * from './services/taskPackageService';
+export * from './services/taskPhotoService';
 export * from './services/syncPayloadService';

@@ -6,6 +6,8 @@ export type ProjectEquipmentDto = {
   peid?: number;
   projectid: number;
   equipmentid: number;
+  ifdel?: boolean;
+  templateid?: number | null;
 };
 
 function unwrap<T>(res: ApiEnvelope<T>): T {
@@ -32,6 +34,16 @@ function mapProjectEquipmentRaw(raw: unknown): ProjectEquipmentDto {
     })(),
     projectid: Number(gv(r, 'projectid', 'Projectid')),
     equipmentid: Number.isNaN(equipid) ? 0 : equipid,
+    ifdel: (() => {
+      const value = gv(r, 'ifdel', 'Ifdel');
+      return value === true || value === 'true';
+    })(),
+    templateid: (() => {
+      const value = gv(r, 'templateid', 'Templateid');
+      if (value == null || value === '') return null;
+      const numberValue = Number(value);
+      return Number.isNaN(numberValue) ? null : numberValue;
+    })(),
   };
 }
 
@@ -50,15 +62,17 @@ export async function listByProject(projectid: number): Promise<ProjectEquipment
 export async function createProjectEquipment(payload: {
   projectid: number;
   equipmentid: number;
+  templateid?: number | null;
+  ifdel?: boolean;
   peid?: number;
 }): Promise<unknown> {
-  const body: Record<string, number> = {
+  const body: Record<string, number | boolean | null> = {
+    peid: payload.peid ?? 0,
     projectid: payload.projectid,
     equipmentid: payload.equipmentid,
+    ifdel: payload.ifdel ?? false,
+    templateid: payload.templateid ?? null,
   };
-  if (payload.peid != null && payload.peid > 0) {
-    body.peid = payload.peid;
-  }
   const res = await requestJson<ApiEnvelope<unknown>>('/api/ProjectEquipments', {
     method: 'POST',
     body: JSON.stringify(body),
@@ -99,5 +113,38 @@ export async function syncProjectEquipmentLinks(
   if (ids.length === 0) return;
   await Promise.all(
     ids.map((equipmentid) => createProjectEquipment({ projectid, equipmentid })),
+  );
+}
+
+export async function syncProjectEquipmentTemplateLinks(
+  projectid: number,
+  bindings: Array<{ equipmentid: number; templateid: number }>,
+): Promise<void> {
+  const existing = await listByProject(projectid);
+  const peids = existing
+    .map((link) => link.peid)
+    .filter((pid): pid is number => pid != null && pid > 0);
+  if (peids.length > 0) {
+    await Promise.all(peids.map((pid) => deleteProjectEquipment(pid)));
+  }
+
+  const deduped = new Map<string, { equipmentid: number; templateid: number }>();
+  for (const binding of bindings) {
+    if (binding.equipmentid <= 0 || binding.templateid <= 0) continue;
+    deduped.set(`${binding.equipmentid}:${binding.templateid}`, binding);
+  }
+
+  if (deduped.size === 0) return;
+
+  await Promise.all(
+    [...deduped.values()].map((binding) =>
+      createProjectEquipment({
+        peid: 0,
+        projectid,
+        equipmentid: binding.equipmentid,
+        templateid: binding.templateid,
+        ifdel: false,
+      }),
+    ),
   );
 }
