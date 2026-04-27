@@ -29,4 +29,12 @@ public partial class InspectionTask
     public int Inspectiontype { get; set; }
 
     public bool Ifdel { get; set; }
+
+    public string? Assignedusername { get; set; }
+
+    public int? Version { get; set; }
+
+    public DateTime? DownloadedAt { get; set; }
+
+    public DateTime? LocalUpdatedAt { get; set; }
 }

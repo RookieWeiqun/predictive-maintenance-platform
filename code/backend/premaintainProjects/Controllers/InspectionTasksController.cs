@@ -159,7 +159,6 @@ namespace premaintainProjects.Controllers
             return new JsonResult(new { code = ResponseCode.成功, data = inspectionTask.Taskid, msg = "" });
         }
 
-        // GET: api/InspectionTasks/{id}/detail
         [HttpGet("{id}/detail")]
         public async Task<IActionResult> GetInspectionTaskDetail(int id)
         {
@@ -177,15 +176,43 @@ namespace premaintainProjects.Controllers
             foreach (var item in taskitems)
             {
                 await _serviceTools.RefreshRenderSchemaAsync(item);
-            }            
+            }
+
+            var itemIds = taskitems.Select(x => x.Itemid).ToList();
+
+            var attachments = await _context.Attachments
+                .Where(x => itemIds.Contains(x.Taskitemid))
+                .ToListAsync();
+
+            var taskitemDtos = taskitems.Select(item => new TaskitemDetailDto
+            {
+                Itemid = item.Itemid,
+                Taskid = item.Taskid,
+                Inspectionitemid = item.Inspectionitemid,
+                Taskname = item.Taskname,
+                Categorypath = item.Categorypath,
+                Taskresult = item.Taskresult,
+                Isnormal = item.Isnormal,
+                Isrecheck = item.Isrecheck,
+                Photopath = item.Photopath,
+                Createtime = item.Createtime,
+                ExecutionStatus = item.ExecutionStatus,
+                Updatetime = item.Updatetime,
+                Version = item.Version,
+                SourceType = item.SourceType,
+                RenderSchemaJson = item.RenderSchemaJson,
+                Attachments = attachments
+                    .Where(a => a.Taskitemid == item.Itemid)
+                    .ToList()
+            }).ToList();
 
             var data = new InspectionTaskDetailDto
             {
                 Task = task,
-                Taskitems = taskitems
+                Taskitems = taskitemDtos
             };
 
-            _logger.LogInformation("获取巡检任务详情成功，ID：{Id}，任务项数量：{Count}", id, taskitems.Count);
+            _logger.LogInformation("获取巡检任务详情成功，ID：{Id}，任务项数量：{Count}", id, taskitemDtos.Count);
             return new JsonResult(new { code = ResponseCode.成功, data, msg = "" });
         }
 

@@ -1,4 +1,6 @@
 
 dotnet ef dbcontext scaffold "Host=36.110.89.30;Port=54321;Database=PredictiveMaintenancePlatform;Username=PredictiveMaintenance;Password=PsmDig@2026" Npgsql.EntityFrameworkCore.PostgreSQL -o Models --force
 
+ --no-build
+
 git@code.siemens.com:cs-psm-dig/predictive-maintenance-platform.git

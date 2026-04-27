@@ -15,6 +15,8 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
     {
     }
 
+    public virtual DbSet<Attachment> Attachments { get; set; }
+
     public virtual DbSet<Company> Companies { get; set; }
 
     public virtual DbSet<Equipment> Equipments { get; set; }
@@ -41,9 +43,27 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
 
     public virtual DbSet<User> Users { get; set; }
 
-    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder) { }
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+#warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
+        => optionsBuilder.UseNpgsql("Host=36.110.89.30;Port=54321;Database=PredictiveMaintenancePlatform;Username=PredictiveMaintenance;Password=PsmDig@2026");
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<Attachment>(entity =>
+        {
+            entity.HasKey(e => e.Attaid).HasName("attachment_pk");
+
+            entity.ToTable("attachment");
+
+            entity.Property(e => e.Attaid)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("attaid");
+            entity.Property(e => e.Filepath)
+                .HasColumnType("character varying")
+                .HasColumnName("filepath");
+            entity.Property(e => e.Taskitemid).HasColumnName("taskitemid");
+        });
+
         modelBuilder.Entity<Company>(entity =>
         {
             entity.HasKey(e => e.Companyid).HasName("companies_pkey");
@@ -161,11 +181,20 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
 
             entity.Property(e => e.Taskid).HasColumnName("taskid");
             entity.Property(e => e.Assigneduserid).HasColumnName("assigneduserid");
+            entity.Property(e => e.Assignedusername)
+                .HasColumnType("character varying")
+                .HasColumnName("assignedusername");
+            entity.Property(e => e.DownloadedAt)
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("downloaded_at");
             entity.Property(e => e.Ifdel).HasColumnName("ifdel");
             entity.Property(e => e.Inspectiontype)
                 .HasDefaultValue(1)
                 .HasComment("1、设备检测\r\n2、外围检测")
                 .HasColumnName("inspectiontype");
+            entity.Property(e => e.LocalUpdatedAt)
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("local_updated_at");
             entity.Property(e => e.Productid).HasColumnName("productid");
             entity.Property(e => e.Projectid).HasColumnName("projectid");
             entity.Property(e => e.Status)
@@ -176,6 +205,7 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
                 .HasMaxLength(100)
                 .HasColumnName("task_no");
             entity.Property(e => e.Templateid).HasColumnName("templateid");
+            entity.Property(e => e.Version).HasColumnName("version");
         });
 
         modelBuilder.Entity<InspectionTemplate>(entity =>
@@ -329,7 +359,7 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
                 .HasMaxLength(200)
                 .HasColumnName("taskname");
             entity.Property(e => e.Taskresult)
-                .HasColumnType("character varying")
+                .HasColumnType("jsonb")
                 .HasColumnName("taskresult");
             entity.Property(e => e.Updatetime)
                 .HasDefaultValueSql("now()")
