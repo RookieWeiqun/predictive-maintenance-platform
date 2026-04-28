@@ -176,7 +176,13 @@ namespace premaintainProjects.Controllers
                         Assigneduserid = null,
                         TaskNo = await _serviceTools.GenerateTaskNoAsync(),
                         Inspectiontype = template.Inspectiontype,
-                        Ifdel = false
+                        Ifdel = false,
+                         Assignedusername= null,
+                          DownloadDeviceName = null,
+                           DownloadedAt= null,
+                            LocalUpdatedAt= null,
+                             Serialno = null,
+                              Version = 1
                     });
                 }
 
@@ -271,7 +277,7 @@ namespace premaintainProjects.Controllers
                             Inspectiontype = template.Inspectiontype,
                             Ifdel = false,
                              Assignedusername = null,
-                              Version = null,
+                              Version = 1,
                                DownloadedAt = null,
                                 LocalUpdatedAt = null,
                                  DownloadDeviceName = null,
@@ -309,9 +315,9 @@ namespace premaintainProjects.Controllers
                             Taskresult = null,
                             Isnormal = true,
                             Isrecheck = false,
-                            Createtime = DateTime.Now,
+                            Createtime = DateTime.UtcNow,
                             ExecutionStatus = 1,
-                            Updatetime = DateTime.Now,
+                            Updatetime = DateTime.UtcNow,
                             SourceType = 1
                         });
                     }

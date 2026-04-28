@@ -32,7 +32,7 @@ public partial class InspectionTask
 
     public string? Assignedusername { get; set; }
 
-    public int? Version { get; set; }
+    public int Version { get; set; }
 
     public DateTime? DownloadedAt { get; set; }
 

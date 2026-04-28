@@ -100,8 +100,8 @@ namespace premaintainProjects.Controllers
             existing.ExecutionStatus = taskitem.ExecutionStatus;
             existing.SourceType = taskitem.SourceType;
             existing.Inspectionitemid = taskitem.Inspectionitemid;
-            existing.Updatetime = DateTime.Now;
-            existing.Createtime = taskitem.Createtime;
+            existing.Updatetime = DateTime.UtcNow;
+            existing.Createtime = _serviceTools.ToUtc(taskitem.Createtime);
             existing.Itemid = taskitem.Itemid;            
 
             //  await _serviceTools.RefreshRenderSchemaAsync(existing);
@@ -116,8 +116,8 @@ namespace premaintainProjects.Controllers
         public async Task<IActionResult> PostTaskitem(Taskitem taskitem)
         {
             taskitem.Itemid = Guid.NewGuid();
-            taskitem.Createtime = DateTime.Now;
-            taskitem.Updatetime = DateTime.Now;
+            taskitem.Createtime = DateTime.UtcNow;
+            taskitem.Updatetime = DateTime.UtcNow;
 
             
         //    await _serviceTools.RefreshRenderSchemaAsync(taskitem);

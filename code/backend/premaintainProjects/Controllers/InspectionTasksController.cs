@@ -119,8 +119,8 @@ namespace premaintainProjects.Controllers
             existingTask.Ifdel = inspectionTask.Ifdel;
             existingTask.Version = inspectionTask.Version;
             existingTask.Assignedusername = inspectionTask.Assignedusername;
-            existingTask.DownloadedAt = inspectionTask.DownloadedAt;
-            existingTask.LocalUpdatedAt = inspectionTask.LocalUpdatedAt;
+            existingTask.DownloadedAt = ToUtc(inspectionTask.DownloadedAt);
+            existingTask.LocalUpdatedAt = ToUtc(inspectionTask.LocalUpdatedAt);         
             existingTask.DownloadDeviceName = inspectionTask.DownloadDeviceName;
             existingTask.Serialno = inspectionTask.Serialno;
 
@@ -178,8 +178,8 @@ namespace premaintainProjects.Controllers
                 existingTask.Ifdel = dto.Task.Ifdel;
                 existingTask.Version = dto.Task.Version;
                 existingTask.Assignedusername = dto.Task.Assignedusername;
-                existingTask.DownloadedAt = dto.Task.DownloadedAt;
-                existingTask.LocalUpdatedAt = dto.Task.LocalUpdatedAt;
+                existingTask.DownloadedAt = ToUtc(dto.Task.DownloadedAt);
+                existingTask.LocalUpdatedAt = ToUtc(dto.Task.LocalUpdatedAt);
                 existingTask.DownloadDeviceName = dto.Task.DownloadDeviceName;
                 existingTask.Serialno = dto.Task.Serialno;        
 
@@ -231,9 +231,9 @@ namespace premaintainProjects.Controllers
                         existingItem.Isnormal = input.Isnormal;
                         existingItem.Isrecheck = input.Isrecheck;
                         existingItem.ExecutionStatus = input.ExecutionStatus;
-                        existingItem.Updatetime = DateTime.Now;
+                        existingItem.Updatetime = DateTime.UtcNow;
                         existingItem.SourceType = input.SourceType;
-                        existingItem.Createtime = input.Createtime ?? existingItem.Createtime;
+                        existingItem.Createtime = ToUtc(input.Createtime) ?? existingItem.Createtime;
                     }
                     else
                     {
@@ -247,9 +247,9 @@ namespace premaintainProjects.Controllers
                             Taskresult = input.Taskresult,
                             Isnormal = input.Isnormal,
                             Isrecheck = input.Isrecheck,
-                            Createtime = input.Createtime ?? DateTime.Now,
+                            Createtime = ToUtc(input.Createtime) ?? DateTime.UtcNow,
                             ExecutionStatus = input.ExecutionStatus,
-                            Updatetime = DateTime.Now,
+                            Updatetime = DateTime.UtcNow,
                             SourceType = input.SourceType,
                         };
                         _context.Taskitems.Add(newItem);
@@ -266,7 +266,12 @@ namespace premaintainProjects.Controllers
             {
                 await transaction.RollbackAsync();
                 _logger.LogError(ex, "整单更新巡检任务失败，ID：{Id}", dto.Task.Taskid);
-                return new JsonResult(new { code = ResponseCode.操作失败, data = (object)null, msg = "更新失败" });
+                return new JsonResult(new
+                {
+                    code = ResponseCode.操作失败,
+                    data = (object)null,
+                    msg = ex.InnerException?.Message ?? ex.Message
+                });
             }
         }
 
@@ -275,11 +280,66 @@ namespace premaintainProjects.Controllers
         public async Task<IActionResult> PostInspectionTask(InspectionTask inspectionTask)
         {
             inspectionTask.Taskid = 0; // 强制让数据库分配主键
+            inspectionTask.Version = 1; // 初始版本号
+            inspectionTask.DownloadedAt = ToUtc(inspectionTask.DownloadedAt);
+            inspectionTask.LocalUpdatedAt = ToUtc(inspectionTask.LocalUpdatedAt);
             _context.InspectionTasks.Add(inspectionTask);
             await _context.SaveChangesAsync();
 
             _logger.LogInformation("新增巡检任务成功，ID：{Id}", inspectionTask.Taskid);
             return new JsonResult(new { code = ResponseCode.成功, data = inspectionTask.Taskid, msg = "" });
+        }
+
+        [HttpGet("{id}/detailnoattach")]
+        public async Task<IActionResult> GetInspectionTasks(int id)
+        {
+            var task = await _context.InspectionTasks.FindAsync(id);
+            if (task == null)
+            {
+                _logger.LogWarning("未找到巡检任务详情，ID：{Id}", id);
+                return new JsonResult(new { code = ResponseCode.记录不存在, data = (object)null, msg = "记录不存在" });
+            }
+
+            var taskitems = await _context.Taskitems
+                .Where(x => x.Taskid == id)
+                .ToListAsync();
+
+            var itemIds = taskitems.Select(x => x.Itemid).ToList();
+
+            var attachments = await _context.Attachments
+                .Where(x => itemIds.Contains(x.Taskitemid))
+                .ToListAsync();
+
+            foreach (var item in taskitems)
+            {
+                await _serviceTools.RefreshRenderSchemaAsync(item);
+            }
+
+            var taskitemDtos = taskitems.Select(item => new Taskitem
+            {
+                Itemid = item.Itemid,
+                Taskid = item.Taskid,
+                Inspectionitemid = item.Inspectionitemid,
+                Taskname = item.Taskname,
+                Categorypath = item.Categorypath,
+                Taskresult = item.Taskresult,
+                Isnormal = item.Isnormal,
+                Isrecheck = item.Isrecheck,
+                Createtime = item.Createtime,
+                ExecutionStatus = item.ExecutionStatus,
+                Updatetime = item.Updatetime,
+                SourceType = item.SourceType,
+                RenderSchemaJson = item.RenderSchemaJson                
+            }).ToList();
+
+            var data = new UpdateInspectionTaskDetailDto
+            {
+                Task = task,
+                Taskitems = taskitemDtos
+            };
+
+            _logger.LogInformation("获取巡检任务详情成功，ID：{Id}，任务项数量：{Count}", id, taskitemDtos.Count);
+            return new JsonResult(new { code = ResponseCode.成功, data, msg = "" });
         }
 
         [HttpGet("{id}/detail")]
@@ -367,5 +427,16 @@ namespace premaintainProjects.Controllers
                 item.RenderSchemaJson = await _serviceTools.BuildRenderSchemaJsonAsync(item.Inspectionitemid);
             }
         }
+
+        private static DateTime ToUtc(DateTime value) =>
+            value.Kind switch
+            {
+                DateTimeKind.Utc => value,
+                DateTimeKind.Local => value.ToUniversalTime(),
+                DateTimeKind.Unspecified => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+            };
+
+        private static DateTime? ToUtc(DateTime? value) =>
+            value.HasValue ? ToUtc(value.Value) : null;
     }
 }
