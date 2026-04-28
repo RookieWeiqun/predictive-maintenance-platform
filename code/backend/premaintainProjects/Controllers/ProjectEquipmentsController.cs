@@ -269,7 +269,13 @@ namespace premaintainProjects.Controllers
                             Assigneduserid = null,
                             TaskNo = await _serviceTools.GenerateTaskNoAsync(),
                             Inspectiontype = template.Inspectiontype,
-                            Ifdel = false
+                            Ifdel = false,
+                             Assignedusername = null,
+                              Version = null,
+                               DownloadedAt = null,
+                                LocalUpdatedAt = null,
+                                 DownloadDeviceName = null,
+                                  Serialno = null
                         });
                     }
                 
@@ -303,13 +309,10 @@ namespace premaintainProjects.Controllers
                             Taskresult = null,
                             Isnormal = true,
                             Isrecheck = false,
-                            Photopath = null,
                             Createtime = DateTime.Now,
                             ExecutionStatus = 1,
                             Updatetime = DateTime.Now,
-                            Version = 1,
-                            SourceType = 1,
-                            RenderSchemaJson = await _serviceTools.BuildRenderSchemaJsonAsync(inspectionItem.Itemid)
+                            SourceType = 1
                         });
                     }
                 }

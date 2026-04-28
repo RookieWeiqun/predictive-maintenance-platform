@@ -184,6 +184,9 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
             entity.Property(e => e.Assignedusername)
                 .HasColumnType("character varying")
                 .HasColumnName("assignedusername");
+            entity.Property(e => e.DownloadDeviceName)
+                .HasColumnType("character varying")
+                .HasColumnName("download_device_name");
             entity.Property(e => e.DownloadedAt)
                 .HasColumnType("timestamp without time zone")
                 .HasColumnName("downloaded_at");
@@ -197,6 +200,9 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
                 .HasColumnName("local_updated_at");
             entity.Property(e => e.Productid).HasColumnName("productid");
             entity.Property(e => e.Projectid).HasColumnName("projectid");
+            entity.Property(e => e.Serialno)
+                .HasColumnType("character varying")
+                .HasColumnName("serialno");
             entity.Property(e => e.Status)
                 .HasDefaultValue(1)
                 .HasComment("1、进行中/2、完成/3、未开始")
@@ -344,9 +350,6 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
                 .HasDefaultValue(true)
                 .HasColumnName("isnormal");
             entity.Property(e => e.Isrecheck).HasColumnName("isrecheck");
-            entity.Property(e => e.Photopath)
-                .HasMaxLength(400)
-                .HasColumnName("photopath");
             entity.Property(e => e.RenderSchemaJson)
                 .HasColumnType("jsonb")
                 .HasColumnName("render_schema_json");
@@ -365,9 +368,6 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
                 .HasDefaultValueSql("now()")
                 .HasColumnType("timestamp without time zone")
                 .HasColumnName("updatetime");
-            entity.Property(e => e.Version)
-                .HasDefaultValue(1)
-                .HasColumnName("version");
         });
 
         modelBuilder.Entity<TaskitemsBackup2025>(entity =>

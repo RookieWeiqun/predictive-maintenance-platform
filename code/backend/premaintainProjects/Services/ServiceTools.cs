@@ -78,13 +78,5 @@ namespace premaintainProjects.Services
         {
             taskitem.RenderSchemaJson = await BuildRenderSchemaJsonAsync(taskitem.Inspectionitemid);
         }
-
-        private async Task FillRenderSchemaAsync(List<Taskitem> taskitems)
-        {
-            foreach (var item in taskitems)
-            {
-                item.RenderSchemaJson = await BuildRenderSchemaJsonAsync(item.Inspectionitemid);
-            }
-        }
     }
 }

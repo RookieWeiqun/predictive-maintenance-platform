@@ -7,6 +7,7 @@ using premaintainProjects.Models;
 using premaintainProjects.Services;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -117,6 +118,11 @@ namespace premaintainProjects.Controllers
             existingTask.Inspectiontype = inspectionTask.Inspectiontype;
             existingTask.Ifdel = inspectionTask.Ifdel;
             existingTask.Version = inspectionTask.Version;
+            existingTask.Assignedusername = inspectionTask.Assignedusername;
+            existingTask.DownloadedAt = inspectionTask.DownloadedAt;
+            existingTask.LocalUpdatedAt = inspectionTask.LocalUpdatedAt;
+            existingTask.DownloadDeviceName = inspectionTask.DownloadDeviceName;
+            existingTask.Serialno = inspectionTask.Serialno;
 
             try
             {
@@ -130,42 +136,7 @@ namespace premaintainProjects.Controllers
 
             _logger.LogInformation("更新巡检任务成功，ID：{Id}，版本：{Version}", inspectionTask.Taskid, inspectionTask.Version);
             return new JsonResult(new { code = ResponseCode.成功, data = inspectionTask.Taskid, msg = "" });
-        }
-
-        [HttpPut("UpdateTasklist")]
-        public async Task<IActionResult> BatchUpdateInspectionTasks([FromBody] List<InspectionTask> tasks)
-        {
-            if (tasks == null || tasks.Count == 0)
-            {
-                return new JsonResult(new { code = ResponseCode.参数无效, data = (object)null, msg = "参数不能为空" });
-            }
-
-            var ids = tasks.Select(x => x.Taskid).ToList();
-            var existingTasks = await _context.InspectionTasks
-                .Where(x => ids.Contains(x.Taskid))
-                .ToListAsync();
-
-            foreach (var existing in existingTasks)
-            {
-                var input = tasks.FirstOrDefault(x => x.Taskid == existing.Taskid);
-                if (input == null) continue;
-
-                existing.Projectid = input.Projectid;
-                existing.Templateid = input.Templateid;
-                existing.Productid = input.Productid;
-                existing.Status = input.Status;
-                existing.TaskNo = input.TaskNo;
-                existing.Assigneduserid = input.Assigneduserid;
-                existing.Inspectiontype = input.Inspectiontype;
-                existing.Ifdel = input.Ifdel;
-            }
-
-            await _context.SaveChangesAsync();
-
-            _logger.LogInformation("批量更新巡检任务成功，数量：{Count}", existingTasks.Count);
-
-            return new JsonResult(new { code = ResponseCode.成功, data = ids, msg = "" });
-        }
+        }       
 
 
         [HttpPut("{id}/detail")]
@@ -206,6 +177,12 @@ namespace premaintainProjects.Controllers
                 existingTask.Inspectiontype = dto.Task.Inspectiontype;
                 existingTask.Ifdel = dto.Task.Ifdel;
                 existingTask.Version = dto.Task.Version;
+                existingTask.Assignedusername = dto.Task.Assignedusername;
+                existingTask.DownloadedAt = dto.Task.DownloadedAt;
+                existingTask.LocalUpdatedAt = dto.Task.LocalUpdatedAt;
+                existingTask.DownloadDeviceName = dto.Task.DownloadDeviceName;
+                existingTask.Serialno = dto.Task.Serialno;        
+
 
                 // 取现有 items
                 var existingItems = await _context.Taskitems
@@ -253,13 +230,10 @@ namespace premaintainProjects.Controllers
                         existingItem.Taskresult = input.Taskresult;
                         existingItem.Isnormal = input.Isnormal;
                         existingItem.Isrecheck = input.Isrecheck;
-                        existingItem.Photopath = input.Photopath;
                         existingItem.ExecutionStatus = input.ExecutionStatus;
                         existingItem.Updatetime = DateTime.Now;
-                        existingItem.Version = input.Version;
                         existingItem.SourceType = input.SourceType;
-
-                        await _serviceTools.RefreshRenderSchemaAsync(existingItem);
+                        existingItem.Createtime = input.Createtime ?? existingItem.Createtime;
                     }
                     else
                     {
@@ -273,15 +247,11 @@ namespace premaintainProjects.Controllers
                             Taskresult = input.Taskresult,
                             Isnormal = input.Isnormal,
                             Isrecheck = input.Isrecheck,
-                            Photopath = input.Photopath,
                             Createtime = input.Createtime ?? DateTime.Now,
                             ExecutionStatus = input.ExecutionStatus,
                             Updatetime = DateTime.Now,
-                            Version = input.Version <= 0 ? 1 : input.Version,
-                            SourceType = input.SourceType
+                            SourceType = input.SourceType,
                         };
-
-                        await _serviceTools.RefreshRenderSchemaAsync(newItem);
                         _context.Taskitems.Add(newItem);
                     }
                 }
@@ -326,16 +296,16 @@ namespace premaintainProjects.Controllers
                 .Where(x => x.Taskid == id)
                 .ToListAsync();
 
-            foreach (var item in taskitems)
-            {
-                await _serviceTools.RefreshRenderSchemaAsync(item);
-            }
-
             var itemIds = taskitems.Select(x => x.Itemid).ToList();
 
             var attachments = await _context.Attachments
                 .Where(x => itemIds.Contains(x.Taskitemid))
                 .ToListAsync();
+
+            foreach (var item in taskitems)
+            {
+                await _serviceTools.RefreshRenderSchemaAsync(item);
+            }
 
             var taskitemDtos = taskitems.Select(item => new TaskitemDetailDto
             {
@@ -347,11 +317,9 @@ namespace premaintainProjects.Controllers
                 Taskresult = item.Taskresult,
                 Isnormal = item.Isnormal,
                 Isrecheck = item.Isrecheck,
-                Photopath = item.Photopath,
                 Createtime = item.Createtime,
                 ExecutionStatus = item.ExecutionStatus,
                 Updatetime = item.Updatetime,
-                Version = item.Version,
                 SourceType = item.SourceType,
                 RenderSchemaJson = item.RenderSchemaJson,
                 Attachments = attachments

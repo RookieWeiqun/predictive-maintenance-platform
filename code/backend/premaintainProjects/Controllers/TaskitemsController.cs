@@ -71,8 +71,7 @@ namespace premaintainProjects.Controllers
                 .ToListAsync();
 
             foreach (var item in items)
-            {
-                
+            {                
                 await _serviceTools.RefreshRenderSchemaAsync(item);
             }
 
@@ -98,14 +97,14 @@ namespace premaintainProjects.Controllers
             existing.Taskresult = taskitem.Taskresult;
             existing.Isnormal = taskitem.Isnormal;
             existing.Isrecheck = taskitem.Isrecheck;
-            existing.Photopath = taskitem.Photopath;
             existing.ExecutionStatus = taskitem.ExecutionStatus;
-            existing.Version = taskitem.Version;
             existing.SourceType = taskitem.SourceType;
             existing.Inspectionitemid = taskitem.Inspectionitemid;
             existing.Updatetime = DateTime.Now;
+            existing.Createtime = taskitem.Createtime;
+            existing.Itemid = taskitem.Itemid;            
 
-            await _serviceTools.RefreshRenderSchemaAsync(existing);
+            //  await _serviceTools.RefreshRenderSchemaAsync(existing);
 
             await _context.SaveChangesAsync();
 
@@ -121,7 +120,7 @@ namespace premaintainProjects.Controllers
             taskitem.Updatetime = DateTime.Now;
 
             
-            await _serviceTools.RefreshRenderSchemaAsync(taskitem);
+        //    await _serviceTools.RefreshRenderSchemaAsync(taskitem);
 
             _context.Taskitems.Add(taskitem);
             await _context.SaveChangesAsync();

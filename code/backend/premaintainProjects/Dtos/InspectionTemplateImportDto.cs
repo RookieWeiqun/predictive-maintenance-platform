@@ -70,18 +70,6 @@ public class InspectionItemImportDto
     public string? Priority { get; set; }
 }
 
-public class InspectionTaskDetailDto
-{
-    public InspectionTask Task { get; set; } = null!;
-    public List<TaskitemDetailDto> Taskitems { get; set; } = new();
-}
-
-    public class UploadAttachmentDto
-    {
-        public Guid Itemid { get; set; }
-        public List<IFormFile> Files { get; set; } = new();
-    }
-
     public class TaskitemDetailDto
     {
         public Guid Itemid { get; set; }
@@ -97,8 +85,6 @@ public class InspectionTaskDetailDto
         public bool Isnormal { get; set; }
 
         public bool Isrecheck { get; set; }
-
-        public string? Photopath { get; set; }
 
         public DateTime? Createtime { get; set; }
 
@@ -116,8 +102,6 @@ public class InspectionTaskDetailDto
 
         public DateTime Updatetime { get; set; }
 
-        public int Version { get; set; }
-
         /// <summary>
         /// 1. system_generated
         /// 2.manual_added
@@ -128,19 +112,25 @@ public class InspectionTaskDetailDto
 
         public int? Inspectionitemid { get; set; }
 
-        public string? AssignedUserName { get; set; }
-
-        public string? DownloadDeviceName { get; set; }
-
-        public string? DownloadedAt { get; set; }
-
-        public string? LocalUpdatedAt { get; set; }
         public List<Attachment> Attachments { get; set; } = new();
     }
+    public class InspectionTaskDetailDto
+    {
+        public InspectionTask Task { get; set; } = null!;
+        public List<TaskitemDetailDto> Taskitems { get; set; } = new();
+    }
+
+
 
     public class UpdateInspectionTaskDetailDto
     {
         public InspectionTask Task { get; set; } = null!;
         public List<Taskitem> Taskitems { get; set; } = new();
+    }
+
+    public class UploadAttachmentDto
+    {
+        public Guid Itemid { get; set; }
+        public List<IFormFile> Files { get; set; } = new();
     }
 }
