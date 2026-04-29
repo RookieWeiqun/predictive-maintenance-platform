@@ -11,7 +11,7 @@ import { getSchemeById } from '@/mockdata/scheme';
 import tasksData from '@/mockdata/task/tasks.json';
 import { loadTemplateItemsByTemplateId } from '@/pages/scheme/utils/loadTemplateItems';
 import { isDetectionItem, type SchemeItem } from '@/pages/scheme/utils/schemeUtils';
-import { nowChinaDateTime } from '../utils/dateTime';
+import { normalizeChinaDateTime, nowChinaDateTime, nowChinaTimestamptz, toChinaTimestamptz } from '../utils/dateTime';
 
 interface MockTask {
   id: string;
@@ -57,6 +57,7 @@ type TaskPackageTaskDto = {
 type TaskPackageResultDto = {
   value?: string | null;
   remarks?: string | null;
+  result_state?: string | null;
 };
 
 type TaskPackageItemDto = {
@@ -189,6 +190,33 @@ function buildOfflineResultPayloadFromTaskResult(taskResult: TaskPackageResultDt
     value,
     remarks,
   });
+}
+
+function buildInspectionTaskStatusUpdatePayload(
+  response: TaskPackageResponse,
+  status: number,
+  downloadedAt?: string | null,
+) {
+  const task = response.data.task;
+  const backendNow = nowChinaTimestamptz();
+
+  return {
+    taskid: task.task_id,
+    projectid: Number(task.project_id),
+    templateid: Number(task.template_id),
+    status,
+    taskNo: task.task_no ?? null,
+    assigneduserid: task.assigned_user_id ?? null,
+    productid: Number(task.product_id ?? 0),
+    inspectiontype: Number(task.inspection_type ?? 0),
+    ifdel: false,
+    assignedusername: task.assigned_user_name ?? null,
+    version: task.version ?? null,
+    downloadedAt: downloadedAt ?? toChinaTimestamptz(task.downloaded_at),
+    localUpdatedAt: backendNow,
+    downloadDeviceName: task.download_device_name ?? null,
+    serialno: task.serial_no ?? null,
+  };
 }
 
 function createSchemeCacheFromPackageItems(taskItems: TaskPackageItemDto[]): SchemeItem[] {
@@ -370,6 +398,13 @@ function createDemoTaskPackage(input: DemoProjectTaskInput): TaskPackageResponse
   };
 }
 
+function buildDownloadedTaskVersion(version: number | null | undefined): number | null {
+  if (typeof version !== 'number' || !Number.isFinite(version)) {
+    return null;
+  }
+  return version + 1;
+}
+
 async function downloadTaskPackageFromResponse(
   response: TaskPackageResponse,
   options?: DownloadTaskPackageOptions,
@@ -397,11 +432,11 @@ async function downloadTaskPackageFromResponse(
     scheme_name: task.template_name?.trim() || `模板 #${schemeId}`,
     product_id: task.product_id != null ? String(task.product_id) : null,
     inspection_type: task.inspection_type != null ? String(task.inspection_type) : null,
-    version: task.version ?? null,
+    version: buildDownloadedTaskVersion(task.version),
     device_model: options?.deviceModel || '-',
     status: 'downloaded',
-    downloaded_at: task.downloaded_at ?? nowIso(),
-    local_updated_at: task.local_updated_at ?? task.downloaded_at ?? nowIso(),
+    downloaded_at: normalizeChinaDateTime(task.downloaded_at) ?? nowIso(),
+    local_updated_at: normalizeChinaDateTime(task.local_updated_at) ?? normalizeChinaDateTime(task.downloaded_at) ?? nowIso(),
     sync_status: 'synced',
   });
 
@@ -417,7 +452,7 @@ async function downloadTaskPackageFromResponse(
     is_normal: Boolean(item.is_normal),
     is_recheck: Boolean(item.is_recheck),
     sync_status: 'synced',
-    local_updated_at: item.updated_at ?? nowIso(),
+    local_updated_at: normalizeChinaDateTime(item.updated_at) ?? nowIso(),
   }));
 
   for (const item of offlineItems) {
@@ -471,6 +506,13 @@ function apiTemplateRootsToCollectSchemeItems(roots: SchemeItem[]): SchemeItem[]
         leaves.push(node);
         continue;
       }
+
+function buildDownloadedTaskVersion(version: number | null | undefined): number | null {
+  if (typeof version !== 'number' || !Number.isFinite(version)) {
+    return null;
+  }
+  return version + 1;
+}
       if (node.children?.length) {
         walk(node.children);
       }
@@ -576,7 +618,7 @@ async function downloadServerTaskPackage(
   options?: DownloadTaskPackageOptions,
 ): Promise<{ taskCount: number; itemCount: number }> {
   const response = await inspectionTasksApi.getInspectionTaskDetail(taskId);
-  return downloadTaskPackageFromResponse(
+  const downloaded = await downloadTaskPackageFromResponse(
     {
       code: 0,
       msg: 'ok',
@@ -584,6 +626,18 @@ async function downloadServerTaskPackage(
     },
     options,
   );
+  await inspectionTasksApi.updateInspectionTask(
+    buildInspectionTaskStatusUpdatePayload(
+      {
+        code: 0,
+        msg: 'ok',
+        data: response,
+      },
+      2,
+      nowChinaTimestamptz(),
+    ),
+  );
+  return downloaded;
 }
 
 export async function downloadTaskPackage(

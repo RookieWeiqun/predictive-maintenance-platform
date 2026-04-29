@@ -126,19 +126,16 @@ type TaskListRow = {
   schemeName: string;
   deviceCount: number;
   remark: string;
-  status: 'not-downloaded' | 'downloaded' | 'uploaded';
+  cloudStatus: number | string | null;
+  localDownloadStatus: 'not-downloaded' | 'downloaded' | 'uploaded';
   engineer: string;
   parentId: string | null;
   isSubTask: boolean;
-  /** 后端巡检任务 id，用于删除与跳转 */
   rawTaskid: number;
 };
 
-// 搜索文本
 const searchText = ref('');
-// 选中的项目（空字符串表示未选择，任务列表为空）
 const selectedProject = ref('');
-// 选中的任务（用于创建子任务）
 const selectedTask = ref<TaskListRow | null>(null);
 const selectedDownloadTaskIds = ref<Set<string>>(new Set());
 
@@ -165,18 +162,19 @@ function taskTypeFromInspectionType(inspectiontype: number): { taskType: string;
   return { taskType: 'peripheral', taskTypeLabel: '外围检测' };
 }
 
-function getOnlineLifecycleMeta(status: TaskListRow['status']): {
-  key: TaskListRow['status'];
+function getOnlineLifecycleMeta(status: TaskListRow['cloudStatus']): {
+  key: 'pending' | 'in-progress' | 'completed';
   label: string;
   percent: number;
 } {
-  if (status === 'uploaded') {
-    return { key: 'uploaded', label: '已上传', percent: 100 };
+  const normalized = Number(status);
+  if (normalized === 3) {
+    return { key: 'completed', label: '已完成', percent: 100 };
   }
-  if (status === 'downloaded') {
-    return { key: 'downloaded', label: '已下载', percent: 60 };
+  if (normalized === 2) {
+    return { key: 'in-progress', label: '进行中', percent: 60 };
   }
-  return { key: 'not-downloaded', label: '未下载', percent: 15 };
+  return { key: 'pending', label: '未下载', percent: 15 };
 }
 
 async function mapInspectionTasksToRows(
@@ -235,13 +233,14 @@ async function mapInspectionTasksToRows(
           taskType,
           taskTypeLabel,
           deviceModel: prod?.mlfb ?? '-',
-          serialNo: prod?.serialno ?? '-',
+          serialNo: t.serialno?.trim() || (prod?.serialno ?? '-'),
           schemeId: templateid > 0 ? String(templateid) : '',
           schemeName,
           deviceCount: 1,
-          remark: prod?.serialno ? `序列号：${prod.serialno}` : '',
-          status: 'not-downloaded',
-          engineer: t.assigneduserid != null ? `用户#${t.assigneduserid}` : '',
+          remark: (t.serialno?.trim() || prod?.serialno) ? `序列号：${t.serialno?.trim() || prod?.serialno}` : '',
+          cloudStatus: t.status ?? null,
+          localDownloadStatus: 'not-downloaded',
+          engineer: t.assignedusername?.trim() || (t.assigneduserid != null ? `用户#${t.assigneduserid}` : ''),
           parentId: null,
           isSubTask: false,
           rawTaskid: taskid,
@@ -334,7 +333,7 @@ async function restoreSessionProjectIfValid(): Promise<void> {
   await fetchTasksForSelectedProject();
 }
 
-function resolveOfflineStatus(localTask: { status: string; sync_status: string } | null): TaskListRow['status'] {
+function resolveOfflineStatus(localTask: { status: string; sync_status: string } | null): TaskListRow['localDownloadStatus'] {
   if (localTask == null) {
     return 'not-downloaded';
   }
@@ -358,17 +357,9 @@ async function refreshOfflineStatuses(): Promise<void> {
 
   allTasks.value = allTasks.value.map((task) => ({
     ...task,
-    status: resolveOfflineStatus(
+    localDownloadStatus: resolveOfflineStatus(
       localTaskMap.get(String(task.rawTaskid)) ?? localTaskMap.get(task.id) ?? null,
     ),
-    serialNo:
-      localTaskMap.get(String(task.rawTaskid))?.serial_no
-      ?? localTaskMap.get(task.id)?.serial_no
-      ?? task.serialNo,
-    engineer:
-      localTaskMap.get(String(task.rawTaskid))?.assigned_user_name
-      ?? localTaskMap.get(task.id)?.assigned_user_name
-      ?? task.engineer,
   }));
 }
 
@@ -530,7 +521,8 @@ const handleCreateSubTask = (task: TaskListRow | null) => {
     schemeName: task.schemeName,
     deviceCount: 1,
     remark: `设备序列号：SN-${String(nextSubTaskIndex).padStart(3, '0')}`,
-    status: 'not-downloaded',
+    cloudStatus: null,
+    localDownloadStatus: 'not-downloaded',
     engineer: '',
     parentId: task.id,
     isSubTask: true,
@@ -649,7 +641,7 @@ const handleDownloadTasks = async () => {
   }
 
   const existingDownloadedTasks = downloadableTasks.filter(
-    (task) => task.status !== 'not-downloaded',
+    (task) => task.localDownloadStatus !== 'not-downloaded',
   );
   if (existingDownloadedTasks.length > 0) {
     const taskNames = existingDownloadedTasks.slice(0, 3).map((task) => task.id).join('、');
@@ -670,6 +662,7 @@ const handleDownloadTasks = async () => {
         projectName: task.projectName,
         deviceModel: task.deviceModel,
       });
+      task.cloudStatus = 2;
       taskCount += downloaded.taskCount;
       itemCount += downloaded.itemCount;
     }
@@ -820,7 +813,7 @@ onMounted(() => {
         },
       },
       {
-        field: 'status',
+        field: 'cloudStatus',
         headerName: '状态',
         resizable: true,
         sortable: true,
@@ -832,7 +825,7 @@ onMounted(() => {
           alignItems: 'center',
         },
         cellRenderer: (params: any) => {
-          const meta = getOnlineLifecycleMeta(params.value as TaskListRow['status']);
+          const meta = getOnlineLifecycleMeta(params.value as TaskListRow['cloudStatus']);
           return `
             <div class="task-status-progress task-status-progress-online">
               <div class="task-status-progress-header">
@@ -1015,6 +1008,9 @@ onBeforeUnmount(() => {
 <style>
 /* 全局样式，用于 ag-grid 内部的按钮，与 IxButton variant="secondary" 保持一致 */
 .task-status-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
   width: 100%;
   min-width: 160px;
 }
@@ -1022,9 +1018,9 @@ onBeforeUnmount(() => {
 .task-status-progress-header {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 0.75rem;
   margin-bottom: 0.35rem;
-  font-size: 0.8125rem;
   color: var(--theme-color-text);
 }
 
@@ -1041,15 +1037,15 @@ onBeforeUnmount(() => {
   transition: width 0.2s ease;
 }
 
-.task-status-progress-not-downloaded {
+.task-status-progress-pending {
   background: color-mix(in srgb, var(--theme-color-warning) 70%, white);
 }
 
-.task-status-progress-downloaded {
+.task-status-progress-in-progress {
   background: color-mix(in srgb, var(--theme-color-primary) 80%, white);
 }
 
-.task-status-progress-uploaded {
+.task-status-progress-completed {
   background: color-mix(in srgb, var(--theme-color-success) 80%, white);
 }
 

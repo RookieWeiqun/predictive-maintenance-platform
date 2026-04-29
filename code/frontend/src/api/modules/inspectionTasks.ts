@@ -8,10 +8,16 @@ export type InspectionTaskDto = {
   status: number;
   taskNo?: string | null;
   assigneduserid?: number | null;
+  assignedusername?: string | null;
   completetime?: string | null;
   productid: number;
   inspectiontype?: number | null;
+  serialno?: string | null;
   ifdel?: boolean;
+  version?: number | null;
+  downloadedAt?: string | null;
+  localUpdatedAt?: string | null;
+  downloadDeviceName?: string | null;
 };
 
 export type InspectionTaskDetailDto = {
@@ -284,9 +290,11 @@ function mapInspectionTaskRaw(raw: unknown): InspectionTaskDto {
       const n = Number(v);
       return Number.isNaN(n) ? null : n;
     })(),
+    assignedusername: (gv(r, 'assignedusername', 'Assignedusername') as string | null | undefined) ?? null,
     completetime: (gv(r, 'completetime', 'Completetime') as string | null | undefined) ?? null,
     productid: Number(gv(r, 'productid', 'Productid')),
     inspectiontype: toOptionalNumber(gv(r, 'inspectiontype', 'Inspectiontype')) ?? null,
+    serialno: (gv(r, 'serialno', 'Serialno') as string | null | undefined) ?? null,
     ifdel: toBoolean(gv(r, 'ifdel', 'Ifdel')) ?? false,
   };
 }
@@ -335,6 +343,30 @@ export async function createInspectionTask(payload: InspectionTaskDto): Promise<
     }),
   });
   return unwrap(res);
+}
+
+export async function updateInspectionTask(payload: InspectionTaskDto): Promise<void> {
+  const res = await requestJson<ApiEnvelope<unknown>>('/api/InspectionTasks', {
+    method: 'PUT',
+    body: JSON.stringify({
+      taskid: payload.taskid ?? 0,
+      projectid: payload.projectid,
+      templateid: payload.templateid,
+      status: payload.status,
+      taskNo: payload.taskNo ?? null,
+      assigneduserid: payload.assigneduserid ?? null,
+      productid: payload.productid,
+      inspectiontype: payload.inspectiontype ?? 0,
+      ifdel: payload.ifdel ?? false,
+      assignedusername: payload.assignedusername ?? null,
+      version: payload.version ?? null,
+      downloadedAt: payload.downloadedAt ?? null,
+      localUpdatedAt: payload.localUpdatedAt ?? null,
+      downloadDeviceName: payload.downloadDeviceName ?? null,
+      serialno: payload.serialno ?? null,
+    }),
+  });
+  unwrap(res);
 }
 
 export async function deleteInspectionTask(taskid: number): Promise<void> {
