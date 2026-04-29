@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
 using premaintainProjects.Dtos;
 using premaintainProjects.Models;
 using premaintainProjects.Services;
@@ -36,6 +37,14 @@ if (app.Environment.IsProduction())
 {
     app.UseHttpsRedirection();
 }
+
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(
+        Path.Combine(app.Environment.ContentRootPath, "Attach")),
+    RequestPath = "/Attach"
+});
+
 app.UseCors("DefaultCors");
 app.UseAuthorization();
 app.MapControllers();
