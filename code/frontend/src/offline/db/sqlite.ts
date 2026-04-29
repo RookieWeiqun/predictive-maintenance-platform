@@ -1,4 +1,5 @@
 import { runOfflineMigrations } from './migrations';
+import { OFFLINE_DB_VERSION } from './schema';
 
 export interface SQLiteRow {
   [key: string]: string | number | null;
@@ -33,7 +34,7 @@ export async function initializeOfflineDatabase(): Promise<void> {
   const executor = getOfflineExecutor();
   const version = await executor.getUserVersion();
 
-  if (version >= 2) {
+  if (version >= OFFLINE_DB_VERSION) {
     return;
   }
 

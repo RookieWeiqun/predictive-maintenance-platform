@@ -10,6 +10,8 @@ export type InspectionTaskDto = {
   assigneduserid?: number | null;
   completetime?: string | null;
   productid: number;
+  inspectiontype?: number | null;
+  ifdel?: boolean;
 };
 
 export type InspectionTaskDetailDto = {
@@ -21,15 +23,16 @@ export type InspectionTaskDetailDto = {
     project_name?: string;
     template_id: number | string;
     template_name?: string;
+    product_id?: number | string;
     inspection_type?: number;
     status?: number | string;
     assigned_user_id?: number | null;
-    download_version?: number;
-    product_snapshot?: {
-      product_id?: number | string | null;
-      mlfb?: string | null;
-      serialno?: string | null;
-    } | null;
+    assigned_user_name?: string | null;
+    version?: number | null;
+    downloaded_at?: string | null;
+    local_updated_at?: string | null;
+    download_device_name?: string | null;
+    serial_no?: string | null;
   };
   task_items: Array<{
     item_id: string;
@@ -52,11 +55,49 @@ export type InspectionTaskDetailDto = {
     taskresult?: {
       value?: string | null;
       remarks?: string | null;
+      result_state?: string | null;
     } | null;
     task_result?: {
       value?: string | null;
       remarks?: string | null;
+      result_state?: string | null;
     } | null;
+    attachments?: Array<Record<string, unknown>>;
+  }>;
+};
+
+export type InspectionTaskDetailUpdatePayload = {
+  task: {
+    taskid: number;
+    projectid: number;
+    templateid: number;
+    status: number;
+    taskNo?: string | null;
+    assigneduserid?: number | null;
+    productid: number;
+    inspectiontype: number;
+    ifdel: boolean;
+    version?: number | null;
+    downloadedAt?: string | null;
+    localUpdatedAt?: string | null;
+    downloadDeviceName?: string | null;
+    serialno?: string | null;
+    assignedusername?: string | null;
+  };
+  taskitems: Array<{
+    itemid: string;
+    taskid: number;
+    taskname: string | null;
+    categorypath: string | null;
+    taskresult: string | null;
+    isnormal: boolean;
+    isrecheck: boolean;
+    photopath?: string | null;
+    executionStatus: number;
+    updatetime?: string | null;
+    version?: number | null;
+    sourceType: number;
+    inspectionitemid?: number | null;
   }>;
 };
 
@@ -123,6 +164,40 @@ function parseRenderSchemaJson(raw: unknown): InspectionTaskDetailDto['task_item
   };
 }
 
+function parseTaskResultBlock(raw: unknown): {
+  value?: string | null;
+  remarks?: string | null;
+  result_state?: string | null;
+} | null {
+  if (raw == null) return null;
+
+  if (typeof raw === 'string') {
+    const text = raw.trim();
+    if (!text) return null;
+    try {
+      const parsed = JSON.parse(text) as Record<string, unknown>;
+      return {
+        value: toOptionalString(gv(parsed, 'value', 'Value')) ?? null,
+        remarks: toOptionalString(gv(parsed, 'remarks', 'Remarks')) ?? null,
+        result_state: toOptionalString(gv(parsed, 'resultState', 'result_state')) ?? null,
+      };
+    } catch {
+      return {
+        value: text,
+        remarks: null,
+        result_state: null,
+      };
+    }
+  }
+
+  const parsed = raw as Record<string, unknown>;
+  return {
+    value: toOptionalString(gv(parsed, 'value', 'Value')) ?? null,
+    remarks: toOptionalString(gv(parsed, 'remarks', 'Remarks')) ?? null,
+    result_state: toOptionalString(gv(parsed, 'resultState', 'result_state')) ?? null,
+  };
+}
+
 function mapInspectionTaskDetailRaw(raw: unknown): InspectionTaskDetailDto {
   const dto = raw as Record<string, unknown>;
   const taskRaw = (dto.task ?? {}) as Record<string, unknown>;
@@ -133,10 +208,11 @@ function mapInspectionTaskDetailRaw(raw: unknown): InspectionTaskDetailDto {
       task_id: Number(gv(taskRaw, 'task_id', 'taskid') ?? 0),
       task_uuid: toOptionalString(gv(taskRaw, 'task_uuid', 'taskuuid')),
       task_no: toOptionalString(gv(taskRaw, 'task_no', 'taskNo')),
-      project_id: gv(taskRaw, 'project_id', 'projectid') ?? '',
+      project_id: (gv(taskRaw, 'project_id', 'projectid') as string | number | null | undefined) ?? '',
       project_name: toOptionalString(gv(taskRaw, 'project_name', 'projectname')),
-      template_id: gv(taskRaw, 'template_id', 'templateid') ?? '',
+      template_id: (gv(taskRaw, 'template_id', 'templateid') as string | number | null | undefined) ?? '',
       template_name: toOptionalString(gv(taskRaw, 'template_name', 'templatename')),
+      product_id: (gv(taskRaw, 'product_id', 'productid') as string | number | null | undefined) ?? undefined,
       inspection_type: toOptionalNumber(gv(taskRaw, 'inspection_type', 'inspectiontype')),
       status: (gv(taskRaw, 'status', 'Status') as number | string | undefined) ?? undefined,
       assigned_user_id: (() => {
@@ -145,12 +221,17 @@ function mapInspectionTaskDetailRaw(raw: unknown): InspectionTaskDetailDto {
         const numberValue = Number(value);
         return Number.isFinite(numberValue) ? numberValue : null;
       })(),
-      download_version: toOptionalNumber(gv(taskRaw, 'download_version', 'downloadversion')),
-      product_snapshot: null,
+      assigned_user_name: toOptionalString(gv(taskRaw, 'assigned_user_name', 'assignedusername')) ?? null,
+      version: toOptionalNumber(gv(taskRaw, 'version', 'Version')) ?? null,
+      downloaded_at: toOptionalString(gv(taskRaw, 'downloadedAt', 'downloaded_at')) ?? null,
+      local_updated_at: toOptionalString(gv(taskRaw, 'localUpdatedAt', 'local_updated_at')) ?? null,
+      download_device_name: toOptionalString(gv(taskRaw, 'downloadDeviceName', 'download_device_name')) ?? null,
+      serial_no: toOptionalString(gv(taskRaw, 'serialno', 'serial_no')) ?? null,
     },
     task_items: itemsRaw.map((itemRaw) => {
       const item = itemRaw as Record<string, unknown>;
       const sourceType = gv(item, 'source_type', 'sourceType');
+      const executionStatus = gv(item, 'execution_status', 'executionStatus');
       return {
         item_id: String(gv(item, 'item_id', 'itemid') ?? ''),
         source_type:
@@ -163,8 +244,10 @@ function mapInspectionTaskDetailRaw(raw: unknown): InspectionTaskDetailDto {
         item_name: String(gv(item, 'item_name', 'taskname') ?? ''),
         category_path: toOptionalString(gv(item, 'category_path', 'categorypath')) ?? null,
         execution_status: (() => {
-          const value = gv(item, 'execution_status', 'executionStatus');
-          if (value === 'completed' || value === 2 || value === '2') return 'completed';
+          if (executionStatus === 'completed' || executionStatus === 2 || executionStatus === '2') return 'completed';
+          if (executionStatus === 'skipped' || executionStatus === 3 || executionStatus === '3') return 'skipped';
+          if (executionStatus === 'not_applicable' || executionStatus === 4 || executionStatus === '4') return 'not_applicable';
+          if (executionStatus === 'recheck_required' || executionStatus === 5 || executionStatus === '5') return 'recheck_required';
           return 'pending';
         })(),
         is_normal: toBoolean(gv(item, 'is_normal', 'isnormal')) ?? null,
@@ -172,14 +255,11 @@ function mapInspectionTaskDetailRaw(raw: unknown): InspectionTaskDetailDto {
         version: toOptionalNumber(gv(item, 'version', 'Version')) ?? null,
         updated_at: toOptionalString(gv(item, 'updated_at', 'updatetime')) ?? null,
         render_schema_json: parseRenderSchemaJson(gv(item, 'render_schema_json', 'renderSchemaJson')),
-        taskresult: (() => {
-          const value = gv(item, 'taskresult', 'taskResult');
-          return (value as { value?: string | null; remarks?: string | null } | null | undefined) ?? null;
-        })(),
-        task_result: (() => {
-          const value = gv(item, 'task_result', 'taskResult');
-          return (value as { value?: string | null; remarks?: string | null } | null | undefined) ?? null;
-        })(),
+        taskresult: parseTaskResultBlock(gv(item, 'taskresult', 'taskResult')),
+        task_result: parseTaskResultBlock(gv(item, 'task_result', 'taskResult')),
+        attachments: Array.isArray(item.attachments)
+          ? item.attachments as Array<Record<string, unknown>>
+          : [],
       };
     }),
   };
@@ -206,6 +286,8 @@ function mapInspectionTaskRaw(raw: unknown): InspectionTaskDto {
     })(),
     completetime: (gv(r, 'completetime', 'Completetime') as string | null | undefined) ?? null,
     productid: Number(gv(r, 'productid', 'Productid')),
+    inspectiontype: toOptionalNumber(gv(r, 'inspectiontype', 'Inspectiontype')) ?? null,
+    ifdel: toBoolean(gv(r, 'ifdel', 'Ifdel')) ?? false,
   };
 }
 
@@ -258,6 +340,17 @@ export async function createInspectionTask(payload: InspectionTaskDto): Promise<
 export async function deleteInspectionTask(taskid: number): Promise<void> {
   const res = await requestJson<ApiEnvelope<unknown>>(`/api/InspectionTasks/${taskid}`, {
     method: 'DELETE',
+  });
+  unwrap(res);
+}
+
+export async function putInspectionTaskDetail(
+  taskid: number,
+  payload: InspectionTaskDetailUpdatePayload,
+): Promise<void> {
+  const res = await requestJson<ApiEnvelope<unknown>>(`/api/InspectionTasks/${taskid}/detail`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
   });
   unwrap(res);
 }
