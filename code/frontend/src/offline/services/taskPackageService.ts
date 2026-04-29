@@ -11,6 +11,7 @@ import { getSchemeById } from '@/mockdata/scheme';
 import tasksData from '@/mockdata/task/tasks.json';
 import { loadTemplateItemsByTemplateId } from '@/pages/scheme/utils/loadTemplateItems';
 import { isDetectionItem, type SchemeItem } from '@/pages/scheme/utils/schemeUtils';
+import { nowChinaDateTime } from '../utils/dateTime';
 
 interface MockTask {
   id: string;
@@ -41,15 +42,16 @@ type TaskPackageTaskDto = {
   project_name: string;
   template_id: number | string;
   template_name: string;
+  product_id?: number | string | null;
   inspection_type?: number;
   status?: number | string;
   assigned_user_id?: number | null;
-  download_version?: number;
-  product_snapshot?: {
-    product_id?: number | string | null;
-    mlfb?: string | null;
-    serialno?: string | null;
-  } | null;
+  assigned_user_name?: string | null;
+  version?: number | null;
+  downloaded_at?: string | null;
+  local_updated_at?: string | null;
+  download_device_name?: string | null;
+  serial_no?: string | null;
 };
 
 type TaskPackageResultDto = {
@@ -113,7 +115,7 @@ function writeTaskSchemeCache(taskUuid: string, schemeId: string, items: SchemeI
 }
 
 function nowIso(): string {
-  return new Date().toISOString();
+  return nowChinaDateTime();
 }
 
 function joinCategoryPath(path: string[], name: string): string | null {
@@ -125,6 +127,16 @@ function mapInspectionStatusToOfflineStatus(code: number): string {
   if (code === 1) return 'in-progress';
   if (code === 2) return 'completed';
   if (code === 3) return 'pending';
+  return 'pending';
+}
+
+function mapTaskItemExecutionStatusToOfflineStatus(
+  status: string | null | undefined,
+): 'pending' | 'completed' | 'skipped' | 'not_applicable' | 'recheck_required' {
+  if (status === 'completed') return 'completed';
+  if (status === 'skipped') return 'skipped';
+  if (status === 'not_applicable') return 'not_applicable';
+  if (status === 'recheck_required') return 'recheck_required';
   return 'pending';
 }
 
@@ -259,15 +271,16 @@ function createDemoTaskPackage(input: DemoProjectTaskInput): TaskPackageResponse
         project_name: input.projectName,
         template_id: input.templateId,
         template_name: input.templateName,
+        product_id: null,
         inspection_type: 1,
         status: 3,
         assigned_user_id: input.assignedUserId ?? null,
-        download_version: 1,
-        product_snapshot: {
-          product_id: null,
-          mlfb: input.deviceModel,
-          serialno: null,
-        },
+        assigned_user_name: null,
+        version: 1,
+        downloaded_at: nowIso(),
+        local_updated_at: nowIso(),
+        download_device_name: null,
+        serial_no: null,
       },
       task_items: [
         {
@@ -374,16 +387,21 @@ async function downloadTaskPackageFromResponse(
     task_uuid: taskUuid,
     server_task_id: String(task.task_id),
     task_no: taskNo,
-    serial_no: null,
-    assigned_user_name: null,
+    serial_no: task.serial_no?.trim() || null,
+    assigned_user_name: task.assigned_user_name?.trim() || null,
+    assigned_user_id: task.assigned_user_id != null ? String(task.assigned_user_id) : null,
+    download_device_name: task.download_device_name?.trim() || null,
     project_id: String(task.project_id),
     project_name: options?.projectName ?? task.project_name ?? null,
     scheme_id: schemeId,
     scheme_name: task.template_name?.trim() || `模板 #${schemeId}`,
-    device_model: task.product_snapshot?.mlfb?.trim() || options?.deviceModel || '-',
+    product_id: task.product_id != null ? String(task.product_id) : null,
+    inspection_type: task.inspection_type != null ? String(task.inspection_type) : null,
+    version: task.version ?? null,
+    device_model: options?.deviceModel || '-',
     status: 'downloaded',
-    downloaded_at: nowIso(),
-    local_updated_at: nowIso(),
+    downloaded_at: task.downloaded_at ?? nowIso(),
+    local_updated_at: task.local_updated_at ?? task.downloaded_at ?? nowIso(),
     sync_status: 'synced',
   });
 
@@ -395,7 +413,7 @@ async function downloadTaskPackageFromResponse(
     item_name: item.item_name,
     category_path: item.category_path ?? null,
     result: buildOfflineResultPayloadFromTaskResult(item.task_result ?? item.taskresult),
-    execution_status: item.execution_status === 'completed' ? 'completed' : 'pending',
+    execution_status: mapTaskItemExecutionStatusToOfflineStatus(item.execution_status),
     is_normal: Boolean(item.is_normal),
     is_recheck: Boolean(item.is_recheck),
     sync_status: 'synced',
@@ -536,10 +554,15 @@ function buildOfflineTask(task: MockTask): OfflineTaskUpsert {
     task_no: task.id,
     serial_no: null,
     assigned_user_name: null,
+    assigned_user_id: null,
+    download_device_name: null,
     project_id: task.projectId,
     project_name: task.projectName,
     scheme_id: task.schemeId,
     scheme_name: task.schemeName,
+    product_id: null,
+    inspection_type: null,
+    version: null,
     device_model: task.deviceModel,
     status: task.status,
     downloaded_at: timestamp,

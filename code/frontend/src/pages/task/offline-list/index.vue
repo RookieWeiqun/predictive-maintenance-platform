@@ -77,6 +77,8 @@
                   <th>任务编号</th>
                   <th>项目</th>
                   <th>设备型号</th>
+                  <th>序列号</th>
+                  <th>检查人员</th>
                   <th>模板</th>
                   <th>下载时间</th>
                   <th>状态</th>
@@ -96,6 +98,8 @@
                   <td>{{ task.task_no || task.task_uuid }}</td>
                   <td>{{ task.project_name || task.project_id || '-' }}</td>
                   <td>{{ task.device_model || '-' }}</td>
+                  <td>{{ task.serial_no || '-' }}</td>
+                  <td>{{ task.assigned_user_name || '-' }}</td>
                   <td>{{ task.scheme_name || task.scheme_id || '-' }}</td>
                   <td>{{ formatTime(task.downloaded_at) }}</td>
                   <td>
@@ -115,8 +119,6 @@
                   </td>
                   <td>
                     <div class="task-actions">
-                      <span v-if="isTaskPending(task.task_uuid)" class="sync-tag sync-tag-pending">待上传</span>
-                      <span v-else class="sync-tag">无变更</span>
                       <IxButton variant="primary" @click="handleExecuteTask(task)">
                         执行任务
                       </IxButton>
@@ -140,7 +142,7 @@ import {
   buildTaskSyncPayload,
   offlineOutboxRepository,
   offlineTaskRepository,
-  simulateUploadPendingSyncBatch,
+  uploadPendingTasks,
 } from '@/android';
 import type { OfflineTaskRecord } from '@/offline';
 
@@ -182,7 +184,7 @@ const filteredTasks = computed(() => {
   }
 
   return current.filter((task) =>
-    [task.task_no, task.task_uuid, task.device_model, task.scheme_name, task.project_name]
+    [task.task_no, task.task_uuid, task.device_model, task.serial_no, task.assigned_user_name, task.scheme_name, task.project_name]
       .filter(Boolean)
       .some((value) => String(value).toLowerCase().includes(keyword)),
   );
@@ -219,6 +221,10 @@ function formatTime(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString('zh-CN');
+}
+
+function isBlank(value: string | null | undefined): boolean {
+  return !String(value ?? '').trim();
 }
 
 async function refreshTasks(): Promise<void> {
@@ -286,16 +292,31 @@ async function handleUploadData(): Promise<void> {
       showToast({ message: '请先勾选至少一个待上传任务' });
       return;
     }
-    const result = await simulateUploadPendingSyncBatch(selectedTaskIds);
+
+    const selectedTasks = tasks.value.filter((task) => selectedTaskIds.includes(task.task_uuid));
+    const invalidTasks = selectedTasks.filter(
+      (task) => isBlank(task.serial_no) || isBlank(task.assigned_user_name),
+    );
+    if (invalidTasks.length > 0) {
+      const names = invalidTasks
+        .slice(0, 3)
+        .map((task) => task.task_no || task.task_uuid)
+        .join('、');
+      const suffix = invalidTasks.length > 3 ? ' 等任务' : '';
+      showToast({ message: `请先补全序列号和检查人员：${names}${suffix}` });
+      return;
+    }
+
+    const result = await uploadPendingTasks(selectedTaskIds);
     if (result.changeCount === 0) {
       showToast({ message: '所选任务当前没有待上传变更' });
       return;
     }
-    showToast({ message: `已模拟上传 ${result.changeCount} 条变更，涉及 ${result.taskCount} 个任务` });
+    showToast({ message: `已上传 ${result.changeCount} 条变更，涉及 ${result.taskCount} 个任务` });
     selectedTaskUuids.value = new Set();
     await refreshTasks();
   } catch (error) {
-    showToast({ message: error instanceof Error ? error.message : '读取待同步数据失败' });
+    showToast({ message: error instanceof Error ? error.message : '上传离线任务失败' });
   }
 }
 

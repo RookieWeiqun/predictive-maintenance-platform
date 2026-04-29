@@ -14,7 +14,8 @@
     </IxContentHeader>
 
     <section class="page-section">
-      <div v-if="!report" class="report-empty">未找到报告 mock 数据（projectId={{ projectId }}）</div>
+      <div v-if="reportLoading" class="report-empty">报告数据加载中…</div>
+      <div v-else-if="!report" class="report-empty">当前项目暂无可用于填充报告的任务数据（projectId={{ projectId }}）</div>
       <div v-else class="report-layout">
         <aside :class="['report-toc', { 'report-toc--collapsed': tocCollapsed }]">
           <div class="report-toc__head">
@@ -333,6 +334,62 @@
             <p>
               按车间/设备展示层级检查项目、检查结果、过程数据、问题隐患说明、维护与优化建议、参考图片（来自检测数据与专家规则）。
             </p>
+            <div v-if="appendixWorkshops.length === 0" class="empty-block muted">
+              暂无详细检查项数据。
+            </div>
+            <div v-else class="appendix-workshops">
+              <section
+                v-for="(workshop, workshopIndex) in appendixWorkshops"
+                :key="`workshop-${workshopIndex}`"
+                class="appendix-workshop"
+              >
+                <h3 class="sheet-h3">{{ workshop.name }}</h3>
+                <div
+                  v-for="(device, deviceIndex) in workshop.devices ?? []"
+                  :key="`device-${workshopIndex}-${deviceIndex}`"
+                  class="appendix-device"
+                >
+                  <div class="appendix-device__title">
+                    {{ device.model || '任务设备' }}
+                    <span class="appendix-device__serial">{{ device.serialNumber || '-' }}</span>
+                  </div>
+                  <div
+                    v-for="(group, groupIndex) in device.items ?? []"
+                    :key="`group-${workshopIndex}-${deviceIndex}-${groupIndex}`"
+                    class="appendix-group"
+                  >
+                    <h4 class="appendix-group__title">{{ group.name }}</h4>
+                    <table class="appendix-table">
+                      <thead>
+                        <tr>
+                          <th>检查项</th>
+                          <th>检测结果</th>
+                          <th>检测值</th>
+                          <th>备注</th>
+                          <th>问题隐患说明</th>
+                          <th>维护与优化建议</th>
+                          <th>参考图片</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr
+                          v-for="(entry, entryIndex) in group.children ?? []"
+                          :key="`entry-${workshopIndex}-${deviceIndex}-${groupIndex}-${entryIndex}`"
+                        >
+                          <td>{{ entry.name || '-' }}</td>
+                          <td>{{ entry.result || '-' }}</td>
+                          <td>{{ entry.processData || '-' }}</td>
+                          <td>{{ entry.remark || '-' }}</td>
+                          <td>{{ entry.hazardNote || '-' }}</td>
+                          <td>{{ entry.suggestion || '-' }}</td>
+                          <td>{{ (entry.images ?? []).length > 0 ? (entry.images ?? []).join('、') : '-' }}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </section>
+            </div>
           </div>
         </div>
       </div>
@@ -341,7 +398,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, useTemplateRef } from 'vue';
+import { computed, onMounted, ref, useTemplateRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { IxContentHeader, IxButton, IxIcon, showToast } from '@siemens/ix-vue';
 /**
@@ -357,10 +414,12 @@ import {
   iconGenericDeviceMaintenance,
 } from '@siemens/ix-icons/icons';
 
-import projectsData from '@/mockdata/project/projects.json';
-import { getReportByProjectId } from '@/mockdata/report/index.ts';
 import logoUrl from '../../../../image/siemens logo.svg';
 import { buildWordReportWebhookPayload, requestWordReportDownload } from '@/config/n8n';
+import { companiesApi, inspectionTasksApi, projectsApi } from '@/api';
+import { getReportByProjectId, type ReportData } from '@/mockdata/report';
+import type { ProjectDto } from '@/api/modules/projects';
+import { buildReportFromProjectTaskDetailsSource } from './reportApiAdapter';
 
 import type { ProblemCardView } from './types';
 import {
@@ -374,18 +433,20 @@ import { useReportCharts } from './composables/useReportCharts';
 import { useReportSummaryDraft } from './composables/useReportSummaryDraft';
 import { useReportTocSpy } from './composables/useReportTocSpy';
 
-type Project = (typeof projectsData.projects)[number];
+type ReportProjectView = {
+  id: string;
+  name: string;
+  factory?: string;
+};
 
 const route = useRoute();
 const router = useRouter();
 
 const projectId = computed(() => String(route.params.id ?? ''));
 
-const project = computed<Project | undefined>(() => {
-  return projectsData.projects.find((p) => String(p.id) === projectId.value);
-});
-
-const report = computed(() => getReportByProjectId(projectId.value));
+const project = ref<ReportProjectView | null>(null);
+const report = ref<ReportData | null>(null);
+const reportLoading = ref(false);
 
 const wordExporting = ref(false);
 
@@ -471,6 +532,70 @@ const mainObjectEvaluations = computed(() => {
 const tocNodes = computed(() => buildTocNodes(report.value, project.value?.name ?? ''));
 
 const displayProblemCards = computed(() => mapRawProblemCards(report.value));
+const appendixWorkshops = computed(() => report.value?.appendixDetailedInspection?.workshops ?? []);
+
+async function loadReportData(): Promise<void> {
+  const pid = Number(projectId.value);
+  if (!Number.isFinite(pid) || pid <= 0) {
+    project.value = null;
+    report.value = null;
+    return;
+  }
+
+  reportLoading.value = true;
+  try {
+    const projectDto = await projectsApi.getProject(pid);
+    const taskList = await inspectionTasksApi.searchInspectionTasks({ projectid: pid });
+    const validTasks = taskList
+      .filter((task) => task.taskid != null && task.taskid > 0)
+      .sort((left, right) => Number(right.taskid ?? 0) - Number(left.taskid ?? 0));
+
+    project.value = {
+      id: String(projectDto.projectid ?? pid),
+      name: projectDto.projectname?.trim() || `项目 #${pid}`,
+    };
+
+    if (pid === 1) {
+      report.value = getReportByProjectId('1');
+      return;
+    }
+
+    if (validTasks.length === 0) {
+      report.value = null;
+      return;
+    }
+
+    const company = projectDto.companyid > 0
+      ? (await companiesApi.listCompanies()).find((item) => item.companyid === projectDto.companyid) ?? null
+      : null;
+    const taskDetailsByTask = await Promise.all(
+      validTasks.map(async (task) => ({
+        task,
+        detail: await inspectionTasksApi.getInspectionTaskDetail(Number(task.taskid)),
+      })),
+    );
+
+    report.value = buildReportFromProjectTaskDetailsSource({
+      project: projectDto as ProjectDto,
+      company,
+      tasks: validTasks,
+      taskDetailsByTask,
+    });
+  } catch (error) {
+    report.value = null;
+    showToast({ message: error instanceof Error ? error.message : '报告数据加载失败' });
+  } finally {
+    reportLoading.value = false;
+  }
+}
+
+onMounted(() => {
+  void loadReportData();
+});
+
+watch(projectId, () => {
+  void loadReportData();
+});
 
 function goToDetail() {
   if (!projectId.value) return;
@@ -511,4 +636,63 @@ function onViewDetail(card: ProblemCardView) {
 
 <style scoped>
 @import './styles/report-page.css';
+
+.appendix-workshops {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  margin-top: 1rem;
+}
+
+.appendix-workshop,
+.appendix-device,
+.appendix-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.appendix-device__title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--theme-color-text);
+}
+
+.appendix-device__serial {
+  margin-left: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 400;
+  color: var(--theme-color-text-soft);
+}
+
+.appendix-group__title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--theme-color-text);
+}
+
+.appendix-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--theme-color-base);
+}
+
+.appendix-table th,
+.appendix-table td {
+  padding: 0.75rem;
+  text-align: left;
+  vertical-align: top;
+  border: 1px solid var(--theme-color-soft-border);
+  font-size: 0.875rem;
+}
+
+.appendix-table th {
+  background: var(--theme-color-soft);
+  color: var(--theme-color-text);
+  font-weight: 600;
+}
+
+.appendix-table td {
+  color: var(--theme-color-text-soft);
+}
 </style>

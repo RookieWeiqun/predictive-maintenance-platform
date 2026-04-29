@@ -9,7 +9,7 @@ function quoteList(values: readonly string[]): string {
   return values.map((value) => `'${value}'`).join(', ');
 }
 
-export const OFFLINE_DB_VERSION = 2;
+export const OFFLINE_DB_VERSION = 5;
 
 export const OFFLINE_TASK_TABLE = 'offline_task';
 export const OFFLINE_TASK_ITEM_TABLE = 'offline_task_item';
@@ -23,10 +23,15 @@ CREATE TABLE IF NOT EXISTS ${OFFLINE_TASK_TABLE} (
   task_no TEXT,
   serial_no TEXT,
   assigned_user_name TEXT,
+  assigned_user_id TEXT,
+  download_device_name TEXT,
   project_id TEXT,
   project_name TEXT,
   scheme_id TEXT,
   scheme_name TEXT,
+  product_id TEXT,
+  inspection_type TEXT,
+  version INTEGER,
   device_model TEXT,
   status TEXT NOT NULL,
   downloaded_at TEXT NOT NULL,
@@ -40,10 +45,76 @@ export const OFFLINE_DB_MIGRATION_V2_SQL = [
   `ALTER TABLE ${OFFLINE_TASK_TABLE} ADD COLUMN assigned_user_name TEXT;`,
 ];
 
+export const OFFLINE_DB_MIGRATION_V3_SQL = [
+  `ALTER TABLE ${OFFLINE_TASK_TABLE} ADD COLUMN assigned_user_id TEXT;`,
+  `ALTER TABLE ${OFFLINE_TASK_TABLE} ADD COLUMN product_id TEXT;`,
+  `ALTER TABLE ${OFFLINE_TASK_TABLE} ADD COLUMN inspection_type TEXT;`,
+  `ALTER TABLE ${OFFLINE_TASK_TABLE} ADD COLUMN version INTEGER;`,
+];
+
+export const OFFLINE_DB_MIGRATION_V4_SQL = [
+  `ALTER TABLE ${OFFLINE_TASK_TABLE} ADD COLUMN download_device_name TEXT;`,
+];
+
+export const OFFLINE_DB_MIGRATION_V5_SQL = [
+  `DROP TABLE IF EXISTS ${OFFLINE_TASK_ITEM_TABLE}_v5;`,
+  `
+CREATE TABLE ${OFFLINE_TASK_ITEM_TABLE}_v5 (
+  task_item_uuid TEXT PRIMARY KEY NOT NULL,
+  server_item_id TEXT,
+  task_uuid TEXT NOT NULL,
+  source_type TEXT NOT NULL CHECK (source_type IN (${quoteList(TASK_ITEM_SOURCE_TYPES)})),
+  item_name TEXT NOT NULL,
+  category_path TEXT,
+  result TEXT,
+  execution_status TEXT NOT NULL CHECK (execution_status IN (${quoteList(TASK_ITEM_EXECUTION_STATUSES)})),
+  is_normal INTEGER NOT NULL DEFAULT 0,
+  is_recheck INTEGER NOT NULL DEFAULT 0,
+  local_updated_at TEXT NOT NULL,
+  sync_status TEXT NOT NULL CHECK (sync_status IN (${quoteList(TASK_ITEM_SYNC_STATUSES)}))
+);
+`,
+  `
+INSERT INTO ${OFFLINE_TASK_ITEM_TABLE}_v5 (
+  task_item_uuid,
+  server_item_id,
+  task_uuid,
+  source_type,
+  item_name,
+  category_path,
+  result,
+  execution_status,
+  is_normal,
+  is_recheck,
+  local_updated_at,
+  sync_status
+)
+SELECT
+  task_item_uuid,
+  CASE WHEN server_item_id IS NULL THEN NULL ELSE CAST(server_item_id AS TEXT) END,
+  task_uuid,
+  source_type,
+  item_name,
+  category_path,
+  result,
+  execution_status,
+  is_normal,
+  is_recheck,
+  local_updated_at,
+  sync_status
+FROM ${OFFLINE_TASK_ITEM_TABLE};
+`,
+  `DROP TABLE ${OFFLINE_TASK_ITEM_TABLE};`,
+  `ALTER TABLE ${OFFLINE_TASK_ITEM_TABLE}_v5 RENAME TO ${OFFLINE_TASK_ITEM_TABLE};`,
+  `CREATE INDEX IF NOT EXISTS idx_offline_task_item_task_uuid ON ${OFFLINE_TASK_ITEM_TABLE}(task_uuid);`,
+  `CREATE INDEX IF NOT EXISTS idx_offline_task_item_sync_status ON ${OFFLINE_TASK_ITEM_TABLE}(sync_status);`,
+  `CREATE INDEX IF NOT EXISTS idx_offline_task_item_server_item_id ON ${OFFLINE_TASK_ITEM_TABLE}(server_item_id);`,
+];
+
 export const CREATE_OFFLINE_TASK_ITEM_TABLE_SQL = `
 CREATE TABLE IF NOT EXISTS ${OFFLINE_TASK_ITEM_TABLE} (
   task_item_uuid TEXT PRIMARY KEY NOT NULL,
-  server_item_id INTEGER,
+  server_item_id TEXT,
   task_uuid TEXT NOT NULL,
   source_type TEXT NOT NULL CHECK (source_type IN (${quoteList(TASK_ITEM_SOURCE_TYPES)})),
   item_name TEXT NOT NULL,

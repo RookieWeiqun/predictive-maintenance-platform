@@ -19,4 +19,5 @@ export {
   saveTaskPhotoFromFile,
   simulateUploadPendingSyncBatch,
   submitPendingSyncBatch,
+  uploadPendingTasks,
 } from '@/offline';

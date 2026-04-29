@@ -121,6 +121,7 @@ type TaskListRow = {
   taskType: string;
   taskTypeLabel: string;
   deviceModel: string;
+  serialNo: string;
   schemeId: string;
   schemeName: string;
   deviceCount: number;
@@ -234,6 +235,7 @@ async function mapInspectionTasksToRows(
           taskType,
           taskTypeLabel,
           deviceModel: prod?.mlfb ?? '-',
+          serialNo: prod?.serialno ?? '-',
           schemeId: templateid > 0 ? String(templateid) : '',
           schemeName,
           deviceCount: 1,
@@ -359,6 +361,14 @@ async function refreshOfflineStatuses(): Promise<void> {
     status: resolveOfflineStatus(
       localTaskMap.get(String(task.rawTaskid)) ?? localTaskMap.get(task.id) ?? null,
     ),
+    serialNo:
+      localTaskMap.get(String(task.rawTaskid))?.serial_no
+      ?? localTaskMap.get(task.id)?.serial_no
+      ?? task.serialNo,
+    engineer:
+      localTaskMap.get(String(task.rawTaskid))?.assigned_user_name
+      ?? localTaskMap.get(task.id)?.assigned_user_name
+      ?? task.engineer,
   }));
 }
 
@@ -395,6 +405,8 @@ const filteredTasks = computed(() => {
       (t) =>
         String(t.id).toLowerCase().includes(searchLower) ||
         String(t.deviceModel).toLowerCase().includes(searchLower) ||
+        String(t.serialNo).toLowerCase().includes(searchLower) ||
+        String(t.engineer).toLowerCase().includes(searchLower) ||
         String(t.schemeName).toLowerCase().includes(searchLower),
     );
   }
@@ -513,6 +525,7 @@ const handleCreateSubTask = (task: TaskListRow | null) => {
     taskType: task.taskType,
     taskTypeLabel: task.taskTypeLabel,
     deviceModel: task.deviceModel,
+    serialNo: task.serialNo,
     schemeId: task.schemeId,
     schemeName: task.schemeName,
     deviceCount: 1,
@@ -697,6 +710,7 @@ onMounted(() => {
   gridOptions.value = {
     theme: ixTheme,
     tooltipShowDelay: 500,
+    rowHeight: 64,
     columnDefs: [
       {
         field: 'downloadSelect',
@@ -763,6 +777,24 @@ onMounted(() => {
         minWidth: 96,
       },
       {
+        field: 'serialNo',
+        headerName: '序列号',
+        resizable: true,
+        sortable: true,
+        filter: true,
+        flex: 1,
+        minWidth: 120,
+      },
+      {
+        field: 'engineer',
+        headerName: '检查人员',
+        resizable: true,
+        sortable: true,
+        filter: true,
+        flex: 0.9,
+        minWidth: 110,
+      },
+      {
         field: 'schemeName',
         headerName: '维护方案',
         resizable: true,
@@ -795,6 +827,10 @@ onMounted(() => {
         filter: true,
         flex: 1.05,
         minWidth: 150,
+        cellStyle: {
+          display: 'flex',
+          alignItems: 'center',
+        },
         cellRenderer: (params: any) => {
           const meta = getOnlineLifecycleMeta(params.value as TaskListRow['status']);
           return `
@@ -966,7 +1002,20 @@ onBeforeUnmount(() => {
   align-items: center;
 }
 
+.modal-content {
+  padding: 1rem 0;
+}
+
+.task-info {
+  margin: 0.5rem 0;
+  color: var(--theme-color-text-soft);
+}
+</style>
+
+<style>
+/* 全局样式，用于 ag-grid 内部的按钮，与 IxButton variant="secondary" 保持一致 */
 .task-status-progress {
+  width: 100%;
   min-width: 160px;
 }
 
@@ -1004,18 +1053,6 @@ onBeforeUnmount(() => {
   background: color-mix(in srgb, var(--theme-color-success) 80%, white);
 }
 
-.modal-content {
-  padding: 1rem 0;
-}
-
-.task-info {
-  margin: 0.5rem 0;
-  color: var(--theme-color-text-soft);
-}
-</style>
-
-<style>
-/* 全局样式，用于 ag-grid 内部的按钮，与 IxButton variant="secondary" 保持一致 */
 .ag-action-buttons {
   display: flex;
   gap: 0.375rem;

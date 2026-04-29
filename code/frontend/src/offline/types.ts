@@ -45,10 +45,15 @@ export interface OfflineTaskRecord {
   task_no: string | null;
   serial_no: string | null;
   assigned_user_name: string | null;
+  assigned_user_id: string | null;
+  download_device_name: string | null;
   project_id: string | null;
   project_name: string | null;
   scheme_id: string | null;
   scheme_name: string | null;
+  product_id: string | null;
+  inspection_type: string | null;
+  version: number | null;
   device_model: string | null;
   status: string;
   downloaded_at: string;

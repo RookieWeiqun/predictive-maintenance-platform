@@ -2,6 +2,7 @@ import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Capacitor } from '@capacitor/core';
 import { Directory, Filesystem } from '@capacitor/filesystem';
 import type { OfflineSyncStatus } from '../types';
+import { nowChinaDateTime } from '../utils/dateTime';
 
 export type StoredTaskPhoto = {
   attachment_uuid: string;
@@ -15,7 +16,7 @@ export type StoredTaskPhoto = {
 };
 
 function nowIso(): string {
-  return new Date().toISOString();
+  return nowChinaDateTime();
 }
 
 function createAttachmentUuid(): string {

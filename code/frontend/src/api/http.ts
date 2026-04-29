@@ -12,6 +12,11 @@ function buildApiUrl(path: string): string {
   return base ? `${base}${p}` : p;
 }
 
+function buildRequestHeaders(init?: RequestInit): Headers {
+  const headers = new Headers(init?.headers ?? {});
+  return headers;
+}
+
 export class ApiError extends Error {
   code?: number;
 
@@ -22,13 +27,10 @@ export class ApiError extends Error {
   }
 }
 
-export async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
+export async function request(path: string, init?: RequestInit): Promise<Response> {
   const response = await fetch(buildApiUrl(path), {
     ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(init?.headers ?? {}),
-    },
+    headers: buildRequestHeaders(init),
   });
 
   if (!response.ok) {
@@ -42,6 +44,20 @@ export async function requestJson<T>(path: string, init?: RequestInit): Promise<
     throw new ApiError(`HTTP ${response.status}: ${response.statusText}${suffix}`);
   }
 
+  return response;
+}
+
+export async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers = buildRequestHeaders(init);
+  if (!headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  const response = await request(path, {
+    ...init,
+    headers,
+  });
+
   try {
     return (await response.json()) as T;
   } catch {
@@ -52,4 +68,8 @@ export async function requestJson<T>(path: string, init?: RequestInit): Promise<
       `后端响应不是合法 JSON。content-type=${contentType}${preview ? `，body=${preview}` : ''}`,
     );
   }
+}
+
+export async function requestVoid(path: string, init?: RequestInit): Promise<void> {
+  await request(path, init);
 }

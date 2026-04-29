@@ -1,8 +1,9 @@
 import { getOfflineExecutor } from '../db/sqlite';
 import type { OfflineAttachmentRecord, OfflineAttachmentUpsert, OfflineSyncStatus } from '../types';
+import { nowChinaDateTime } from '../utils/dateTime';
 
 function nowIso(): string {
-  return new Date().toISOString();
+  return nowChinaDateTime();
 }
 
 export class OfflineAttachmentRepository {

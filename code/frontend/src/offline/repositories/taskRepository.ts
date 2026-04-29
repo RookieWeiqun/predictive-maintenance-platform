@@ -1,10 +1,11 @@
 import { getOfflineExecutor } from '../db/sqlite';
 import type { OfflineTaskRecord, OfflineTaskUpsert, OfflineSyncStatus } from '../types';
+import { nowChinaDateTime } from '../utils/dateTime';
 
 interface OfflineTaskRow extends OfflineTaskRecord {}
 
 function nowIso(): string {
-  return new Date().toISOString();
+  return nowChinaDateTime();
 }
 
 export class OfflineTaskRepository {
@@ -18,10 +19,15 @@ export class OfflineTaskRepository {
           task_no,
           serial_no,
           assigned_user_name,
+          assigned_user_id,
+          download_device_name,
           project_id,
           project_name,
           scheme_id,
           scheme_name,
+          product_id,
+          inspection_type,
+          version,
           device_model,
           status,
           downloaded_at,
@@ -43,10 +49,15 @@ export class OfflineTaskRepository {
           task_no,
           serial_no,
           assigned_user_name,
+          assigned_user_id,
+          download_device_name,
           project_id,
           project_name,
           scheme_id,
           scheme_name,
+          product_id,
+          inspection_type,
+          version,
           device_model,
           status,
           downloaded_at,
@@ -75,25 +86,35 @@ export class OfflineTaskRepository {
           task_no,
           serial_no,
           assigned_user_name,
+          assigned_user_id,
+          download_device_name,
           project_id,
           project_name,
           scheme_id,
           scheme_name,
+          product_id,
+          inspection_type,
+          version,
           device_model,
           status,
           downloaded_at,
           local_updated_at,
           sync_status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(task_uuid) DO UPDATE SET
           server_task_id = excluded.server_task_id,
           task_no = excluded.task_no,
           serial_no = excluded.serial_no,
           assigned_user_name = excluded.assigned_user_name,
+          assigned_user_id = excluded.assigned_user_id,
+          download_device_name = excluded.download_device_name,
           project_id = excluded.project_id,
           project_name = excluded.project_name,
           scheme_id = excluded.scheme_id,
           scheme_name = excluded.scheme_name,
+          product_id = excluded.product_id,
+          inspection_type = excluded.inspection_type,
+          version = excluded.version,
           device_model = excluded.device_model,
           status = excluded.status,
           local_updated_at = excluded.local_updated_at,
@@ -105,10 +126,15 @@ export class OfflineTaskRepository {
         record.task_no,
         record.serial_no,
         record.assigned_user_name,
+        record.assigned_user_id,
+        record.download_device_name,
         record.project_id,
         record.project_name,
         record.scheme_id,
         record.scheme_name,
+        record.product_id,
+        record.inspection_type,
+        record.version,
         record.device_model,
         record.status,
         downloadedAt,
@@ -134,7 +160,6 @@ export class OfflineTaskRepository {
       ...existing,
       serial_no: meta.serialNo ?? existing.serial_no,
       assigned_user_name: meta.assignedUserName ?? existing.assigned_user_name,
-      local_updated_at: nowIso(),
       sync_status: 'pending',
     });
   }
@@ -146,49 +171,40 @@ export class OfflineTaskRepository {
         UPDATE offline_task
         SET
           status = 'in-progress',
-          local_updated_at = ?,
           sync_status = ?
         WHERE task_uuid = ?
       `,
-      [nowIso(), syncStatus, taskUuid],
+      [syncStatus, taskUuid],
     );
   }
 
-  async setLifecycleStatus(
-    taskUuid: string,
-    status: string,
-    syncStatus?: OfflineSyncStatus,
-  ): Promise<void> {
+  async setLifecycleStatus(taskUuid: string, status: string): Promise<void> {
     const executor = getOfflineExecutor();
-    if (syncStatus) {
-      await executor.execute(
-        `
-          UPDATE offline_task
-          SET
-            status = ?,
-            local_updated_at = ?,
-            sync_status = ?
-          WHERE task_uuid = ?
-        `,
-        [status, nowIso(), syncStatus, taskUuid],
-      );
-      return;
-    }
 
     await executor.execute(
       `
         UPDATE offline_task
         SET
-          status = ?,
-          local_updated_at = ?
+          status = ?
         WHERE task_uuid = ?
       `,
-      [status, nowIso(), taskUuid],
+      [status, taskUuid],
     );
   }
 
-  async markUploaded(taskUuid: string): Promise<void> {
-    await this.setLifecycleStatus(taskUuid, 'uploaded', 'synced');
+  async markUploaded(taskUuid: string, uploadedAt: string = nowIso()): Promise<void> {
+    const executor = getOfflineExecutor();
+    await executor.execute(
+      `
+        UPDATE offline_task
+        SET
+          status = 'uploaded',
+          local_updated_at = ?,
+          sync_status = 'synced'
+        WHERE task_uuid = ?
+      `,
+      [uploadedAt, taskUuid],
+    );
   }
 }
 

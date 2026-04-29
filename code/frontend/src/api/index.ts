@@ -8,5 +8,6 @@ export * as inspectionTemplatesApi from './modules/inspectionTemplates';
 export * as inspectionCategoriesApi from './modules/inspectionCategories';
 export * as inspectionItemsApi from './modules/inspectionItems';
 export * as inspectionTasksApi from './modules/inspectionTasks';
+export * as attachmentsApi from './modules/attachments';
 export * as productsApi from './modules/products';
 export * as taskitemsApi from './modules/taskitems';

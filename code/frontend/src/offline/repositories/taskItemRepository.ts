@@ -5,10 +5,11 @@ import type {
   TaskItemExecutionStatus,
   TaskItemSyncStatus,
 } from '../types';
+import { nowChinaDateTime } from '../utils/dateTime';
 
 interface OfflineTaskItemRow {
   task_item_uuid: string;
-  server_item_id: number | null;
+  server_item_id: string | null;
   task_uuid: string;
   source_type: OfflineTaskItemRecord['source_type'];
   item_name: string;
@@ -30,7 +31,7 @@ function toRecord(row: OfflineTaskItemRow): OfflineTaskItemRecord {
 }
 
 function nowIso(): string {
-  return new Date().toISOString();
+  return nowChinaDateTime();
 }
 
 export class OfflineTaskItemRepository {
@@ -181,7 +182,6 @@ export class OfflineTaskItemRepository {
           execution_status = ?,
           is_normal = ?,
           is_recheck = ?,
-          local_updated_at = ?,
           sync_status = ?
         WHERE task_item_uuid = ?
       `,
@@ -190,14 +190,13 @@ export class OfflineTaskItemRepository {
         params.executionStatus,
         params.isNormal ? 1 : 0,
         params.isRecheck ? 1 : 0,
-        nowIso(),
         params.syncStatus,
         params.taskItemUuid,
       ],
     );
   }
 
-  async markSynced(taskItemUuid: string): Promise<void> {
+  async markSynced(taskItemUuid: string, uploadedAt: string = nowIso()): Promise<void> {
     const executor = getOfflineExecutor();
 
     await executor.execute(
@@ -208,7 +207,7 @@ export class OfflineTaskItemRepository {
           local_updated_at = ?
         WHERE task_item_uuid = ?
       `,
-      [nowIso(), taskItemUuid],
+      [uploadedAt, taskItemUuid],
     );
   }
 }
