@@ -100,20 +100,6 @@ namespace premaintainProjects.Controllers
                 return new JsonResult(new { code = ResponseCode.记录不存在, data = (object)null, msg = "记录不存在" });
             }
 
-            if (inspectionTask.Version != existingTask.Version + 1)
-            {
-                _logger.LogWarning(
-                    "更新失败，版本号不正确，ID：{Id}，当前版本：{CurrentVersion}，提交版本：{SubmitVersion}",
-                    inspectionTask.Taskid, existingTask.Version, inspectionTask.Version);
-
-                return new JsonResult(new
-                {
-                    code = ResponseCode.参数无效,
-                    data = (object)null,
-                    msg = $"版本冲突"
-                });
-            }
-
             existingTask.Projectid = inspectionTask.Projectid;
             existingTask.Templateid = inspectionTask.Templateid;
             existingTask.Productid = inspectionTask.Productid;
@@ -158,7 +144,7 @@ namespace premaintainProjects.Controllers
                     _logger.LogWarning("整单更新失败，巡检任务不存在，ID：{Id}", dto.Task.Taskid);
                     return new JsonResult(new { code = ResponseCode.记录不存在, data = (object)null, msg = "记录不存在" });
                 }
-
+                /*
                 if (dto.Task.Version != existingTask.Version + 1)
                 {
                     _logger.LogWarning("整单更新失败，版本冲突，ID：{Id}，当前版本：{CurrentVersion}，提交版本：{SubmitVersion}",
@@ -170,7 +156,7 @@ namespace premaintainProjects.Controllers
                         data = (object)null,
                         msg = "版本冲突"
                     });
-                }
+                }*/
 
                 // 更新 task 主表
                 existingTask.Projectid = dto.Task.Projectid;
@@ -238,7 +224,8 @@ namespace premaintainProjects.Controllers
                         existingItem.ExecutionStatus = input.ExecutionStatus;
                         existingItem.Updatetime = DateTime.UtcNow;
                         existingItem.SourceType = input.SourceType;
-                        existingItem.Createtime = _serviceTools.ToUtc(input.Createtime) ?? existingItem.Createtime;
+                        existingItem.Taskid = input.Taskid;
+
                     }
                     else
                     {
@@ -252,7 +239,7 @@ namespace premaintainProjects.Controllers
                             Taskresult = input.Taskresult,
                             Isnormal = input.Isnormal,
                             Isrecheck = input.Isrecheck,
-                            Createtime = _serviceTools.ToUtc(input.Createtime) ?? DateTime.UtcNow,
+                            Createtime = DateTime.UtcNow,
                             ExecutionStatus = input.ExecutionStatus,
                             Updatetime = DateTime.UtcNow,
                             SourceType = input.SourceType,

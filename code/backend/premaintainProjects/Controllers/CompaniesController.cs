@@ -100,5 +100,41 @@ namespace premaintainProjects.Controllers
         {
             return _context.Companies.Any(e => e.Companyid == id);
         }
+
+        // GET: api/Companies/SearchByCreditCode?creditcode=xxx
+        [HttpGet("SearchByCreditCode")]
+        public async Task<IActionResult> SearchByCreditCode([FromQuery] string creditcode)
+        {
+            if (string.IsNullOrWhiteSpace(creditcode))
+            {
+                return new JsonResult(new
+                {
+                    code = ResponseCode.参数无效,
+                    data = (object)null,
+                    msg = "creditcode不能为空"
+                });
+            }
+
+            var company = await _context.Companies
+                .AsNoTracking()
+                .FirstOrDefaultAsync(c => c.CreditCode == creditcode);
+
+            if (company == null)
+            {
+                return new JsonResult(new
+                {
+                    code = ResponseCode.记录不存在,
+                    data = (object)null,
+                    msg = "记录不存在"
+                });
+            }
+
+            return new JsonResult(new
+            {
+                code = ResponseCode.成功,
+                data = company,
+                msg = ""
+            });
+        }
     }
 }
