@@ -3,6 +3,7 @@ using Microsoft.Extensions.FileProviders;
 using premaintainProjects.Dtos;
 using premaintainProjects.Models;
 using premaintainProjects.Services;
+using Microsoft.Extensions.FileProviders;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -38,10 +39,12 @@ if (app.Environment.IsProduction())
     app.UseHttpsRedirection();
 }
 
+var attachPath = Path.Combine(app.Environment.ContentRootPath, "Attach");
+Directory.CreateDirectory(attachPath);
+
 app.UseStaticFiles(new StaticFileOptions
 {
-    FileProvider = new PhysicalFileProvider(
-        Path.Combine(app.Environment.ContentRootPath, "Attach")),
+    FileProvider = new PhysicalFileProvider(attachPath),
     RequestPath = "/Attach"
 });
 
