@@ -19,8 +19,6 @@ public partial class Taskitem
 
     public bool Isrecheck { get; set; }
 
-    public string? Photopath { get; set; }
-
     public DateTime? Createtime { get; set; }
 
     /// <summary>
@@ -36,8 +34,6 @@ public partial class Taskitem
     public short ExecutionStatus { get; set; }
 
     public DateTime Updatetime { get; set; }
-
-    public int Version { get; set; }
 
     /// <summary>
     /// 1. system_generated

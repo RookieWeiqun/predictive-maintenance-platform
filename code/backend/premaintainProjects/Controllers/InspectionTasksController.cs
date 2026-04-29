@@ -7,6 +7,7 @@ using premaintainProjects.Models;
 using premaintainProjects.Services;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -84,11 +85,44 @@ namespace premaintainProjects.Controllers
             return new JsonResult(new { code = ResponseCode.成功, data = tasks, msg = "" });
         }
 
-        // PUT: api/InspectionTasks
         [HttpPut]
         public async Task<IActionResult> PutInspectionTask(InspectionTask inspectionTask)
         {
-            _context.Entry(inspectionTask).State = EntityState.Modified;
+            var existingTask = await _context.InspectionTasks.FindAsync(inspectionTask.Taskid);
+            if (existingTask == null)
+            {
+                _logger.LogWarning("更新失败，巡检任务不存在，ID：{Id}", inspectionTask.Taskid);
+                return new JsonResult(new { code = ResponseCode.记录不存在, data = (object)null, msg = "记录不存在" });
+            }
+
+            if (inspectionTask.Version != existingTask.Version + 1)
+            {
+                _logger.LogWarning(
+                    "更新失败，版本号不正确，ID：{Id}，当前版本：{CurrentVersion}，提交版本：{SubmitVersion}",
+                    inspectionTask.Taskid, existingTask.Version, inspectionTask.Version);
+
+                return new JsonResult(new
+                {
+                    code = ResponseCode.参数无效,
+                    data = (object)null,
+                    msg = $"版本冲突"
+                });
+            }
+
+            existingTask.Projectid = inspectionTask.Projectid;
+            existingTask.Templateid = inspectionTask.Templateid;
+            existingTask.Productid = inspectionTask.Productid;
+            existingTask.Status = inspectionTask.Status;
+            existingTask.TaskNo = inspectionTask.TaskNo;
+            existingTask.Assigneduserid = inspectionTask.Assigneduserid;
+            existingTask.Inspectiontype = inspectionTask.Inspectiontype;
+            existingTask.Ifdel = inspectionTask.Ifdel;
+            existingTask.Version = inspectionTask.Version;
+            existingTask.Assignedusername = inspectionTask.Assignedusername;
+            existingTask.DownloadedAt = ToUtc(inspectionTask.DownloadedAt);
+            existingTask.LocalUpdatedAt = ToUtc(inspectionTask.LocalUpdatedAt);         
+            existingTask.DownloadDeviceName = inspectionTask.DownloadDeviceName;
+            existingTask.Serialno = inspectionTask.Serialno;
 
             try
             {
@@ -96,55 +130,149 @@ namespace premaintainProjects.Controllers
             }
             catch (DbUpdateConcurrencyException)
             {
-                if (!InspectionTaskExists(inspectionTask.Taskid))
+                _logger.LogError("更新巡检任务时发生并发异常，ID：{Id}", inspectionTask.Taskid);
+                throw;
+            }
+
+            _logger.LogInformation("更新巡检任务成功，ID：{Id}，版本：{Version}", inspectionTask.Taskid, inspectionTask.Version);
+            return new JsonResult(new { code = ResponseCode.成功, data = inspectionTask.Taskid, msg = "" });
+        }       
+
+
+        [HttpPut("{id}/detail")]
+        public async Task<IActionResult> PutInspectionTaskDetail([FromBody] UpdateInspectionTaskDetailDto dto)
+        {
+
+            using var transaction = await _context.Database.BeginTransactionAsync();
+
+            try
+            {
+                var existingTask = await _context.InspectionTasks.FindAsync(dto.Task.Taskid);
+                if (existingTask == null)
                 {
-                    _logger.LogWarning("更新失败，巡检任务不存在，ID：{Id}", inspectionTask.Taskid);
+                    _logger.LogWarning("整单更新失败，巡检任务不存在，ID：{Id}", dto.Task.Taskid);
                     return new JsonResult(new { code = ResponseCode.记录不存在, data = (object)null, msg = "记录不存在" });
                 }
-                else
+
+                if (dto.Task.Version != existingTask.Version + 1)
                 {
-                    _logger.LogError("更新巡检任务时发生并发异常，ID：{Id}", inspectionTask.Taskid);
-                    throw;
+                    _logger.LogWarning("整单更新失败，版本冲突，ID：{Id}，当前版本：{CurrentVersion}，提交版本：{SubmitVersion}",
+                        dto.Task.Taskid, existingTask.Version, dto.Task.Version);
+
+                    return new JsonResult(new
+                    {
+                        code = ResponseCode.参数无效,
+                        data = (object)null,
+                        msg = "版本冲突"
+                    });
                 }
+
+                // 更新 task 主表
+                existingTask.Projectid = dto.Task.Projectid;
+                existingTask.Templateid = dto.Task.Templateid;
+                existingTask.Productid = dto.Task.Productid;
+                existingTask.Status = dto.Task.Status;
+                existingTask.TaskNo = dto.Task.TaskNo;
+                existingTask.Assigneduserid = dto.Task.Assigneduserid;
+                existingTask.Inspectiontype = dto.Task.Inspectiontype;
+                existingTask.Ifdel = dto.Task.Ifdel;
+                existingTask.Version = dto.Task.Version;
+                existingTask.Assignedusername = dto.Task.Assignedusername;
+                existingTask.DownloadedAt = ToUtc(dto.Task.DownloadedAt);
+                existingTask.LocalUpdatedAt = ToUtc(dto.Task.LocalUpdatedAt);
+                existingTask.DownloadDeviceName = dto.Task.DownloadDeviceName;
+                existingTask.Serialno = dto.Task.Serialno;        
+
+
+                // 取现有 items
+                var existingItems = await _context.Taskitems
+                    .Where(x => x.Taskid == dto.Task.Taskid)
+                    .ToListAsync();
+
+                var existingItemMap = existingItems.ToDictionary(x => x.Itemid, x => x);
+                var inputItems = dto.Taskitems ?? new List<Taskitem>();
+
+                // 传入中已有ID
+                var inputIds = inputItems
+                    .Where(x => x.Itemid != Guid.Empty)
+                    .Select(x => x.Itemid)
+                    .ToHashSet();
+
+                // 删除被移除的 items + 其附件
+                var deletedItems = existingItems
+                    .Where(x => !inputIds.Contains(x.Itemid))
+                    .ToList();
+
+                if (deletedItems.Count > 0)
+                {
+                    var deletedIds = deletedItems.Select(x => x.Itemid).ToList();
+
+                    var attachments = await _context.Attachments
+                        .Where(x => deletedIds.Contains(x.Taskitemid))
+                        .ToListAsync();
+
+                    if (attachments.Count > 0)
+                    {
+                        _context.Attachments.RemoveRange(attachments);
+                    }
+
+                    _context.Taskitems.RemoveRange(deletedItems);
+                }
+
+                // 新增 / 更新 items
+                foreach (var input in inputItems)
+                {
+                    if (input.Itemid != Guid.Empty && existingItemMap.TryGetValue(input.Itemid, out var existingItem))
+                    {
+                        existingItem.Inspectionitemid = input.Inspectionitemid;
+                        existingItem.Taskname = input.Taskname;
+                        existingItem.Categorypath = input.Categorypath;
+                        existingItem.Taskresult = input.Taskresult;
+                        existingItem.Isnormal = input.Isnormal;
+                        existingItem.Isrecheck = input.Isrecheck;
+                        existingItem.ExecutionStatus = input.ExecutionStatus;
+                        existingItem.Updatetime = DateTime.UtcNow;
+                        existingItem.SourceType = input.SourceType;
+                        existingItem.Createtime = ToUtc(input.Createtime) ?? existingItem.Createtime;
+                    }
+                    else
+                    {
+                        var newItem = new Taskitem
+                        {
+                            Itemid = Guid.NewGuid(),
+                            Taskid = dto.Task.Taskid,
+                            Inspectionitemid = input.Inspectionitemid,
+                            Taskname = input.Taskname,
+                            Categorypath = input.Categorypath,
+                            Taskresult = input.Taskresult,
+                            Isnormal = input.Isnormal,
+                            Isrecheck = input.Isrecheck,
+                            Createtime = ToUtc(input.Createtime) ?? DateTime.UtcNow,
+                            ExecutionStatus = input.ExecutionStatus,
+                            Updatetime = DateTime.UtcNow,
+                            SourceType = input.SourceType,
+                        };
+                        _context.Taskitems.Add(newItem);
+                    }
+                }
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                _logger.LogInformation("整单更新巡检任务成功，ID：{Id}", dto.Task.Taskid);
+                return new JsonResult(new { code = ResponseCode.成功, data = dto.Task.Taskid, msg = "" });
             }
-
-            _logger.LogInformation("更新巡检任务成功，ID：{Id}", inspectionTask.Taskid);
-            return new JsonResult(new { code = ResponseCode.成功, data = inspectionTask.Taskid, msg = "" });
-        }
-
-        [HttpPut("UpdateTasklist")]
-        public async Task<IActionResult> BatchUpdateInspectionTasks([FromBody] List<InspectionTask> tasks)
-        {
-            if (tasks == null || tasks.Count == 0)
+            catch (Exception ex)
             {
-                return new JsonResult(new { code = ResponseCode.参数无效, data = (object)null, msg = "参数不能为空" });
+                await transaction.RollbackAsync();
+                _logger.LogError(ex, "整单更新巡检任务失败，ID：{Id}", dto.Task.Taskid);
+                return new JsonResult(new
+                {
+                    code = ResponseCode.操作失败,
+                    data = (object)null,
+                    msg = ex.InnerException?.Message ?? ex.Message
+                });
             }
-
-            var ids = tasks.Select(x => x.Taskid).ToList();
-            var existingTasks = await _context.InspectionTasks
-                .Where(x => ids.Contains(x.Taskid))
-                .ToListAsync();
-
-            foreach (var existing in existingTasks)
-            {
-                var input = tasks.FirstOrDefault(x => x.Taskid == existing.Taskid);
-                if (input == null) continue;
-
-                existing.Projectid = input.Projectid;
-                existing.Templateid = input.Templateid;
-                existing.Productid = input.Productid;
-                existing.Status = input.Status;
-                existing.TaskNo = input.TaskNo;
-                existing.Assigneduserid = input.Assigneduserid;
-                existing.Inspectiontype = input.Inspectiontype;
-                existing.Ifdel = input.Ifdel;
-            }
-
-            await _context.SaveChangesAsync();
-
-            _logger.LogInformation("批量更新巡检任务成功，数量：{Count}", existingTasks.Count);
-
-            return new JsonResult(new { code = ResponseCode.成功, data = ids, msg = "" });
         }
 
         // POST: api/InspectionTasks
@@ -152,6 +280,9 @@ namespace premaintainProjects.Controllers
         public async Task<IActionResult> PostInspectionTask(InspectionTask inspectionTask)
         {
             inspectionTask.Taskid = 0; // 强制让数据库分配主键
+            inspectionTask.Version = 1; // 初始版本号
+            inspectionTask.DownloadedAt = ToUtc(inspectionTask.DownloadedAt);
+            inspectionTask.LocalUpdatedAt = ToUtc(inspectionTask.LocalUpdatedAt);
             _context.InspectionTasks.Add(inspectionTask);
             await _context.SaveChangesAsync();
 
@@ -159,7 +290,58 @@ namespace premaintainProjects.Controllers
             return new JsonResult(new { code = ResponseCode.成功, data = inspectionTask.Taskid, msg = "" });
         }
 
-        // GET: api/InspectionTasks/{id}/detail
+        [HttpGet("{id}/detailnoattach")]
+        public async Task<IActionResult> GetInspectionTasks(int id)
+        {
+            var task = await _context.InspectionTasks.FindAsync(id);
+            if (task == null)
+            {
+                _logger.LogWarning("未找到巡检任务详情，ID：{Id}", id);
+                return new JsonResult(new { code = ResponseCode.记录不存在, data = (object)null, msg = "记录不存在" });
+            }
+
+            var taskitems = await _context.Taskitems
+                .Where(x => x.Taskid == id)
+                .ToListAsync();
+
+            var itemIds = taskitems.Select(x => x.Itemid).ToList();
+
+            var attachments = await _context.Attachments
+                .Where(x => itemIds.Contains(x.Taskitemid))
+                .ToListAsync();
+
+            foreach (var item in taskitems)
+            {
+                await _serviceTools.RefreshRenderSchemaAsync(item);
+            }
+
+            var taskitemDtos = taskitems.Select(item => new Taskitem
+            {
+                Itemid = item.Itemid,
+                Taskid = item.Taskid,
+                Inspectionitemid = item.Inspectionitemid,
+                Taskname = item.Taskname,
+                Categorypath = item.Categorypath,
+                Taskresult = item.Taskresult,
+                Isnormal = item.Isnormal,
+                Isrecheck = item.Isrecheck,
+                Createtime = item.Createtime,
+                ExecutionStatus = item.ExecutionStatus,
+                Updatetime = item.Updatetime,
+                SourceType = item.SourceType,
+                RenderSchemaJson = item.RenderSchemaJson                
+            }).ToList();
+
+            var data = new UpdateInspectionTaskDetailDto
+            {
+                Task = task,
+                Taskitems = taskitemDtos
+            };
+
+            _logger.LogInformation("获取巡检任务详情成功，ID：{Id}，任务项数量：{Count}", id, taskitemDtos.Count);
+            return new JsonResult(new { code = ResponseCode.成功, data, msg = "" });
+        }
+
         [HttpGet("{id}/detail")]
         public async Task<IActionResult> GetInspectionTaskDetail(int id)
         {
@@ -174,18 +356,44 @@ namespace premaintainProjects.Controllers
                 .Where(x => x.Taskid == id)
                 .ToListAsync();
 
+            var itemIds = taskitems.Select(x => x.Itemid).ToList();
+
+            var attachments = await _context.Attachments
+                .Where(x => itemIds.Contains(x.Taskitemid))
+                .ToListAsync();
+
             foreach (var item in taskitems)
             {
                 await _serviceTools.RefreshRenderSchemaAsync(item);
-            }            
+            }
+
+            var taskitemDtos = taskitems.Select(item => new TaskitemDetailDto
+            {
+                Itemid = item.Itemid,
+                Taskid = item.Taskid,
+                Inspectionitemid = item.Inspectionitemid,
+                Taskname = item.Taskname,
+                Categorypath = item.Categorypath,
+                Taskresult = item.Taskresult,
+                Isnormal = item.Isnormal,
+                Isrecheck = item.Isrecheck,
+                Createtime = item.Createtime,
+                ExecutionStatus = item.ExecutionStatus,
+                Updatetime = item.Updatetime,
+                SourceType = item.SourceType,
+                RenderSchemaJson = item.RenderSchemaJson,
+                Attachments = attachments
+                    .Where(a => a.Taskitemid == item.Itemid)
+                    .ToList()
+            }).ToList();
 
             var data = new InspectionTaskDetailDto
             {
                 Task = task,
-                Taskitems = taskitems
+                Taskitems = taskitemDtos
             };
 
-            _logger.LogInformation("获取巡检任务详情成功，ID：{Id}，任务项数量：{Count}", id, taskitems.Count);
+            _logger.LogInformation("获取巡检任务详情成功，ID：{Id}，任务项数量：{Count}", id, taskitemDtos.Count);
             return new JsonResult(new { code = ResponseCode.成功, data, msg = "" });
         }
 
@@ -219,5 +427,16 @@ namespace premaintainProjects.Controllers
                 item.RenderSchemaJson = await _serviceTools.BuildRenderSchemaJsonAsync(item.Inspectionitemid);
             }
         }
+
+        private static DateTime ToUtc(DateTime value) =>
+            value.Kind switch
+            {
+                DateTimeKind.Utc => value,
+                DateTimeKind.Local => value.ToUniversalTime(),
+                DateTimeKind.Unspecified => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+            };
+
+        private static DateTime? ToUtc(DateTime? value) =>
+            value.HasValue ? ToUtc(value.Value) : null;
     }
 }

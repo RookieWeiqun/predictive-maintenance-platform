@@ -79,12 +79,15 @@ namespace premaintainProjects.Services
             taskitem.RenderSchemaJson = await BuildRenderSchemaJsonAsync(taskitem.Inspectionitemid);
         }
 
-        private async Task FillRenderSchemaAsync(List<Taskitem> taskitems)
-        {
-            foreach (var item in taskitems)
-            {
-                item.RenderSchemaJson = await BuildRenderSchemaJsonAsync(item.Inspectionitemid);
-            }
-        }
+        public DateTime ToUtc(DateTime value) =>
+                value.Kind switch
+                {       
+                    DateTimeKind.Utc => value,
+                    DateTimeKind.Local => value.ToUniversalTime(),  
+                    DateTimeKind.Unspecified => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+                };
+
+        public DateTime? ToUtc(DateTime? value) =>
+            value.HasValue ? ToUtc(value.Value) : null;
     }
 }
