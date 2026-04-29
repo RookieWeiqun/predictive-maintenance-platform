@@ -89,5 +89,25 @@ namespace premaintainProjects.Services
 
         public DateTime? ToUtc(DateTime? value) =>
             value.HasValue ? ToUtc(value.Value) : null;
+
+
+        public DateTime ToChinaTime(DateTime value)
+        {
+            var utc = value.Kind switch
+            {
+                DateTimeKind.Utc => value,
+                DateTimeKind.Local => value.ToUniversalTime(),
+                _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+            };
+
+            return TimeZoneInfo.ConvertTimeFromUtc(
+                utc,
+                TimeZoneInfo.FindSystemTimeZoneById("China Standard Time"));
+        }
+
+        public DateTime? ToChinaTime(DateTime? value) =>
+            value.HasValue ? ToChinaTime(value.Value) : null;
     }
+
+
 }

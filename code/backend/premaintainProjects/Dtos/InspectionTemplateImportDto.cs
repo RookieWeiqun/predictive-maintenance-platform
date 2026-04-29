@@ -120,8 +120,6 @@ public class InspectionItemImportDto
         public List<TaskitemDetailDto> Taskitems { get; set; } = new();
     }
 
-
-
     public class UpdateInspectionTaskDetailDto
     {
         public InspectionTask Task { get; set; } = null!;
