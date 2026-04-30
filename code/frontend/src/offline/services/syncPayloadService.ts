@@ -3,7 +3,7 @@ import { offlineAttachmentRepository } from '../repositories/attachmentRepositor
 import { offlineTaskItemRepository } from '../repositories/taskItemRepository';
 import { offlineOutboxRepository } from '../repositories/outboxRepository';
 import { offlineTaskRepository } from '../repositories/taskRepository';
-import { nowChinaDateTime } from '../utils/dateTime';
+import { nowChinaDateTime, nowChinaTimestamptz, toChinaTimestamptz } from '../utils/dateTime';
 import { attachmentsApi, inspectionTasksApi } from '@/api';
 
 type ParsedOfflineResult = {
@@ -377,25 +377,21 @@ function requireNumber(value: string | number | null | undefined, fieldLabel: st
   return normalized;
 }
 
-function buildNextTaskVersion(
-  localVersion: number | null | undefined,
-  serverVersion: number | null | undefined,
-): number | null {
-  const baseVersion = localVersion ?? serverVersion;
-  if (baseVersion == null) {
+function getUploadTaskVersion(localVersion: number | null | undefined): number | null {
+  if (typeof localVersion !== 'number' || !Number.isFinite(localVersion)) {
     return null;
   }
-  return baseVersion + 1;
+  return localVersion;
 }
 
 function mapTaskStatusToBackend(status: string): number {
   if (status === 'uploaded' || status === 'completed' || status === 'synced') {
+    return 3;
+  }
+  if (status === 'in-progress' || status === 'downloaded') {
     return 2;
   }
-  if (status === 'in-progress') {
-    return 1;
-  }
-  return 3;
+  return 1;
 }
 
 function mapExecutionStatusToBackend(status: string): number {
@@ -489,7 +485,11 @@ function buildBackendTaskResult(raw: string | null): string | null {
   return JSON.stringify(payload);
 }
 
-async function markTaskChangesSynced(taskUuid: string, uploadedAt: string): Promise<void> {
+async function markTaskChangesSynced(
+  taskUuid: string,
+  uploadedAt: string,
+  uploadedTaskVersion?: number | null,
+): Promise<void> {
   const [taskItems, pendingOutbox, attachments] = await Promise.all([
     offlineTaskItemRepository.listByTaskUuid(taskUuid),
     offlineOutboxRepository.listAll(),
@@ -523,7 +523,7 @@ async function markTaskChangesSynced(taskUuid: string, uploadedAt: string): Prom
     }
   }
 
-  await offlineTaskRepository.markUploaded(taskUuid, uploadedAt);
+  await offlineTaskRepository.markUploaded(taskUuid, uploadedAt, uploadedTaskVersion);
 }
 
 async function markTaskChangesFailed(taskUuid: string, message: string): Promise<void> {
@@ -580,23 +580,24 @@ async function uploadSingleTask(taskUuid: string): Promise<boolean> {
   const serverItemsById = new Map(
     serverDetail.task_items.map((item) => [String(item.item_id), item] as const),
   );
-  const nextTaskVersion = buildNextTaskVersion(task.version, serverTask.version);
+  const uploadTaskVersion = getUploadTaskVersion(task.version);
   const uploadedAt = nowIso();
+  const backendUploadedAt = nowChinaTimestamptz();
 
   const detailPayload = {
     task: {
       taskid: serverTaskId,
       projectid: requireNumber(task.project_id ?? serverTask.project_id, '项目 ID'),
       templateid: requireNumber(task.scheme_id ?? serverTask.template_id, '模板 ID'),
-      status: mapTaskStatusToBackend(task.status),
+      status: mapTaskStatusToBackend('uploaded'),
       taskNo: task.task_no ?? serverTask.task_no ?? null,
       assigneduserid: toOptionalNumber(task.assigned_user_id ?? serverTask.assigned_user_id),
       productid: requireNumber(task.product_id ?? serverTask.product_id, '产品 ID'),
       inspectiontype: requireNumber(task.inspection_type ?? serverTask.inspection_type, '巡检类型'),
       ifdel: false,
-      version: nextTaskVersion,
-      downloadedAt: task.downloaded_at,
-      localUpdatedAt: uploadedAt,
+      version: uploadTaskVersion,
+      downloadedAt: toChinaTimestamptz(task.downloaded_at),
+      localUpdatedAt: backendUploadedAt,
       downloadDeviceName: task.download_device_name ?? serverTask.download_device_name ?? null,
       serialno: task.serial_no ?? serverTask.serial_no ?? null,
       assignedusername: task.assigned_user_name ?? serverTask.assigned_user_name ?? null,
@@ -614,7 +615,7 @@ async function uploadSingleTask(taskUuid: string): Promise<boolean> {
         isrecheck: item.is_recheck,
         photopath: null,
         executionStatus: mapExecutionStatusToBackend(item.execution_status),
-        updatetime: uploadedAt,
+        updatetime: backendUploadedAt,
         sourceType: mapSourceTypeToBackend(item.source_type),
         inspectionitemid: toOptionalNumber(serverItem?.source_inspection_item_id ?? null),
       };
@@ -633,7 +634,24 @@ async function uploadSingleTask(taskUuid: string): Promise<boolean> {
   }
 
   await inspectionTasksApi.putInspectionTaskDetail(serverTaskId, detailPayload);
-  await markTaskChangesSynced(taskUuid, uploadedAt);
+  await inspectionTasksApi.updateInspectionTask({
+    taskid: serverTaskId,
+    projectid: requireNumber(task.project_id ?? serverTask.project_id, '项目 ID'),
+    templateid: requireNumber(task.scheme_id ?? serverTask.template_id, '模板 ID'),
+    status: 3,
+    taskNo: task.task_no ?? serverTask.task_no ?? null,
+    assigneduserid: toOptionalNumber(task.assigned_user_id ?? serverTask.assigned_user_id) ?? null,
+    assignedusername: task.assigned_user_name ?? serverTask.assigned_user_name ?? null,
+    productid: requireNumber(task.product_id ?? serverTask.product_id, '产品 ID'),
+    inspectiontype: requireNumber(task.inspection_type ?? serverTask.inspection_type, '巡检类型'),
+    ifdel: false,
+    serialno: task.serial_no ?? serverTask.serial_no ?? null,
+    version: uploadTaskVersion,
+    downloadedAt: toChinaTimestamptz(task.downloaded_at),
+    localUpdatedAt: backendUploadedAt,
+    downloadDeviceName: task.download_device_name ?? serverTask.download_device_name ?? null,
+  });
+  await markTaskChangesSynced(taskUuid, uploadedAt, uploadTaskVersion);
   return true;
 }
 

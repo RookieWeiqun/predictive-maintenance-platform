@@ -192,18 +192,27 @@ export class OfflineTaskRepository {
     );
   }
 
-  async markUploaded(taskUuid: string, uploadedAt: string = nowIso()): Promise<void> {
+  async markUploaded(
+    taskUuid: string,
+    uploadedAt: string = nowIso(),
+    version?: number | null,
+  ): Promise<void> {
     const executor = getOfflineExecutor();
     await executor.execute(
       `
         UPDATE offline_task
         SET
           status = 'uploaded',
+          version = CASE
+            WHEN ? IS NOT NULL THEN ? + 1
+            WHEN version IS NULL THEN 1
+            ELSE version + 1
+          END,
           local_updated_at = ?,
           sync_status = 'synced'
         WHERE task_uuid = ?
       `,
-      [uploadedAt, taskUuid],
+      [version ?? null, version ?? null, uploadedAt, taskUuid],
     );
   }
 }
