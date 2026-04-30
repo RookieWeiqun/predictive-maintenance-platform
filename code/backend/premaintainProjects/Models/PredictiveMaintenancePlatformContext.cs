@@ -187,13 +187,17 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
             entity.Property(e => e.DownloadDeviceName)
                 .HasColumnType("character varying")
                 .HasColumnName("download_device_name");
-            entity.Property(e => e.DownloadedAt).HasColumnName("downloaded_at");
+            entity.Property(e => e.DownloadedAt)
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("downloaded_at");
             entity.Property(e => e.Ifdel).HasColumnName("ifdel");
             entity.Property(e => e.Inspectiontype)
                 .HasDefaultValue(1)
                 .HasComment("1、设备检测\r\n2、外围检测")
                 .HasColumnName("inspectiontype");
-            entity.Property(e => e.LocalUpdatedAt).HasColumnName("local_updated_at");
+            entity.Property(e => e.LocalUpdatedAt)
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("local_updated_at");
             entity.Property(e => e.Productid).HasColumnName("productid");
             entity.Property(e => e.Projectid).HasColumnName("projectid");
             entity.Property(e => e.Serialno)
@@ -336,7 +340,8 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
                 .HasMaxLength(200)
                 .HasColumnName("categorypath");
             entity.Property(e => e.Createtime)
-                .HasDefaultValueSql("CURRENT_DATE")
+                .HasDefaultValueSql("now()")
+                .HasColumnType("timestamp without time zone")
                 .HasColumnName("createtime");
             entity.Property(e => e.ExecutionStatus)
                 .HasDefaultValue((short)1)
@@ -362,7 +367,7 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
                 .HasColumnType("jsonb")
                 .HasColumnName("taskresult");
             entity.Property(e => e.Updatetime)
-                .HasDefaultValueSql("now()")
+                .HasColumnType("timestamp without time zone")
                 .HasColumnName("updatetime");
         });
 

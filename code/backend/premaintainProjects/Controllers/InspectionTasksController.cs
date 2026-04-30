@@ -110,8 +110,8 @@ namespace premaintainProjects.Controllers
             existingTask.Ifdel = inspectionTask.Ifdel;
             existingTask.Version = inspectionTask.Version;
             existingTask.Assignedusername = inspectionTask.Assignedusername;
-            existingTask.DownloadedAt = _serviceTools.ToUtc(inspectionTask.DownloadedAt);
-            existingTask.LocalUpdatedAt = _serviceTools.ToUtc(inspectionTask.LocalUpdatedAt);         
+            existingTask.DownloadedAt = _serviceTools.NormalizeChinaTime(inspectionTask.DownloadedAt);
+            existingTask.LocalUpdatedAt = _serviceTools.NormalizeChinaTime(inspectionTask.LocalUpdatedAt);         
             existingTask.DownloadDeviceName = inspectionTask.DownloadDeviceName;
             existingTask.Serialno = inspectionTask.Serialno;
 
@@ -169,11 +169,10 @@ namespace premaintainProjects.Controllers
                 existingTask.Ifdel = dto.Task.Ifdel;
                 existingTask.Version = dto.Task.Version;
                 existingTask.Assignedusername = dto.Task.Assignedusername;
-                existingTask.DownloadedAt = _serviceTools.ToUtc(dto.Task.DownloadedAt);
-                existingTask.LocalUpdatedAt = _serviceTools.ToUtc(dto.Task.LocalUpdatedAt);
+                existingTask.DownloadedAt = _serviceTools.NormalizeChinaTime(dto.Task.DownloadedAt);
+                existingTask.LocalUpdatedAt = _serviceTools.NormalizeChinaTime(dto.Task.LocalUpdatedAt);
                 existingTask.DownloadDeviceName = dto.Task.DownloadDeviceName;
-                existingTask.Serialno = dto.Task.Serialno;        
-
+                existingTask.Serialno = dto.Task.Serialno;
 
                 // 取现有 items
                 var existingItems = await _context.Taskitems
@@ -222,7 +221,7 @@ namespace premaintainProjects.Controllers
                         existingItem.Isnormal = input.Isnormal;
                         existingItem.Isrecheck = input.Isrecheck;
                         existingItem.ExecutionStatus = input.ExecutionStatus;
-                        existingItem.Updatetime = DateTime.UtcNow;
+                        existingItem.Updatetime = _serviceTools.NowInChina();
                         existingItem.SourceType = input.SourceType;
                         existingItem.Taskid = input.Taskid;
 
@@ -239,9 +238,9 @@ namespace premaintainProjects.Controllers
                             Taskresult = input.Taskresult,
                             Isnormal = input.Isnormal,
                             Isrecheck = input.Isrecheck,
-                            Createtime = DateTime.UtcNow,
+                            Createtime = _serviceTools.NowInChina(),
                             ExecutionStatus = input.ExecutionStatus,
-                            Updatetime = DateTime.UtcNow,
+                            Updatetime = _serviceTools.NowInChina(),
                             SourceType = input.SourceType,
                         };
                         _context.Taskitems.Add(newItem);
@@ -273,8 +272,8 @@ namespace premaintainProjects.Controllers
         {
             inspectionTask.Taskid = 0; // 强制让数据库分配主键
             inspectionTask.Version = 1; // 初始版本号
-            inspectionTask.DownloadedAt = _serviceTools.ToUtc(inspectionTask.DownloadedAt);
-            inspectionTask.LocalUpdatedAt = _serviceTools.ToUtc(inspectionTask.LocalUpdatedAt);
+            inspectionTask.DownloadedAt = _serviceTools.NormalizeChinaTime(inspectionTask.DownloadedAt);
+            inspectionTask.LocalUpdatedAt = _serviceTools.NormalizeChinaTime(inspectionTask.LocalUpdatedAt);
             _context.InspectionTasks.Add(inspectionTask);
             await _context.SaveChangesAsync();
 
@@ -317,9 +316,9 @@ namespace premaintainProjects.Controllers
                 Taskresult = item.Taskresult,
                 Isnormal = item.Isnormal,
                 Isrecheck = item.Isrecheck,
-                Createtime = _serviceTools.ToChinaTime(item.Createtime),
+                Createtime = _serviceTools.NormalizeChinaTime(item.Createtime),
                 ExecutionStatus = item.ExecutionStatus,
-                Updatetime = _serviceTools.ToChinaTime(item.Updatetime),
+                Updatetime = _serviceTools.NormalizeChinaTime(item.Updatetime),
                 SourceType = item.SourceType,
                 RenderSchemaJson = item.RenderSchemaJson                
             }).ToList();
@@ -369,9 +368,9 @@ namespace premaintainProjects.Controllers
                 Taskresult = item.Taskresult,
                 Isnormal = item.Isnormal,
                 Isrecheck = item.Isrecheck,
-                Createtime = _serviceTools.ToChinaTime(item.Createtime),
+                Createtime = _serviceTools.NormalizeChinaTime(item.Createtime),
                 ExecutionStatus = item.ExecutionStatus,
-                Updatetime = _serviceTools.ToChinaTime(item.Updatetime),
+                Updatetime = _serviceTools.NormalizeChinaTime(item.Updatetime?? DateTime.Now),
                 SourceType = item.SourceType,
                 RenderSchemaJson = item.RenderSchemaJson,
                 Attachments = attachments
@@ -427,8 +426,8 @@ namespace premaintainProjects.Controllers
             Ifdel = task.Ifdel,
             Assignedusername = task.Assignedusername,
             Version = task.Version,
-            DownloadedAt = _serviceTools.ToChinaTime(task.DownloadedAt),
-            LocalUpdatedAt = _serviceTools.ToChinaTime(task.LocalUpdatedAt),
+            DownloadedAt = _serviceTools.NormalizeChinaTime(task.DownloadedAt),
+            LocalUpdatedAt = _serviceTools.NormalizeChinaTime(task.LocalUpdatedAt),
             DownloadDeviceName = task.DownloadDeviceName,
             Serialno = task.Serialno
         };
