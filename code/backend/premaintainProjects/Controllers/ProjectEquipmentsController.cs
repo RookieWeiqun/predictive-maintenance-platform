@@ -178,11 +178,11 @@ namespace premaintainProjects.Controllers
                         Inspectiontype = template.Inspectiontype,
                         Ifdel = false,
                          Assignedusername= null,
-                          DownloadDeviceName = null,
-                           DownloadedAt= null,
-                            LocalUpdatedAt= null,
-                             Serialno = null,
-                              Version = 1
+                         DownloadDeviceName = null,
+                         DownloadedAt= null,
+                         LocalUpdatedAt= null,
+                         Serialno = null,
+                         Version = 1
                     });
                 }
 
@@ -248,8 +248,7 @@ namespace premaintainProjects.Controllers
                              .Where(p => p.Equipid == projectEquipment.Equipmentid)
                              .Select(p => p.Productid)
                              .ToListAsync();
-                    }
-                               
+                    }                               
 
                 var template = await _context.InspectionTemplates.FindAsync(projectEquipment.Templateid);
 
@@ -315,9 +314,9 @@ namespace premaintainProjects.Controllers
                             Taskresult = null,
                             Isnormal = true,
                             Isrecheck = false,
-                            Createtime = DateTime.UtcNow,
+                            Createtime = _serviceTools.NowInChina(),
                             ExecutionStatus = 1,
-                            Updatetime = DateTime.UtcNow,
+                            Updatetime = _serviceTools.NowInChina(),
                             SourceType = 1
                         });
                     }

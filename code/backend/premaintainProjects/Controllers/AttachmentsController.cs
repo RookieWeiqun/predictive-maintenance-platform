@@ -75,6 +75,24 @@ namespace premaintainProjects.Controllers
             });
         }
 
+        // GET: api/Attachments/ByTaskid/{taskid}
+        [HttpGet("ByTaskid/{taskid:guid}")]
+        public async Task<IActionResult> GetAttachmentsByTaskid(int taskid)
+        {
+            var attachments = await _context.Attachments
+                .Where(a => a.Taskid == taskid)
+                .ToListAsync();
+
+            _logger.LogInformation("按任务ID获取附件成功，Taskid：{taskid}，数量：{Count}", taskid, attachments.Count);
+
+            return new JsonResult(new
+            {
+                code = ResponseCode.成功,
+                data = attachments,
+                msg = ""
+            });
+        }
+
         // PUT: api/Attachments/5
         [HttpPut("{id:guid}")]
         public async Task<IActionResult> PutAttachment(Guid id, Attachment attachment)
@@ -195,7 +213,8 @@ namespace premaintainProjects.Controllers
                 {
                     Attaid = attaid,
                     Taskitemid = dto.Itemid,
-                    Filepath = relativePath
+                    Filepath = relativePath,
+                    Taskid = dto.Taskid
                 };
 
                 _context.Attachments.Add(attachment);

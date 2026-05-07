@@ -19,7 +19,7 @@ public partial class Taskitem
 
     public bool Isrecheck { get; set; }
 
-    public DateTime? Createtime { get; set; }
+    public DateTime Createtime { get; set; }
 
     /// <summary>
     /// 1.pending 待执行。任务包刚下发或尚未填写结果时使用。
@@ -33,7 +33,7 @@ public partial class Taskitem
     /// </summary>
     public short ExecutionStatus { get; set; }
 
-    public DateTime Updatetime { get; set; }
+    public DateTime? Updatetime { get; set; }
 
     /// <summary>
     /// 1. system_generated

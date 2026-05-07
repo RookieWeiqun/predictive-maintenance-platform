@@ -79,35 +79,30 @@ namespace premaintainProjects.Services
             taskitem.RenderSchemaJson = await BuildRenderSchemaJsonAsync(taskitem.Inspectionitemid);
         }
 
-        public DateTime ToUtc(DateTime value) =>
-                value.Kind switch
-                {       
-                    DateTimeKind.Utc => value,
-                    DateTimeKind.Local => value.ToUniversalTime(),  
-                    DateTimeKind.Unspecified => DateTime.SpecifyKind(value, DateTimeKind.Utc)
-                };
+        private static readonly TimeZoneInfo ChinaTimeZone =
+    TimeZoneInfo.FindSystemTimeZoneById(
+        OperatingSystem.IsWindows() ? "China Standard Time" : "Asia/Shanghai");
 
-        public DateTime? ToUtc(DateTime? value) =>
-            value.HasValue ? ToUtc(value.Value) : null;
-
-
-        public DateTime ToChinaTime(DateTime value)
-        {
-            var utc = value.Kind switch
+        public DateTime NormalizeChinaTime(DateTime value) =>
+            value.Kind switch
             {
-                DateTimeKind.Utc => value,
-                DateTimeKind.Local => value.ToUniversalTime(),
-                _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+                DateTimeKind.Unspecified => value,
+                DateTimeKind.Utc => DateTime.SpecifyKind(
+                    TimeZoneInfo.ConvertTimeFromUtc(value, ChinaTimeZone),
+                    DateTimeKind.Unspecified),
+                DateTimeKind.Local => DateTime.SpecifyKind(
+                    TimeZoneInfo.ConvertTime(value, ChinaTimeZone),
+                    DateTimeKind.Unspecified)
             };
 
-            return TimeZoneInfo.ConvertTimeFromUtc(
-                utc,
-                TimeZoneInfo.FindSystemTimeZoneById("China Standard Time"));
-        }
+        public DateTime? NormalizeChinaTime(DateTime? value) =>
+            value.HasValue ? NormalizeChinaTime(value.Value) : null;
 
-        public DateTime? ToChinaTime(DateTime? value) =>
-            value.HasValue ? ToChinaTime(value.Value) : null;
+        public DateTime NowInChina() =>
+            DateTime.SpecifyKind(
+                TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, ChinaTimeZone),
+                DateTimeKind.Unspecified);
+
+
     }
-
-
 }

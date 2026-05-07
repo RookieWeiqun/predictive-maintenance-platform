@@ -172,7 +172,7 @@ namespace premaintainProjects.Controllers
                     Description = dto.Description,
                     Inspectiontype = dto.InspectionType,
                     Mlfb = dto.Mlfb,
-                    Createdate = DateOnly.FromDateTime(DateTime.UtcNow)
+                    Createdate = DateOnly.FromDateTime(DateTime.Now)
                 };
 
                 _context.InspectionTemplates.Add(template);

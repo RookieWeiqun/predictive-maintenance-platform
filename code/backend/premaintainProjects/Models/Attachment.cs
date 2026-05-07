@@ -10,4 +10,6 @@ public partial class Attachment
     public Guid Taskitemid { get; set; }
 
     public string Filepath { get; set; } = null!;
+
+    public int? Taskid { get; set; }
 }
