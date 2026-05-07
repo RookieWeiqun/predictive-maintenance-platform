@@ -17,6 +17,8 @@ import { initializeAndroidRuntime } from "./android";
 import "./index.css";
 import "./styles/theme-mapping.css";
 
+themeSwitcher.setTheme("theme-classic-light");
+
 function optionalTheme() {
   if (import.meta.env.VITE_THEME) {
     const css = `${import.meta.env.BASE_URL}theme/dist/css/brand-theme.css`;

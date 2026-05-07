@@ -124,13 +124,6 @@ function joinCategoryPath(path: string[], name: string): string | null {
   return values.length > 0 ? values.join(' / ') : null;
 }
 
-function mapInspectionStatusToOfflineStatus(code: number): string {
-  if (code === 1) return 'in-progress';
-  if (code === 2) return 'completed';
-  if (code === 3) return 'pending';
-  return 'pending';
-}
-
 function mapTaskItemExecutionStatusToOfflineStatus(
   status: string | null | undefined,
 ): 'pending' | 'completed' | 'skipped' | 'not_applicable' | 'recheck_required' {
@@ -506,13 +499,6 @@ function apiTemplateRootsToCollectSchemeItems(roots: SchemeItem[]): SchemeItem[]
         leaves.push(node);
         continue;
       }
-
-function buildDownloadedTaskVersion(version: number | null | undefined): number | null {
-  if (typeof version !== 'number' || !Number.isFinite(version)) {
-    return null;
-  }
-  return version + 1;
-}
       if (node.children?.length) {
         walk(node.children);
       }

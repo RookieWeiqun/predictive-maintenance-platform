@@ -57,6 +57,11 @@ export async function searchProducts(params: {
   return unwrap(res).map(mapProductRaw);
 }
 
+export async function getProduct(id: number): Promise<ProductDto> {
+  const res = await requestJson<ApiEnvelope<unknown>>(`/api/Products/${id}`);
+  return mapProductRaw(unwrap(res));
+}
+
 /** POST /api/Products，返回新 productid */
 export async function createProduct(payload: {
   productid?: number;

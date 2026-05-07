@@ -1,5 +1,7 @@
 import type { InspectionTaskDetailDto, InspectionTaskDto } from '@/api/modules/inspectionTasks';
+import type { EquipmentDto } from '@/api/modules/equipments';
 import type { ProjectDto } from '@/api/modules/projects';
+import type { ProductDto } from '@/api/modules/products';
 import type { CompanyDto } from '@/api/modules/companies';
 import type { ReportData } from '@/mockdata/report';
 
@@ -7,6 +9,8 @@ type ProjectTaskDetailsReportSource = {
   project: ProjectDto;
   company: CompanyDto | null;
   tasks: InspectionTaskDto[];
+  equipmentById?: Map<number, EquipmentDto>;
+  productById?: Map<number, ProductDto>;
   taskDetailsByTask: Array<{
     task: InspectionTaskDto;
     detail: InspectionTaskDetailDto;
@@ -61,10 +65,77 @@ function getTaskResultStateLabel(item: InspectionTaskDetailDto['task_items'][num
   return '';
 }
 
+function getAttachmentImageRef(attachment: Record<string, unknown>, fallbackRef: string): string | null {
+  const candidates = [
+    attachment.filepath,
+    attachment.preview_url,
+    attachment.previewUrl,
+    attachment.url,
+    attachment.file_url,
+    attachment.fileUrl,
+    attachment.path,
+    attachment.local_path,
+    attachment.localPath,
+    attachment.photopath,
+    attachment.photoPath,
+  ];
+
+  for (const candidate of candidates) {
+    const value = String(candidate ?? '').trim();
+    if (!value) continue;
+    if (/^(data:|blob:|https?:)/i.test(value)) return value;
+    if (value.startsWith('/')) return value;
+  }
+
+  return fallbackRef;
+}
+
 function getAppendixDeviceSerialText(entry: ProjectTaskDetailsReportSource['taskDetailsByTask'][number]): string {
   const serial = entry.detail.task.serial_no?.trim() || String(entry.task.taskid ?? '-');
   const assignedUserName = entry.detail.task.assigned_user_name?.trim() || '';
   return [serial, assignedUserName].filter(Boolean).join(' ');
+}
+
+function getEntryProductId(entry: ProjectTaskDetailsReportSource['taskDetailsByTask'][number]): number | null {
+  const rawId = entry.detail.task.product_id ?? entry.task.productid;
+  const productId = Number(rawId);
+  return Number.isFinite(productId) && productId > 0 ? productId : null;
+}
+
+function getEntryProduct(
+  entry: ProjectTaskDetailsReportSource['taskDetailsByTask'][number],
+  productById: Map<number, ProductDto>,
+): ProductDto | null {
+  const productId = getEntryProductId(entry);
+  return productId == null ? null : productById.get(productId) ?? null;
+}
+
+function getEntryEquipment(
+  product: ProductDto | null,
+  equipmentById: Map<number, EquipmentDto>,
+): EquipmentDto | null {
+  const equipId = Number(product?.equipid ?? 0);
+  return Number.isFinite(equipId) && equipId > 0 ? equipmentById.get(equipId) ?? null : null;
+}
+
+function getAppendixDeviceTitle(
+  entry: ProjectTaskDetailsReportSource['taskDetailsByTask'][number],
+  productById: Map<number, ProductDto>,
+  equipmentById: Map<number, EquipmentDto>,
+): string {
+  const product = getEntryProduct(entry, productById);
+  const equipment = getEntryEquipment(product, equipmentById);
+  const equipmentName = equipment?.equipmentname?.trim();
+  const mlfb = product?.mlfb?.trim();
+  const serialNumber = product?.serialno?.trim() || entry.detail.task.serial_no?.trim() || entry.task.serialno?.trim();
+
+  return [
+    equipmentName || entry.detail.task.template_name?.trim() || '任务设备',
+    mlfb,
+    serialNumber || String(entry.task.taskid ?? '-'),
+  ]
+    .filter(Boolean)
+    .join(' › ');
 }
 
 function isAbnormalTaskItem(item: InspectionTaskDetailDto['task_items'][number]): boolean {
@@ -114,7 +185,14 @@ function getRadar(items: InspectionTaskDetailDto['task_items'], total: number, c
 }
 
 export function buildReportFromProjectTaskDetailsSource(source: ProjectTaskDetailsReportSource): ReportData {
-  const { project, company, tasks, taskDetailsByTask } = source;
+  const {
+    project,
+    company,
+    tasks,
+    taskDetailsByTask,
+    productById = new Map<number, ProductDto>(),
+    equipmentById = new Map<number, EquipmentDto>(),
+  } = source;
   const primaryTask = tasks[0] ?? null;
   const reportNo = `PRJ-${project.projectid ?? 'UNKNOWN'}`;
   const generatedAt = formatDateOnly(primaryTask?.completetime ?? project.createdate);
@@ -198,41 +276,78 @@ export function buildReportFromProjectTaskDetailsSource(source: ProjectTaskDetai
       ),
     },
     appendixDetailedInspection: {
-      workshops: taskDetailsByTask.length === 0
-        ? []
-        : [
-            {
-              name: project.projectname?.trim() || '项目',
-              devices: taskDetailsByTask.map((entry) => {
-                const groups = Array.from(
-                  new Set(
-                    entry.detail.task_items
-                      .map((item) => String(item.category_path ?? '').trim() || '未分类检查项')
-                      .filter(Boolean),
-                  ),
-                );
+      workshops: (() => {
+        if (taskDetailsByTask.length === 0) return [];
 
-                return {
-                  model: entry.detail.task.template_name?.trim() || entry.task.taskNo?.trim() || `任务#${entry.task.taskid}`,
-                  serialNumber: getAppendixDeviceSerialText(entry),
-                  items: groups.map((group) => ({
-                    name: group,
-                    children: entry.detail.task_items
-                      .filter((item) => (String(item.category_path ?? '').trim() || '未分类检查项') === group)
-                      .map((item) => ({
-                        name: item.item_name,
-                        result: getTaskResultStateLabel(item) || '-',
-                        processData: getTaskResultValue(item),
-                        remark: getTaskResultRemarks(item) || '-',
-                        hazardNote: '',
-                        suggestion: '',
-                        images: (item.attachments ?? []).map((_, idx) => `ATT-${entry.task.taskid ?? 'X'}-${item.item_id}-${idx + 1}`),
-                      })),
-                  })),
-                };
-              }),
-            },
-          ],
+        const workshopMap = new Map<
+          string,
+          {
+            name: string;
+            devices: Array<{
+              model: string;
+              serialNumber: string;
+              items: Array<{
+                name: string;
+                children: Array<{
+                  name: string;
+                  result: string;
+                  processData: string;
+                  remark: string;
+                  hazardNote: string;
+                  suggestion: string;
+                  images: string[];
+                }>;
+              }>;
+            }>;
+          }
+        >();
+
+        for (const entry of taskDetailsByTask) {
+          const product = getEntryProduct(entry, productById);
+          const equipment = getEntryEquipment(product, equipmentById);
+          const workshopName =
+            equipment?.workshop?.trim() || project.projectname?.trim() || '项目';
+          const groups = Array.from(
+            new Set(
+              entry.detail.task_items
+                .map((item) => String(item.category_path ?? '').trim() || '未分类检查项')
+                .filter(Boolean),
+            ),
+          );
+          const workshop = workshopMap.get(workshopName) ?? {
+            name: workshopName,
+            devices: [],
+          };
+
+          workshop.devices.push({
+            model: getAppendixDeviceTitle(entry, productById, equipmentById),
+            serialNumber: getAppendixDeviceSerialText(entry),
+            items: groups.map((group) => ({
+              name: group,
+              children: entry.detail.task_items
+                .filter((item) => (String(item.category_path ?? '').trim() || '未分类检查项') === group)
+                .map((item) => ({
+                  name: item.item_name,
+                  result: getTaskResultStateLabel(item) || '-',
+                  processData: getTaskResultValue(item),
+                  remark: getTaskResultRemarks(item) || '-',
+                  hazardNote: '',
+                  suggestion: '',
+                  images: (item.attachments ?? []).map((attachment, idx) =>
+                    getAttachmentImageRef(
+                      attachment,
+                      `ATT-${entry.task.taskid ?? 'X'}-${item.item_id}-${idx + 1}`,
+                    ),
+                  ).filter((image): image is string => Boolean(image)),
+                })),
+            })),
+          });
+
+          workshopMap.set(workshopName, workshop);
+        }
+
+        return Array.from(workshopMap.values());
+      })(),
     },
     summaryDefaults: {
       maintenanceSummary:

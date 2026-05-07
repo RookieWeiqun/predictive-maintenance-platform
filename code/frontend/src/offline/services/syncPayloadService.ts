@@ -384,16 +384,6 @@ function getUploadTaskVersion(localVersion: number | null | undefined): number |
   return localVersion;
 }
 
-function mapTaskStatusToBackend(status: string): number {
-  if (status === 'uploaded' || status === 'completed' || status === 'synced') {
-    return 3;
-  }
-  if (status === 'in-progress' || status === 'downloaded') {
-    return 2;
-  }
-  return 1;
-}
-
 function mapExecutionStatusToBackend(status: string): number {
   if (status === 'completed') return 2;
   if (status === 'skipped') return 3;
@@ -589,7 +579,7 @@ async function uploadSingleTask(taskUuid: string): Promise<boolean> {
       taskid: serverTaskId,
       projectid: requireNumber(task.project_id ?? serverTask.project_id, '项目 ID'),
       templateid: requireNumber(task.scheme_id ?? serverTask.template_id, '模板 ID'),
-      status: mapTaskStatusToBackend('uploaded'),
+      status: 3,
       taskNo: task.task_no ?? serverTask.task_no ?? null,
       assigneduserid: toOptionalNumber(task.assigned_user_id ?? serverTask.assigned_user_id),
       productid: requireNumber(task.product_id ?? serverTask.product_id, '产品 ID'),
@@ -630,7 +620,7 @@ async function uploadSingleTask(taskUuid: string): Promise<boolean> {
 
     const serverItemId = getServerItemId(item.task_item_uuid, item.server_item_id);
     const files = await Promise.all(pendingAttachments.map((attachment) => readAttachmentAsFile(attachment)));
-    await attachmentsApi.uploadAttachmentFiles(serverItemId, files);
+    await attachmentsApi.uploadAttachmentFiles(serverItemId, serverTaskId, files);
   }
 
   await inspectionTasksApi.putInspectionTaskDetail(serverTaskId, detailPayload);
