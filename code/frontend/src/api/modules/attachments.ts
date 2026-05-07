@@ -36,10 +36,16 @@ function mapAttachmentRaw(raw: unknown): AttachmentDto {
 
 function getApiBaseUrl(): string {
   const raw = import.meta.env.VITE_API_BASE_URL;
-  if (raw === undefined || String(raw).trim() === '') {
-    return '';
+  if (raw !== undefined && String(raw).trim() !== '') {
+    return String(raw).replace(/\/+$/, '');
   }
-  return String(raw).replace(/\/+$/, '');
+
+  const proxyTarget = import.meta.env.VITE_API_PROXY_TARGET;
+  if (proxyTarget !== undefined && String(proxyTarget).trim() !== '') {
+    return String(proxyTarget).replace(/\/+$/, '');
+  }
+
+  return '';
 }
 
 export function resolveAttachmentFileUrl(filepath: string | null | undefined): string | null {
