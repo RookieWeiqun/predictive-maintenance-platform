@@ -76,7 +76,7 @@ namespace premaintainProjects.Controllers
         }
 
         // GET: api/Attachments/ByTaskid/{taskid}
-        [HttpGet("ByTaskid/{taskid:guid}")]
+        [HttpGet("ByTaskid/{taskid:int}")]
         public async Task<IActionResult> GetAttachmentsByTaskid(int taskid)
         {
             var attachments = await _context.Attachments
