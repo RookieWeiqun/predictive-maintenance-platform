@@ -349,47 +349,111 @@
                   :key="`device-${workshopIndex}-${deviceIndex}`"
                   class="appendix-device"
                 >
-                  <div class="appendix-device__title">
-                    {{ device.model || '任务设备' }}
-                    <span class="appendix-device__serial">{{ device.serialNumber || '-' }}</span>
-                  </div>
+                  <div class="appendix-device__title">{{ device.model || '任务设备' }}</div>
                   <div
                     v-for="(group, groupIndex) in device.items ?? []"
                     :key="`group-${workshopIndex}-${deviceIndex}-${groupIndex}`"
                     class="appendix-group"
                   >
-                    <h4 class="appendix-group__title">{{ group.name }}</h4>
-                    <table class="appendix-table">
-                      <thead>
-                        <tr>
-                          <th>检查项</th>
-                          <th>检测结果</th>
-                          <th>检测值</th>
-                          <th>备注</th>
-                          <th>问题隐患说明</th>
-                          <th>维护与优化建议</th>
-                          <th>参考图片</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr
-                          v-for="(entry, entryIndex) in group.children ?? []"
-                          :key="`entry-${workshopIndex}-${deviceIndex}-${groupIndex}-${entryIndex}`"
-                        >
-                          <td>{{ entry.name || '-' }}</td>
-                          <td>{{ entry.result || '-' }}</td>
-                          <td>{{ entry.processData || '-' }}</td>
-                          <td>{{ entry.remark || '-' }}</td>
-                          <td>{{ entry.hazardNote || '-' }}</td>
-                          <td>{{ entry.suggestion || '-' }}</td>
-                          <td>{{ (entry.images ?? []).length > 0 ? (entry.images ?? []).join('、') : '-' }}</td>
-                        </tr>
-                      </tbody>
-                    </table>
+                    <div class="appendix-group__panel">
+                      <div class="appendix-group__header">
+                        <span class="appendix-group__bar" aria-hidden="true" />
+                        <h4 class="appendix-group__title">
+                          <template
+                            v-for="(crumb, crumbIndex) in getAppendixBreadcrumbs(group.name)"
+                            :key="`crumb-${workshopIndex}-${deviceIndex}-${groupIndex}-${crumbIndex}`"
+                          >
+                            <span class="appendix-group__crumb">{{ crumb }}</span>
+                            <span
+                              v-if="crumbIndex < getAppendixBreadcrumbs(group.name).length - 1"
+                              class="appendix-group__separator"
+                              aria-hidden="true"
+                              >›</span
+                            >
+                          </template>
+                        </h4>
+                      </div>
+                      <table class="appendix-table">
+                        <thead>
+                          <tr>
+                            <th>检查项</th>
+                            <th>检测结果</th>
+                            <th>检测值</th>
+                            <th>备注</th>
+                            <th>问题隐患说明</th>
+                            <th>维护与优化建议</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr
+                            v-for="(entry, entryIndex) in group.children ?? []"
+                            :key="`entry-${workshopIndex}-${deviceIndex}-${groupIndex}-${entryIndex}`"
+                          >
+                            <td>{{ entry.name || '-' }}</td>
+                            <td>{{ entry.result || '-' }}</td>
+                            <td>{{ entry.processData || '-' }}</td>
+                            <td>{{ entry.remark || '-' }}</td>
+                            <td>{{ entry.hazardNote || '-' }}</td>
+                            <td>{{ entry.suggestion || '-' }}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                      <div
+                        v-if="getAppendixVisibleImages(group).length > 0"
+                        class="appendix-gallery"
+                      >
+                        <div class="appendix-gallery__head">参考图片</div>
+                        <div class="appendix-gallery__grid">
+                          <figure
+                            v-for="(image, imageIndex) in getAppendixVisibleImages(group)"
+                            :key="`image-${workshopIndex}-${deviceIndex}-${groupIndex}-${imageIndex}`"
+                            class="appendix-gallery__item"
+                          >
+                            <button
+                              type="button"
+                              class="appendix-gallery__button"
+                              @click="openAppendixImagePreview(image, `${group.name || '检查分组'} 图片 ${imageIndex + 1}`)"
+                            >
+                              <img
+                                :src="image"
+                                :alt="`${group.name || '检查分组'} 图片 ${imageIndex + 1}`"
+                                class="appendix-gallery__image"
+                                loading="lazy"
+                              />
+                            </button>
+                          </figure>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </section>
             </div>
+          </div>
+
+          <div
+            v-if="appendixImagePreview"
+            class="appendix-lightbox"
+            role="dialog"
+            aria-modal="true"
+            :aria-label="appendixImagePreview.alt"
+            @click="closeAppendixImagePreview"
+          >
+            <button
+              type="button"
+              class="appendix-lightbox__close"
+              aria-label="关闭图片预览"
+              @click.stop="closeAppendixImagePreview"
+            >
+              <IxIcon :name="iconClose" size="20" />
+            </button>
+            <figure class="appendix-lightbox__figure" @click.stop>
+              <img
+                :src="appendixImagePreview.src"
+                :alt="appendixImagePreview.alt"
+                class="appendix-lightbox__image"
+              />
+            </figure>
           </div>
         </div>
       </div>
@@ -398,7 +462,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, useTemplateRef, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { IxContentHeader, IxButton, IxIcon, showToast } from '@siemens/ix-vue';
 /**
@@ -410,13 +474,14 @@ import {
   iconChevronDownSmall,
   iconChevronLeft,
   iconChevronRight,
+  iconClose,
   iconAuditReport,
   iconGenericDeviceMaintenance,
 } from '@siemens/ix-icons/icons';
 
 import logoUrl from '../../../../image/siemens logo.svg';
 import { buildWordReportWebhookPayload, requestWordReportDownload } from '@/config/n8n';
-import { companiesApi, inspectionTasksApi, projectsApi } from '@/api';
+import { attachmentsApi, companiesApi, equipmentsApi, inspectionTasksApi, productsApi, projectsApi } from '@/api';
 import { getReportByProjectId, type ReportData } from '@/mockdata/report';
 import type { ProjectDto } from '@/api/modules/projects';
 import { buildReportFromProjectTaskDetailsSource } from './reportApiAdapter';
@@ -447,6 +512,7 @@ const projectId = computed(() => String(route.params.id ?? ''));
 const project = ref<ReportProjectView | null>(null);
 const report = ref<ReportData | null>(null);
 const reportLoading = ref(false);
+const appendixImagePreview = ref<{ src: string; alt: string } | null>(null);
 
 const wordExporting = ref(false);
 
@@ -534,6 +600,44 @@ const tocNodes = computed(() => buildTocNodes(report.value, project.value?.name 
 const displayProblemCards = computed(() => mapRawProblemCards(report.value));
 const appendixWorkshops = computed(() => report.value?.appendixDetailedInspection?.workshops ?? []);
 
+function getAppendixBreadcrumbs(value: string | null | undefined): string[] {
+  return String(value ?? '')
+    .split(/\s*[\/›>]+\s*/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function isAppendixRenderableImage(value: string | null | undefined): boolean {
+  const text = String(value ?? '').trim();
+  if (!text) return false;
+  return /^(data:|blob:|https?:)/i.test(text) || text.startsWith('/');
+}
+
+function getAppendixVisibleImages(group: { children?: Array<{ images?: string[] | null }> } | null | undefined): string[] {
+  const imageSet = new Set<string>();
+  for (const entry of group?.children ?? []) {
+    for (const image of entry.images ?? []) {
+      if (!isAppendixRenderableImage(image)) continue;
+      imageSet.add(image);
+    }
+  }
+  return Array.from(imageSet);
+}
+
+function openAppendixImagePreview(src: string, alt: string): void {
+  appendixImagePreview.value = { src, alt };
+}
+
+function closeAppendixImagePreview(): void {
+  appendixImagePreview.value = null;
+}
+
+function handleAppendixPreviewKeydown(event: KeyboardEvent): void {
+  if (event.key === 'Escape') {
+    closeAppendixImagePreview();
+  }
+}
+
 async function loadReportData(): Promise<void> {
   const pid = Number(projectId.value);
   if (!Number.isFinite(pid) || pid <= 0) {
@@ -574,12 +678,100 @@ async function loadReportData(): Promise<void> {
         detail: await inspectionTasksApi.getInspectionTaskDetail(Number(task.taskid)),
       })),
     );
+    const attachmentsByTaskitem = new Map(
+      (
+        await Promise.all(
+          taskDetailsByTask.map(async ({ task }) => {
+            const taskId = Number(task.taskid ?? 0);
+            if (!Number.isFinite(taskId) || taskId <= 0) {
+              return [] as Array<readonly [string, Array<{ attaid?: string; taskid?: number | null; taskitemid?: string; filepath?: string | null; url: string | null }>]>
+;
+            }
+
+            try {
+              const attachments = await attachmentsApi.listAttachmentsByTaskid(taskId);
+              const grouped = new Map<string, Array<{ attaid?: string; taskid?: number | null; taskitemid?: string; filepath?: string | null; url: string | null }>>();
+
+              for (const attachment of attachments) {
+                const taskItemId = String(attachment.taskitemid ?? '').trim();
+                if (!taskItemId) continue;
+                const list = grouped.get(taskItemId) ?? [];
+                list.push({
+                  ...attachment,
+                  url: attachmentsApi.resolveAttachmentFileUrl(attachment.filepath),
+                });
+                grouped.set(taskItemId, list);
+              }
+
+              return Array.from(grouped.entries()).map(([taskItemId, list]) => [taskItemId, list] as const);
+            } catch {
+              return [] as Array<readonly [string, Array<{ attaid?: string; taskid?: number | null; taskitemid?: string; filepath?: string | null; url: string | null }>]>
+;
+            }
+          }),
+        )
+      ).flat(),
+    );
+    const hydratedTaskDetailsByTask = taskDetailsByTask.map((entry) => ({
+      ...entry,
+      detail: {
+        ...entry.detail,
+        task_items: entry.detail.task_items.map((item) => ({
+          ...item,
+          attachments: attachmentsByTaskitem.get(String(item.item_id ?? '').trim()) ?? item.attachments ?? [],
+        })),
+      },
+    }));
+    const productIds = Array.from(
+      new Set(
+        hydratedTaskDetailsByTask
+          .map(({ task, detail }) => Number(detail.task.product_id ?? task.productid))
+          .filter((id) => Number.isFinite(id) && id > 0),
+      ),
+    );
+    const products = await Promise.all(
+      productIds.map(async (id) => {
+        try {
+          return await productsApi.getProduct(id);
+        } catch {
+          return null;
+        }
+      }),
+    );
+    const productById = new Map(
+      products
+        .filter((item): item is NonNullable<typeof item> => item != null && Number(item.productid) > 0)
+        .map((item) => [Number(item.productid), item]),
+    );
+    const equipmentIds = Array.from(
+      new Set(
+        products
+          .map((item) => Number(item?.equipid ?? 0))
+          .filter((id) => Number.isFinite(id) && id > 0),
+      ),
+    );
+    const equipments = await Promise.all(
+      equipmentIds.map(async (id) => {
+        try {
+          return await equipmentsApi.getEquipment(id);
+        } catch {
+          return null;
+        }
+      }),
+    );
+    const equipmentById = new Map(
+      equipments
+        .filter((item): item is NonNullable<typeof item> => item != null && Number(item.equipid) > 0)
+        .map((item) => [Number(item.equipid), item]),
+    );
 
     report.value = buildReportFromProjectTaskDetailsSource({
       project: projectDto as ProjectDto,
       company,
       tasks: validTasks,
-      taskDetailsByTask,
+      productById,
+      equipmentById,
+      taskDetailsByTask: hydratedTaskDetailsByTask,
     });
   } catch (error) {
     report.value = null;
@@ -590,7 +782,12 @@ async function loadReportData(): Promise<void> {
 }
 
 onMounted(() => {
+  window.addEventListener('keydown', handleAppendixPreviewKeydown);
   void loadReportData();
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleAppendixPreviewKeydown);
 });
 
 watch(projectId, () => {
@@ -640,35 +837,84 @@ function onViewDetail(card: ProblemCardView) {
 .appendix-workshops {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 1.5rem;
   margin-top: 1rem;
 }
 
 .appendix-workshop,
-.appendix-device,
-.appendix-group {
+.appendix-device {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+}
+
+.appendix-workshop {
+  gap: 1rem;
+}
+
+.appendix-device {
+  gap: 1rem;
+  padding: 1rem 1.125rem 1.125rem;
+  border: 1px solid var(--theme-color-soft-border);
+  border-radius: 1rem;
+  /* background: linear-gradient(180deg, rgba(0, 153, 153, 0.04), rgba(255, 255, 255, 0.96)); */
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
 }
 
 .appendix-device__title {
-  font-size: 1rem;
-  font-weight: 600;
+  font-size: 1.02rem;
+  font-weight: 700;
   color: var(--theme-color-text);
+  letter-spacing: 0.01em;
 }
 
-.appendix-device__serial {
-  margin-left: 0.5rem;
-  font-size: 0.875rem;
-  font-weight: 400;
-  color: var(--theme-color-text-soft);
+.appendix-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.appendix-group__panel {
+  overflow: hidden;
+  border: 1px solid var(--theme-color-soft-border);
+  border-radius: 0.9rem;
+  background: var(--theme-color-base);
+}
+
+.appendix-group__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem;
+  background: linear-gradient(90deg, rgba(0, 153, 153, 0.12), rgba(0, 153, 153, 0.02));
+  border-bottom: 1px solid var(--theme-color-soft-border);
+}
+
+.appendix-group__bar {
+  width: 0.28rem;
+  min-width: 0.28rem;
+  align-self: stretch;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #009999, #0f766e);
 }
 
 .appendix-group__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.45rem;
+  margin: 0;
   font-size: 0.95rem;
-  font-weight: 600;
+  font-weight: 700;
+  line-height: 1.5;
   color: var(--theme-color-text);
+}
+
+.appendix-group__crumb:last-child {
+  color: #0f766e;
+}
+
+.appendix-group__separator {
+  color: var(--theme-color-text-soft);
+  font-weight: 500;
 }
 
 .appendix-table {
@@ -684,6 +930,120 @@ function onViewDetail(card: ProblemCardView) {
   vertical-align: top;
   border: 1px solid var(--theme-color-soft-border);
   font-size: 0.875rem;
+}
+
+.appendix-table th:first-child,
+.appendix-table td:first-child {
+  border-left: none;
+}
+
+.appendix-table th:last-child,
+.appendix-table td:last-child {
+  border-right: none;
+}
+
+.appendix-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.appendix-gallery {
+  padding: 0.9rem 1rem 1rem;
+  border-top: 1px solid var(--theme-color-soft-border);
+  background: linear-gradient(180deg, rgba(0, 153, 153, 0.03), rgba(255, 255, 255, 0.9));
+}
+
+.appendix-gallery__head {
+  margin-bottom: 0.75rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #0f766e;
+}
+
+.appendix-gallery__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.75rem;
+}
+
+.appendix-gallery__item {
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--theme-color-soft-border);
+  border-radius: 0.75rem;
+  background: #f8fafc;
+}
+
+.appendix-gallery__button {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: zoom-in;
+}
+
+.appendix-gallery__image {
+  display: block;
+  width: 100%;
+  height: 168px;
+  object-fit: cover;
+  background: #e2e8f0;
+  transition: transform 160ms ease, filter 160ms ease;
+}
+
+.appendix-gallery__button:hover .appendix-gallery__image,
+.appendix-gallery__button:focus-visible .appendix-gallery__image {
+  transform: scale(1.03);
+  filter: saturate(1.04);
+}
+
+.appendix-gallery__button:focus-visible {
+  outline: 2px solid var(--theme-color-primary);
+  outline-offset: 2px;
+}
+
+.appendix-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background: rgba(15, 23, 42, 0.82);
+  backdrop-filter: blur(6px);
+}
+
+.appendix-lightbox__close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  cursor: pointer;
+}
+
+.appendix-lightbox__figure {
+  max-width: min(1100px, 100%);
+  max-height: 100%;
+  margin: 0;
+}
+
+.appendix-lightbox__image {
+  display: block;
+  max-width: 100%;
+  max-height: calc(100vh - 4rem);
+  border-radius: 1rem;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.36);
+  background: #fff;
 }
 
 .appendix-table th {
