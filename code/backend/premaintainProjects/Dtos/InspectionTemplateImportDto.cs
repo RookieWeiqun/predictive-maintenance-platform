@@ -129,6 +129,7 @@ public class InspectionItemImportDto
     public class UploadAttachmentDto
     {
         public Guid Itemid { get; set; }
+        public int? Taskid { get; set; }
         public List<IFormFile> Files { get; set; } = new();
     }
 }

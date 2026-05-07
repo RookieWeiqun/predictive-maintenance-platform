@@ -61,6 +61,7 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
             entity.Property(e => e.Filepath)
                 .HasColumnType("character varying")
                 .HasColumnName("filepath");
+            entity.Property(e => e.Taskid).HasColumnName("taskid");
             entity.Property(e => e.Taskitemid).HasColumnName("taskitemid");
         });
 
