@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.predictivemaintenance.android',
-  appName: 'Predictive Maintenance Android',
+  appName: '预防性维护',
   webDir: 'dist',
   bundledWebRuntime: false,
   android: {
