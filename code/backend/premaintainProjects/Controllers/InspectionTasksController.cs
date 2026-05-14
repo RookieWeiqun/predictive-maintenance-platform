@@ -113,7 +113,6 @@ namespace premaintainProjects.Controllers
             existingTask.DownloadedAt = _serviceTools.NormalizeChinaTime(inspectionTask.DownloadedAt);
             existingTask.LocalUpdatedAt = _serviceTools.NormalizeChinaTime(inspectionTask.LocalUpdatedAt);         
             existingTask.DownloadDeviceName = inspectionTask.DownloadDeviceName;
-            existingTask.Serialno = inspectionTask.Serialno;
 
             try
             {
@@ -428,7 +427,6 @@ namespace premaintainProjects.Controllers
             DownloadedAt = _serviceTools.NormalizeChinaTime(task.DownloadedAt),
             LocalUpdatedAt = _serviceTools.NormalizeChinaTime(task.LocalUpdatedAt),
             DownloadDeviceName = task.DownloadDeviceName,
-            Serialno = task.Serialno
         };
     }
 }
