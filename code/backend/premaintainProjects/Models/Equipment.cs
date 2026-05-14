@@ -22,4 +22,6 @@ public partial class Equipment
     public int? Number { get; set; }
 
     public string? Mlfb { get; set; }
+
+    public string? Electricroom { get; set; }
 }

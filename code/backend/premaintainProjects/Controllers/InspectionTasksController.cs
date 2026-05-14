@@ -172,7 +172,6 @@ namespace premaintainProjects.Controllers
                 existingTask.DownloadedAt = _serviceTools.NormalizeChinaTime(dto.Task.DownloadedAt);
                 existingTask.LocalUpdatedAt = _serviceTools.NormalizeChinaTime(dto.Task.LocalUpdatedAt);
                 existingTask.DownloadDeviceName = dto.Task.DownloadDeviceName;
-                existingTask.Serialno = dto.Task.Serialno;
 
                 // 取现有 items
                 var existingItems = await _context.Taskitems

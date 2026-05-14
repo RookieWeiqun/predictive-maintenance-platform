@@ -85,6 +85,7 @@ namespace premaintainProjects.Controllers
                 existingEquipment.Productgroup = equipment.Productgroup;
                 existingEquipment.Number = equipment.Number;
                 existingEquipment.Mlfb = equipment.Mlfb;
+                existingEquipment.Electricroom = equipment.Electricroom;
 
                 await _context.SaveChangesAsync();
 
@@ -99,7 +100,8 @@ namespace premaintainProjects.Controllers
                         {
                             Equipid = existingEquipment.Equipid,
                             Mlfb = existingEquipment.Mlfb,
-                            Serialno = null
+                            Serialno = null,
+                            Equipmentname = existingEquipment.Equipmentname
                         });
                     }
 

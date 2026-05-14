@@ -12,4 +12,10 @@ public partial class Product
     public string? Mlfb { get; set; }
 
     public string? Serialno { get; set; }
+
+    public string? Equipmentname { get; set; }
+
+    public string? Equipmentnumber { get; set; }
+
+    public string? Department { get; set; }
 }
