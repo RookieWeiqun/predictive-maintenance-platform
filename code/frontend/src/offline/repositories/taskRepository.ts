@@ -170,7 +170,10 @@ export class OfflineTaskRepository {
       `
         UPDATE offline_task
         SET
-          status = 'in-progress',
+          status = CASE
+            WHEN status IN ('uploaded', 'completed', 'synced') THEN status
+            ELSE 'in-progress'
+          END,
           sync_status = ?
         WHERE task_uuid = ?
       `,

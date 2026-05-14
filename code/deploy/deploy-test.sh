@@ -36,6 +36,7 @@ REMOTE_USER="ezan"
 REMOTE_PASSWORD="psmdig"
 REMOTE_REPO_DIR="/home/ezan/envapp/PredictiveMaintenancePlatform/code"
 REMOTE_DEPLOY_DIR="/home/ezan/envapp/PredictiveMaintenancePlatform/code/deploy"
+REMOTE_ATTACH_DIR="/opt/PredictiveMaintenancePlatform/images"
 TARGET_BRANCH="master"
 DEFAULT_COMMIT_MESSAGE="deploy: $(date '+%Y-%m-%d %H:%M:%S')"
 COMMIT_MESSAGE="${1:-}"
@@ -98,6 +99,8 @@ fi
 
 read -r -d '' REMOTE_COMMAND <<'EOF' || true
 set -euo pipefail
+mkdir -p /opt/PredictiveMaintenancePlatform/images
+chmod 0777 /opt/PredictiveMaintenancePlatform/images
 cd /home/ezan/envapp/PredictiveMaintenancePlatform/code
 git pull origin master
 cd /home/ezan/envapp/PredictiveMaintenancePlatform/code/deploy

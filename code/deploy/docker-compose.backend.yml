@@ -16,6 +16,8 @@ services:
       ConnectionStrings__DefaultConnection: Host=predictive-maintenance-postgres;Port=5432;Database=PredictiveMaintenancePlatform;Username=PredictiveMaintenance;Password=PsmDig@2026;
     ports:
       - "8765:8080"
+    volumes:
+      - ${BACKEND_ATTACH_HOST_DIR:-/opt/PredictiveMaintenancePlatform/images}:/app/Attach
     networks:
       - predictive-maintenance-network
 

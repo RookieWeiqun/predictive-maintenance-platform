@@ -949,7 +949,7 @@ function onViewDetail(card: ProblemCardView) {
 .appendix-gallery {
   padding: 0.9rem 1rem 1rem;
   border-top: 1px solid var(--theme-color-soft-border);
-  background: linear-gradient(180deg, rgba(0, 153, 153, 0.03), rgba(255, 255, 255, 0.9));
+  /* background: linear-gradient(180deg, rgba(0, 153, 153, 0.03), rgba(255, 255, 255, 0.9)); */
 }
 
 .appendix-gallery__head {

@@ -67,17 +67,17 @@ function getTaskResultStateLabel(item: InspectionTaskDetailDto['task_items'][num
 
 function getAttachmentImageRef(attachment: Record<string, unknown>, fallbackRef: string): string | null {
   const candidates = [
-    attachment.filepath,
-    attachment.preview_url,
-    attachment.previewUrl,
     attachment.url,
     attachment.file_url,
     attachment.fileUrl,
+    attachment.preview_url,
+    attachment.previewUrl,
     attachment.path,
     attachment.local_path,
     attachment.localPath,
     attachment.photopath,
     attachment.photoPath,
+    attachment.filepath,
   ];
 
   for (const candidate of candidates) {
