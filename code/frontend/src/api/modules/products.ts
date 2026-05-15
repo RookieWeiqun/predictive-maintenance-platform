@@ -6,6 +6,19 @@ export type ProductDto = {
   equipid?: number | null;
   mlfb?: string | null;
   serialno?: string | null;
+  equipmentname?: string | null;
+  equipmentnumber?: string | null;
+  department?: string | null;
+};
+
+export type ProductUpsertPayload = {
+  productid: number;
+  equipid?: number | null;
+  mlfb?: string | null;
+  serialno?: string | null;
+  equipmentname?: string | null;
+  equipmentnumber?: string | null;
+  department?: string | null;
 };
 
 function unwrap<T>(res: ApiEnvelope<T>): T {
@@ -36,6 +49,9 @@ function mapProductRaw(raw: unknown): ProductDto {
     })(),
     mlfb: (gv(r, 'mlfb', 'Mlfb') as string | null | undefined) ?? null,
     serialno: (gv(r, 'serialno', 'Serialno') as string | null | undefined) ?? null,
+    equipmentname: (gv(r, 'equipmentname', 'Equipmentname') as string | null | undefined) ?? null,
+    equipmentnumber: (gv(r, 'equipmentnumber', 'Equipmentnumber') as string | null | undefined) ?? null,
+    department: (gv(r, 'department', 'Department') as string | null | undefined) ?? null,
   };
 }
 
@@ -68,6 +84,9 @@ export async function createProduct(payload: {
   equipid?: number | null;
   mlfb?: string | null;
   serialno?: string | null;
+  equipmentname?: string | null;
+  equipmentnumber?: string | null;
+  department?: string | null;
 }): Promise<number> {
   const res = await requestJson<ApiEnvelope<number>>('/api/Products', {
     method: 'POST',
@@ -76,6 +95,26 @@ export async function createProduct(payload: {
       equipid: payload.equipid ?? null,
       mlfb: payload.mlfb ?? null,
       serialno: payload.serialno ?? null,
+      equipmentname: payload.equipmentname ?? null,
+      equipmentnumber: payload.equipmentnumber ?? null,
+      department: payload.department ?? null,
+    }),
+  });
+  return unwrap(res);
+}
+
+/** PUT /api/Products，返回已更新 productid */
+export async function updateProduct(payload: ProductUpsertPayload): Promise<number> {
+  const res = await requestJson<ApiEnvelope<number>>('/api/Products', {
+    method: 'PUT',
+    body: JSON.stringify({
+      productid: payload.productid,
+      equipid: payload.equipid ?? null,
+      mlfb: payload.mlfb ?? null,
+      serialno: payload.serialno ?? null,
+      equipmentname: payload.equipmentname ?? null,
+      equipmentnumber: payload.equipmentnumber ?? null,
+      department: payload.department ?? null,
     }),
   });
   return unwrap(res);

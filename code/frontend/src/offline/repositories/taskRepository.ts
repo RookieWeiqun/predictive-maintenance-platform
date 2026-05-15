@@ -18,6 +18,9 @@ export class OfflineTaskRepository {
           server_task_id,
           task_no,
           serial_no,
+          equipment_name,
+          equipment_number,
+          department,
           assigned_user_name,
           assigned_user_id,
           download_device_name,
@@ -48,6 +51,9 @@ export class OfflineTaskRepository {
           server_task_id,
           task_no,
           serial_no,
+          equipment_name,
+          equipment_number,
+          department,
           assigned_user_name,
           assigned_user_id,
           download_device_name,
@@ -85,6 +91,9 @@ export class OfflineTaskRepository {
           server_task_id,
           task_no,
           serial_no,
+          equipment_name,
+          equipment_number,
+          department,
           assigned_user_name,
           assigned_user_id,
           download_device_name,
@@ -100,11 +109,14 @@ export class OfflineTaskRepository {
           downloaded_at,
           local_updated_at,
           sync_status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(task_uuid) DO UPDATE SET
           server_task_id = excluded.server_task_id,
           task_no = excluded.task_no,
           serial_no = excluded.serial_no,
+          equipment_name = excluded.equipment_name,
+          equipment_number = excluded.equipment_number,
+          department = excluded.department,
           assigned_user_name = excluded.assigned_user_name,
           assigned_user_id = excluded.assigned_user_id,
           download_device_name = excluded.download_device_name,
@@ -125,6 +137,9 @@ export class OfflineTaskRepository {
         record.server_task_id,
         record.task_no,
         record.serial_no,
+        record.equipment_name,
+        record.equipment_number,
+        record.department,
         record.assigned_user_name,
         record.assigned_user_id,
         record.download_device_name,
@@ -148,6 +163,9 @@ export class OfflineTaskRepository {
     taskUuid: string,
     meta: {
       serialNo?: string | null;
+      equipmentName?: string | null;
+      equipmentNumber?: string | null;
+      department?: string | null;
       assignedUserName?: string | null;
     },
   ): Promise<void> {
@@ -159,6 +177,9 @@ export class OfflineTaskRepository {
     await this.upsert({
       ...existing,
       serial_no: meta.serialNo ?? existing.serial_no,
+      equipment_name: meta.equipmentName ?? existing.equipment_name,
+      equipment_number: meta.equipmentNumber ?? existing.equipment_number,
+      department: meta.department ?? existing.department,
       assigned_user_name: meta.assignedUserName ?? existing.assigned_user_name,
       sync_status: 'pending',
     });

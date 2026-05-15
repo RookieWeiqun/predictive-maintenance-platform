@@ -7,6 +7,7 @@ export type EquipmentDto = {
   companyid: number;
   factory?: string | null;
   workshop?: string | null;
+  electricroom?: string | null;
   equipmentname?: string | null;
   productcategory?: string | null;
   productgroup?: string | null;
@@ -34,6 +35,7 @@ function mapEquipmentRow(raw: unknown): EquipmentDto {
     companyid: Number(gv(r, 'companyid', 'Companyid')),
     factory: (gv(r, 'factory', 'Factory') as string | null | undefined) ?? null,
     workshop: (gv(r, 'workshop', 'Workshop') as string | null | undefined) ?? null,
+    electricroom: (gv(r, 'electricroom', 'Electricroom') as string | null | undefined) ?? null,
     equipmentname: (gv(r, 'equipmentname', 'Equipmentname') as string | null | undefined) ?? null,
     productcategory: (gv(r, 'productcategory', 'Productcategory') as string | null | undefined) ?? null,
     productgroup: (gv(r, 'productgroup', 'Productgroup') as string | null | undefined) ?? null,

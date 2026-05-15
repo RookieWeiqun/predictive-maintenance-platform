@@ -56,6 +56,36 @@
                 class="meta-input"
               />
             </div>
+
+            <div class="sidebar-field-block">
+              <IxFieldLabel htmlFor="equipment-name-input">设备名称</IxFieldLabel>
+              <IxInput
+                id="equipment-name-input"
+                v-model="equipmentName"
+                placeholder="请输入设备名称"
+                class="meta-input"
+              />
+            </div>
+
+            <div class="sidebar-field-block">
+              <IxFieldLabel htmlFor="equipment-number-input">设备号</IxFieldLabel>
+              <IxInput
+                id="equipment-number-input"
+                v-model="equipmentNumber"
+                placeholder="请输入设备号"
+                class="meta-input"
+              />
+            </div>
+
+            <div class="sidebar-field-block">
+              <IxFieldLabel htmlFor="department-input">部门</IxFieldLabel>
+              <IxInput
+                id="department-input"
+                v-model="department"
+                placeholder="请输入所属部门"
+                class="meta-input"
+              />
+            </div>
           </div>
 
         <!-- 检查类别导航 - 使用Event List -->
@@ -408,6 +438,12 @@ const inspectorName = ref('');
 // 序列号
 const serialNumber = ref('');
 
+const equipmentName = ref('');
+
+const equipmentNumber = ref('');
+
+const department = ref('');
+
 // 帮助对话框显示状态
 const showHelpModal = ref(false);
 
@@ -524,6 +560,18 @@ async function mergeTaskitemsFromApi(taskid: number, roots: SchemeItem[]): Promi
   }
 }
 
+async function loadProductMeta(productId: number | null | undefined) {
+  if (typeof productId !== 'number' || !Number.isFinite(productId) || productId <= 0) {
+    return null;
+  }
+
+  try {
+    return await productsApi.getProduct(productId);
+  } catch {
+    return null;
+  }
+}
+
 function setupFromMockTask(task: any): void {
   taskInfo.value = task;
   currentTaskId.value = routeTaskId.value;
@@ -576,6 +624,9 @@ async function setupFromOfflineTask(taskUuid: string): Promise<boolean> {
 
   inspectorName.value = offlineTask.assigned_user_name || '';
   serialNumber.value = offlineTask.serial_no || '';
+  equipmentName.value = offlineTask.equipment_name || '';
+  equipmentNumber.value = offlineTask.equipment_number || '';
+  department.value = offlineTask.department || '';
 
   currentTaskId.value = taskUuid;
 
@@ -586,13 +637,13 @@ async function setupFromOfflineTask(taskUuid: string): Promise<boolean> {
   if (Number.isFinite(serverTaskId) && serverTaskId > 0) {
     try {
       const dto = await inspectionTasksApi.getInspectionTask(serverTaskId);
-      const products = dto.productid > 0
-        ? await productsApi.searchProducts({ productid: dto.productid }).catch(() => [])
-        : [];
-      const product = products[0];
+      const product = await loadProductMeta(dto.productid);
 
       const resolvedTaskNo = (dto.taskNo ?? '').trim();
       const resolvedDeviceModel = (product?.mlfb ?? '').trim();
+      const resolvedEquipmentName = offlineTask.equipment_name || product?.equipmentname?.trim() || '';
+      const resolvedEquipmentNumber = offlineTask.equipment_number || product?.equipmentnumber?.trim() || '';
+      const resolvedDepartment = offlineTask.department || product?.department?.trim() || '';
       if (missingTaskNo && resolvedTaskNo) {
         taskInfo.value = {
           ...taskInfo.value,
@@ -607,10 +658,31 @@ async function setupFromOfflineTask(taskUuid: string): Promise<boolean> {
         };
       }
 
-      if ((missingTaskNo && resolvedTaskNo) || (missingDeviceModel && resolvedDeviceModel)) {
+      if (!equipmentName.value && resolvedEquipmentName) {
+        equipmentName.value = resolvedEquipmentName;
+      }
+
+      if (!equipmentNumber.value && resolvedEquipmentNumber) {
+        equipmentNumber.value = resolvedEquipmentNumber;
+      }
+
+      if (!department.value && resolvedDepartment) {
+        department.value = resolvedDepartment;
+      }
+
+      if (
+        (missingTaskNo && resolvedTaskNo)
+        || (missingDeviceModel && resolvedDeviceModel)
+        || (!offlineTask.equipment_name && !!resolvedEquipmentName)
+        || (!offlineTask.equipment_number && !!resolvedEquipmentNumber)
+        || (!offlineTask.department && !!resolvedDepartment)
+      ) {
         await offlineTaskRepository.upsert({
           ...offlineTask,
           serial_no: offlineTask.serial_no,
+          equipment_name: resolvedEquipmentName || offlineTask.equipment_name,
+          equipment_number: resolvedEquipmentNumber || offlineTask.equipment_number,
+          department: resolvedDepartment || offlineTask.department,
           assigned_user_name: offlineTask.assigned_user_name,
           task_no: resolvedTaskNo || offlineTask.task_no,
           device_model: resolvedDeviceModel || offlineTask.device_model,
@@ -634,8 +706,8 @@ async function setupFromApiTask(numericId: number): Promise<void> {
     inspectionTemplatesApi.getInspectionTemplate(dto.templateid).catch(() => null),
   ]);
 
-  const products = await productsApi.searchProducts({ productid: dto.productid }).catch(() => []);
-  const mlfb = (products[0]?.mlfb ?? '-').trim() || '-';
+  const product = await loadProductMeta(dto.productid);
+  const mlfb = (product?.mlfb ?? '-').trim() || '-';
 
   const displayTaskNo = (dto.taskNo ?? '').trim() || `任务#${numericId}`;
   const inspType = templateMeta?.inspectiontype === 1 ? 'equipment' : 'peripheral';
@@ -657,6 +729,9 @@ async function setupFromApiTask(numericId: number): Promise<void> {
   const localTask = await offlineTaskRepository.getByTaskUuid(String(numericId));
   inspectorName.value = localTask?.assigned_user_name || '';
   serialNumber.value = localTask?.serial_no || '';
+  equipmentName.value = localTask?.equipment_name || product?.equipmentname?.trim() || '';
+  equipmentNumber.value = localTask?.equipment_number || product?.equipmentnumber?.trim() || '';
+  department.value = localTask?.department || product?.department?.trim() || '';
 
   currentTaskId.value = String(numericId);
 
@@ -692,6 +767,9 @@ async function initTaskCollect(): Promise<void> {
   taskPhotoMap.value = {};
   inspectorName.value = '';
   serialNumber.value = '';
+  equipmentName.value = '';
+  equipmentNumber.value = '';
+  department.value = '';
 
   const mockTask = tasksData.tasks.find((t: any) => t.id === idParam);
   if (mockTask) {
@@ -1608,6 +1686,15 @@ const loadDraft = () => {
       if (typeof draft.serialNumber === 'string') {
         serialNumber.value = draft.serialNumber;
       }
+      if (typeof draft.equipmentName === 'string') {
+        equipmentName.value = draft.equipmentName;
+      }
+      if (typeof draft.equipmentNumber === 'string') {
+        equipmentNumber.value = draft.equipmentNumber;
+      }
+      if (typeof draft.department === 'string') {
+        department.value = draft.department;
+      }
       // 如果已经选择了子类别，重新构建任务列表以恢复数据
       if (currentSubCategoryId.value) {
         const subCategory = categoryList.value
@@ -1633,6 +1720,9 @@ const saveDraft = () => {
       taskDataMap: taskDataMap.value,
       inspectorName: inspectorName.value,
       serialNumber: serialNumber.value,
+      equipmentName: equipmentName.value,
+      equipmentNumber: equipmentNumber.value,
+      department: department.value,
     };
     localStorage.setItem(draftKey, JSON.stringify(draft));
   } catch (e) {
@@ -1652,6 +1742,9 @@ async function persistTaskMeta(): Promise<void> {
 
   await offlineTaskRepository.updateCollectedMeta(routeTaskId.value, {
     serialNo: serialNumber.value.trim() || null,
+    equipmentName: equipmentName.value.trim() || null,
+    equipmentNumber: equipmentNumber.value.trim() || null,
+    department: department.value.trim() || null,
     assignedUserName: inspectorName.value.trim() || null,
   });
 
@@ -1661,6 +1754,9 @@ async function persistTaskMeta(): Promise<void> {
     action: 'upsert_task',
     payload_json: JSON.stringify({
       serial_no: serialNumber.value.trim() || null,
+      equipment_name: equipmentName.value.trim() || null,
+      equipment_number: equipmentNumber.value.trim() || null,
+      department: department.value.trim() || null,
       assigned_user_name: inspectorName.value.trim() || null,
     }),
   });
@@ -1729,6 +1825,21 @@ watch(inspectorName, () => {
 });
 
 watch(serialNumber, () => {
+  saveDraft();
+  void persistTaskMeta();
+});
+
+watch(equipmentName, () => {
+  saveDraft();
+  void persistTaskMeta();
+});
+
+watch(equipmentNumber, () => {
+  saveDraft();
+  void persistTaskMeta();
+});
+
+watch(department, () => {
   saveDraft();
   void persistTaskMeta();
 });

@@ -44,6 +44,9 @@ export interface OfflineTaskRecord {
   server_task_id: string | null;
   task_no: string | null;
   serial_no: string | null;
+  equipment_name: string | null;
+  equipment_number: string | null;
+  department: string | null;
   assigned_user_name: string | null;
   assigned_user_id: string | null;
   download_device_name: string | null;
