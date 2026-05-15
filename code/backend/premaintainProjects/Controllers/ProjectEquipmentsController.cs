@@ -181,7 +181,6 @@ namespace premaintainProjects.Controllers
                          DownloadDeviceName = null,
                          DownloadedAt= null,
                          LocalUpdatedAt= null,
-                         Serialno = null,
                          Version = 1
                     });
                 }
@@ -279,8 +278,8 @@ namespace premaintainProjects.Controllers
                               Version = 1,
                                DownloadedAt = null,
                                 LocalUpdatedAt = null,
-                                 DownloadDeviceName = null,
-                                  Serialno = null
+                                 DownloadDeviceName = null
+
                         });
                     }
                 

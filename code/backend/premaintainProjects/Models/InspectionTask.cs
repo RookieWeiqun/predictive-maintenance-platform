@@ -39,6 +39,4 @@ public partial class InspectionTask
     public DateTime? LocalUpdatedAt { get; set; }
 
     public string? DownloadDeviceName { get; set; }
-
-    public string? Serialno { get; set; }
 }

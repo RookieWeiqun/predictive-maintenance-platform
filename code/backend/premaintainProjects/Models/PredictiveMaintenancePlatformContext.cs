@@ -93,6 +93,9 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
 
             entity.Property(e => e.Equipid).HasColumnName("equipid");
             entity.Property(e => e.Companyid).HasColumnName("companyid");
+            entity.Property(e => e.Electricroom)
+                .HasMaxLength(100)
+                .HasColumnName("electricroom");
             entity.Property(e => e.Equipmentname)
                 .HasMaxLength(100)
                 .HasColumnName("equipmentname");
@@ -201,9 +204,6 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
                 .HasColumnName("local_updated_at");
             entity.Property(e => e.Productid).HasColumnName("productid");
             entity.Property(e => e.Projectid).HasColumnName("projectid");
-            entity.Property(e => e.Serialno)
-                .HasColumnType("character varying")
-                .HasColumnName("serialno");
             entity.Property(e => e.Status)
                 .HasDefaultValue(1)
                 .HasComment("1、进行中/2、完成/3、未开始")
@@ -258,7 +258,16 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
             entity.HasIndex(e => e.Equipid, "products_equipid_idx");
 
             entity.Property(e => e.Productid).HasColumnName("productid");
+            entity.Property(e => e.Department)
+                .HasMaxLength(100)
+                .HasColumnName("department");
             entity.Property(e => e.Equipid).HasColumnName("equipid");
+            entity.Property(e => e.Equipmentname)
+                .HasMaxLength(100)
+                .HasColumnName("equipmentname");
+            entity.Property(e => e.Equipmentnumber)
+                .HasMaxLength(100)
+                .HasColumnName("equipmentnumber");
             entity.Property(e => e.Mlfb)
                 .HasMaxLength(100)
                 .HasColumnName("mlfb");
