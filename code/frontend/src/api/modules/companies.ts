@@ -25,6 +25,11 @@ export async function listCompanies(): Promise<CompanyDto[]> {
   return unwrap(res);
 }
 
+export async function getCompany(id: number): Promise<CompanyDto> {
+  const res = await requestJson<ApiEnvelope<CompanyDto>>(`/api/Companies/${id}`);
+  return unwrap(res);
+}
+
 export async function createCompany(payload: UpsertCompanyInput): Promise<CompanyDto> {
   const res = await requestJson<ApiEnvelope<CompanyDto>>('/api/Companies', {
     method: 'POST',

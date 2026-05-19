@@ -346,25 +346,30 @@ export async function createInspectionTask(payload: InspectionTaskDto): Promise<
 }
 
 export async function updateInspectionTask(payload: InspectionTaskDto): Promise<void> {
+  const body: Record<string, unknown> = {
+    taskid: payload.taskid ?? 0,
+    projectid: payload.projectid,
+    templateid: payload.templateid,
+    status: payload.status,
+    taskNo: payload.taskNo ?? null,
+    assigneduserid: payload.assigneduserid ?? null,
+    productid: payload.productid,
+    inspectiontype: payload.inspectiontype ?? 0,
+    ifdel: payload.ifdel ?? false,
+    assignedusername: payload.assignedusername ?? null,
+    version: payload.version ?? null,
+    downloadedAt: payload.downloadedAt ?? null,
+    localUpdatedAt: payload.localUpdatedAt ?? null,
+    downloadDeviceName: payload.downloadDeviceName ?? null,
+  };
+
+  if (payload.serialno !== undefined) {
+    body.serialno = payload.serialno;
+  }
+
   const res = await requestJson<ApiEnvelope<unknown>>('/api/InspectionTasks', {
     method: 'PUT',
-    body: JSON.stringify({
-      taskid: payload.taskid ?? 0,
-      projectid: payload.projectid,
-      templateid: payload.templateid,
-      status: payload.status,
-      taskNo: payload.taskNo ?? null,
-      assigneduserid: payload.assigneduserid ?? null,
-      productid: payload.productid,
-      inspectiontype: payload.inspectiontype ?? 0,
-      ifdel: payload.ifdel ?? false,
-      assignedusername: payload.assignedusername ?? null,
-      version: payload.version ?? null,
-      downloadedAt: payload.downloadedAt ?? null,
-      localUpdatedAt: payload.localUpdatedAt ?? null,
-      downloadDeviceName: payload.downloadDeviceName ?? null,
-      serialno: payload.serialno ?? null,
-    }),
+    body: JSON.stringify(body),
   });
   unwrap(res);
 }

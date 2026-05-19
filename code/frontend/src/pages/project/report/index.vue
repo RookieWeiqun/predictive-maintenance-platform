@@ -156,148 +156,104 @@
             </div>
           </article>
 
-          <!-- 1 系统综合评估 -->
-          <article id="sec-2" class="report-sheet" data-toc-anchor>
-            <h2 class="sheet-h2">1 系统综合评估</h2>
-            <p class="sheet-lead">
-              基于本次采集的现场数据对维护对象进行总体评估：
-            </p>
-          </article>
+          <article id="sec-devices" class="report-sheet" data-toc-anchor>
+            <h2 class="sheet-h2">1 维护设备清单</h2>
 
-          <article id="sec-2-1" class="report-sheet report-sheet--sub" data-toc-anchor>
-            <h3 class="sheet-h3">1.1 总体维护评价与指标分布</h3>
-            <p class="muted sheet-lead-tight">系统总体评估得分为： {{ report.systemEvaluation.overallScore }}，评价登记为：{{ report.systemEvaluation.overallRating }}</p>
-            <div class="eval-suite-row eval-suite-row--merged">
-
-              <div class="eval-suite-charts">
-                <div v-if="serviceBasicBlock" class="eval-suite-chart-block">
-                  <p class="eval-suite-pie__cap muted">现场检查分布（饼图）</p>
-                  <div class="eval-suite-chart-cell">
-                    <div
-                      ref="execStatsPieRef"
-                      class="exec-stats-pie-echart exec-stats-pie-echart--merged"
-                      role="img"
-                      aria-label="现场检查结果分布饼图"
-                    />
-                  </div>
-                </div>
-                <div class="eval-suite-chart-block">
-                  <p class="eval-suite-pie__cap muted">各项评估指标（雷达图）</p>
-                  <div class="eval-suite-chart-cell eval-suite-chart-cell--radar">
-                    <div
-                      ref="radarChartRef"
-                      class="radar-echart radar-echart--merged"
-                      role="img"
-                      aria-label="评估指标雷达图"
-                    />
-                  </div>
-                </div>
+            <div v-if="!maintenanceDeviceRows.length" class="empty-block muted">
+              当前项目暂无可展示的维护设备清单。
+            </div>
+            <div v-else class="table-shell report-device-shell">
+              <div class="report-device-caption">{{ maintenanceDeviceCaption }}</div>
+              <div class="report-device-table-wrap">
+                <table class="report-device-table">
+                  <thead>
+                    <tr>
+                      <th>序号</th>
+                      <th>电气室</th>
+                      <th>设备名称</th>
+                      <th>设备型号</th>
+                      <th>序列号</th>
+                      <th>所属部门</th>
+                      <th>设备编号</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(row, index) in maintenanceDeviceRows" :key="row.key">
+                      <td>{{ index + 1 }}</td>
+                      <td>{{ row.electricRoom }}</td>
+                      <td>{{ row.equipmentName }}</td>
+                      <td>{{ row.deviceModel }}</td>
+                      <td>{{ row.serialNumber }}</td>
+                      <td>{{ row.department }}</td>
+                      <td>{{ row.equipmentNumber }}</td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             </div>
           </article>
 
-          <article id="sec-2-3" class="report-sheet report-sheet--sub" data-toc-anchor>
-            <h3 class="sheet-h3">1.2 维护前后评估对比</h3>
-            <template v-if="hasMaintenanceScoreDelta">
-              <p class="muted">维护处理前后综合得分对比如下（满分 100）。</p>
-              <div
-                ref="beforeAfterChartRef"
-                class="before-after-echart"
-                role="img"
-                aria-label="维护前后评估对比图"
-              />
-              <p v-if="report.systemEvaluation.beforeAfter.notes" class="before-after-notes">
-                {{ report.systemEvaluation.beforeAfter.notes }}
-              </p>
-            </template>
-            <div v-else class="before-after-fallback muted">
-              <p>
-                本次记录中维护前后综合得分一致（{{
-                  report.systemEvaluation.beforeAfter.beforeScore
-                }}
-                分），或未单独拆分维护动作前后的评分；若有现场处置说明见下文。
-              </p>
-              <p v-if="report.systemEvaluation.beforeAfter.notes" class="before-after-notes">
-                {{ report.systemEvaluation.beforeAfter.notes }}
-              </p>
-            </div>
-          </article>
-
-          <!-- 2 主要对象分析与评估 -->
-          <article id="sec-3" class="report-sheet" data-toc-anchor>
+          <article id="sec-issues" class="report-sheet" data-toc-anchor>
             <h2 class="sheet-h2">2 发现与建议</h2>
-            <p class="sheet-lead">按主要评估对象拆分展示问题卡片与推荐服务（演示数据按对象顺序分配卡片）。</p>
-            <!-- 目录锚点：保留 2.x 的跳转能力 -->
-            <div class="eval-anchor-list" aria-hidden="true">
-              <div v-for="ev in mainObjectEvaluations" :id="ev.anchor" :key="ev.anchor" class="eval-anchor" />
+            <p class="sheet-lead">
+              按问题逐条展开，展示设备基础信息、问题描述、解决措施及现场照片。
+            </p>
+
+            <div v-if="!reportIssueEntries.length" class="empty-block muted">
+              当前项目暂无异常问题条目。
             </div>
-
-            <div v-if="!displayProblemCards.length" class="empty-block muted">暂无问题卡片条目。</div>
-            <div v-else class="problem-cards">
-              <div v-for="(card, cidx) in displayProblemCards" :key="`eval-card-${cidx}`" class="problem-card">
-                <div class="problem-card__accent" aria-hidden="true" />
-                <div class="problem-card__inner">
-                  <header class="problem-card__head">
-                    <div>
-                      <div class="problem-card__title">{{ card.title }}</div>
-                      <p class="problem-card__desc">{{ card.description }}</p>
-                    </div>
-                    <span class="severity-badge" :class="`severity-badge--${card.severityKey}`">
-                      {{ card.severity }}
-                    </span>
-                  </header>
-
-                  <section class="problem-card__section problem-card__section--objects">
-                    <div class="problem-card__section-head">
-                      <span class="problem-card__label">涉及对象：</span>
-                      <button type="button" class="problem-card__chev" aria-label="展开或筛选">
-                        <IxIcon :name="iconChevronDownSmall" size="12" />
-                      </button>
-                    </div>
-                    <div class="object-tags">
-                      <span
-                        v-for="(tag, ti) in card.affectedObjects"
-                        :key="ti"
-                        class="object-tag"
-                        :class="`object-tag--${tag.variant}`"
-                      >
-                        {{ tag.label }}
-                      </span>
-                    </div>
-                  </section>
-
-                  <section class="problem-card__section problem-card__section--solution">
-                    <span class="problem-card__label">解决建议：</span>
-                    <ul class="problem-card__bullets">
-                      <li v-for="(line, li) in card.solutions" :key="li">{{ line }}</li>
-                    </ul>
-                    <IxButton class="problem-card__btn" variant="primary" @click="onViewDetail(card)">
-                      <IxIcon :name="iconAuditReport" size="16" class="btn-ico" />
-                      查看详细建议
-                    </IxButton>
-                  </section>
-
-                  <section class="problem-card__section problem-card__section--service">
-                    <div class="problem-card__label">推荐服务</div>
-                    <IxButton class="problem-card__btn problem-card__btn--secondary" variant="primary">
-                      <IxIcon :name="iconGenericDeviceMaintenance" size="16" class="btn-ico" />
-                      {{ card.recommendedService.name }}
-                    </IxButton>
-                    <div class="stars-row">
-                      <span class="stars-label">推荐度</span>
-                      <span class="stars" :aria-label="`推荐度 ${card.recommendedService.rating} / 5`">
-                        <span
-                          v-for="s in 5"
-                          :key="s"
-                          class="star"
-                          :class="{ 'star--on': s <= card.recommendedService.rating }"
-                        >
-                          ★
-                        </span>
-                      </span>
-                    </div>
-                  </section>
-                </div>
+            <div v-else class="report-issue-list">
+              <div v-for="issue in reportIssueEntries" :key="issue.key" class="report-issue-block">
+                <table class="report-issue-table">
+                  <tbody>
+                    <tr>
+                      <td rowspan="5" class="report-issue-table__room">{{ issue.electricRoom }}</td>
+                      <td rowspan="2" class="report-issue-table__number">问题 {{ issue.index }}</td>
+                      <td class="report-issue-table__label">设备名称:</td>
+                      <td>{{ issue.equipmentName }}</td>
+                      <td class="report-issue-table__label">设备型号:</td>
+                      <td>{{ issue.deviceModel }}</td>
+                    </tr>
+                    <tr>
+                      <td class="report-issue-table__label">设备编号:</td>
+                      <td>{{ issue.equipmentNumber }}</td>
+                      <td class="report-issue-table__label">序列号:</td>
+                      <td>{{ issue.serialNumber }}</td>
+                    </tr>
+                    <tr>
+                      <td colspan="5" class="report-issue-table__textcell">
+                        <strong>问题描述:</strong>
+                        <p>{{ issue.issueDescription }}</p>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td colspan="5" class="report-issue-table__textcell">
+                        <strong>解决措施或建议:</strong>
+                        <p>{{ issue.suggestion }}</p>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td colspan="5">
+                        <div v-if="issue.images.length" class="report-photo-grid">
+                          <button
+                            v-for="(image, imageIndex) in issue.images"
+                            :key="`${issue.key}-photo-${imageIndex + 1}`"
+                            type="button"
+                            class="report-photo-slot report-photo-slot__button"
+                            @click="openAppendixImagePreview(image, `${issue.equipmentName} 问题 ${issue.index} 照片 ${imageIndex + 1}`)"
+                          >
+                            <img
+                              :src="image"
+                              :alt="`${issue.equipmentName} 问题 ${issue.index} 照片 ${imageIndex + 1}`"
+                              class="report-photo-slot__image"
+                            />
+                          </button>
+                        </div>
+                        <div v-else class="report-photo-empty">暂无图片</div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             </div>
           </article>
@@ -462,7 +418,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { IxContentHeader, IxButton, IxIcon, showToast } from '@siemens/ix-vue';
 /**
@@ -471,30 +427,28 @@ import { IxContentHeader, IxButton, IxIcon, showToast } from '@siemens/ix-vue';
  * `<IxIcon>` 必须使用 **`:name="iconXxx"`**（底层 `ix-icon` 只认 `name`，用 `:icon` 会无效并显示占位符）。
  */
 import {
-  iconChevronDownSmall,
   iconChevronLeft,
   iconChevronRight,
   iconClose,
-  iconAuditReport,
-  iconGenericDeviceMaintenance,
 } from '@siemens/ix-icons/icons';
 
 import logoUrl from '../../../../image/siemens logo.svg';
 import { buildWordReportWebhookPayload, requestWordReportDownload } from '@/config/n8n';
-import { attachmentsApi, companiesApi, equipmentsApi, inspectionTasksApi, productsApi, projectsApi } from '@/api';
+import { attachmentsApi, companiesApi, equipmentsApi, inspectionTasksApi, productsApi, projectEquipmentsApi, projectsApi } from '@/api';
 import { getReportByProjectId, type ReportData } from '@/mockdata/report';
+import type { CompanyDto } from '@/api/modules/companies';
+import type { EquipmentDto } from '@/api/modules/equipments';
+import type { InspectionTaskDetailDto, InspectionTaskDto } from '@/api/modules/inspectionTasks';
+import type { ProductDto } from '@/api/modules/products';
 import type { ProjectDto } from '@/api/modules/projects';
 import { buildReportFromProjectTaskDetailsSource } from './reportApiAdapter';
 
-import type { ProblemCardView } from './types';
 import {
   buildTocNodes,
   formatContactPerson,
   formatServiceDaysText,
   getServiceBasicBlock,
-  mapRawProblemCards,
 } from './reportViewUtils';
-import { useReportCharts } from './composables/useReportCharts';
 import { useReportSummaryDraft } from './composables/useReportSummaryDraft';
 import { useReportTocSpy } from './composables/useReportTocSpy';
 
@@ -502,6 +456,34 @@ type ReportProjectView = {
   id: string;
   name: string;
   factory?: string;
+};
+
+type ReportTaskDetailEntry = {
+  task: InspectionTaskDto;
+  detail: InspectionTaskDetailDto;
+};
+
+type MaintenanceDeviceRow = {
+  key: string;
+  electricRoom: string;
+  equipmentName: string;
+  deviceModel: string;
+  serialNumber: string;
+  department: string;
+  equipmentNumber: string;
+};
+
+type ReportIssueEntry = {
+  key: string;
+  index: number;
+  electricRoom: string;
+  equipmentName: string;
+  deviceModel: string;
+  serialNumber: string;
+  equipmentNumber: string;
+  issueDescription: string;
+  suggestion: string;
+  images: string[];
 };
 
 const route = useRoute();
@@ -513,6 +495,12 @@ const project = ref<ReportProjectView | null>(null);
 const report = ref<ReportData | null>(null);
 const reportLoading = ref(false);
 const appendixImagePreview = ref<{ src: string; alt: string } | null>(null);
+const projectCompany = ref<CompanyDto | null>(null);
+const taskDetailsEntries = ref<ReportTaskDetailEntry[]>([]);
+const projectEquipmentList = ref<EquipmentDto[]>([]);
+const equipmentMapRef = ref(new Map<number, EquipmentDto>());
+const productMapRef = ref(new Map<number, ProductDto>());
+const productsByEquipmentRef = ref(new Map<number, ProductDto[]>());
 
 const wordExporting = ref(false);
 
@@ -520,23 +508,6 @@ const tocCollapsed = ref(false);
 const mainScrollRef = ref<HTMLElement | null>(null);
 
 const serviceBasicBlock = computed(() => getServiceBasicBlock(report.value));
-
-/** 维护前后得分不同则展示柱状对比图 */
-const hasMaintenanceScoreDelta = computed(() => {
-  const ba = report.value?.systemEvaluation.beforeAfter;
-  if (!ba) return false;
-  return ba.beforeScore !== ba.afterScore;
-});
-
-const radarChartRef = useTemplateRef<HTMLDivElement>('radarChartRef');
-const beforeAfterChartRef = useTemplateRef<HTMLDivElement>('beforeAfterChartRef');
-const execStatsPieRef = useTemplateRef<HTMLDivElement>('execStatsPieRef');
-
-useReportCharts(report, serviceBasicBlock, hasMaintenanceScoreDelta, {
-  radarChartRef,
-  beforeAfterChartRef,
-  execStatsPieRef,
-});
 const { activeAnchor, scrollToAnchor } = useReportTocSpy(report, mainScrollRef);
 const { summary } = useReportSummaryDraft(projectId, report);
 
@@ -589,16 +560,179 @@ const shortReportType = computed(() => {
   return t.replace(/报告$/, '').trim() || t;
 });
 
-const mainObjectEvaluations = computed(() => {
-  const list = report.value?.reportDocument?.evaluationObjects;
-  if (list?.length) return list;
-  return [{ anchor: 'eval-fallback', title: `${project.value?.name ?? '项目'} 综合评估` }];
+const tocNodes = computed(() => buildTocNodes(report.value, project.value?.name ?? ''));
+const appendixWorkshops = computed(() => report.value?.appendixDetailedInspection?.workshops ?? []);
+const maintenanceDeviceCaption = computed(() => {
+  const companyName = report.value?.serviceBasicInfo?.companyName?.trim()
+    || projectCompany.value?.companyname?.trim()
+    || '客户';
+  const projectName = project.value?.name?.trim() || '项目';
+  return `${companyName} ${projectName} 维护设备清单`;
 });
 
-const tocNodes = computed(() => buildTocNodes(report.value, project.value?.name ?? ''));
+function normalizeText(value: unknown, fallback = '-'): string {
+  const text = String(value ?? '').trim();
+  return text || fallback;
+}
 
-const displayProblemCards = computed(() => mapRawProblemCards(report.value));
-const appendixWorkshops = computed(() => report.value?.appendixDetailedInspection?.workshops ?? []);
+function resolveEquipmentName(product: ProductDto | null | undefined, equipment: EquipmentDto | null | undefined): string {
+  return normalizeText(product?.equipmentname ?? equipment?.equipmentname, '');
+}
+
+function resolveEquipmentNumber(product: ProductDto | null | undefined, equipment: EquipmentDto | null | undefined): string {
+  return normalizeText(product?.equipmentnumber ?? (equipment?.number != null ? String(equipment.number) : ''), '');
+}
+
+function resolveDepartment(product: ProductDto | null | undefined, equipment: EquipmentDto | null | undefined): string {
+  return normalizeText(product?.department, '');
+}
+
+function resolveElectricRoom(equipment: EquipmentDto | null | undefined): string {
+  return normalizeText(equipment?.electricroom, '');
+}
+
+function getEntryProduct(entry: ReportTaskDetailEntry): ProductDto | null {
+  const productId = Number(entry.detail.task.product_id ?? entry.task.productid ?? 0);
+  return Number.isFinite(productId) && productId > 0 ? productMapRef.value.get(productId) ?? null : null;
+}
+
+function getEntryEquipment(product: ProductDto | null): EquipmentDto | null {
+  const equipId = Number(product?.equipid ?? 0);
+  return Number.isFinite(equipId) && equipId > 0 ? equipmentMapRef.value.get(equipId) ?? null : null;
+}
+
+function resolveDeviceModel(product: ProductDto | null | undefined, entry?: ReportTaskDetailEntry): string {
+  return normalizeText(product?.mlfb ?? entry?.detail.task.template_name ?? entry?.task.taskNo ?? '-');
+}
+
+function resolveSerialNumber(product: ProductDto | null | undefined, entry?: ReportTaskDetailEntry): string {
+  return normalizeText(product?.serialno ?? entry?.detail.task.serial_no ?? entry?.task.serialno ?? '-');
+}
+
+function getTaskResultValue(item: InspectionTaskDetailDto['task_items'][number]): string {
+  return String(item.task_result?.value ?? item.taskresult?.value ?? '').trim();
+}
+
+function getTaskResultRemarks(item: InspectionTaskDetailDto['task_items'][number]): string {
+  return String(item.task_result?.remarks ?? item.taskresult?.remarks ?? '').trim();
+}
+
+function getTaskResultState(item: InspectionTaskDetailDto['task_items'][number]): string {
+  return String(item.task_result?.result_state ?? item.taskresult?.result_state ?? '').trim().toLowerCase();
+}
+
+function isIssueItem(item: InspectionTaskDetailDto['task_items'][number]): boolean {
+  const resultState = getTaskResultState(item);
+  if (resultState) return resultState === 'abnormal';
+  if (item.is_normal === false || item.is_recheck === true) return true;
+  const value = getTaskResultValue(item).toLowerCase();
+  return value === '异常' || value === 'abnormal';
+}
+
+function resolveAttachmentImageUrl(attachment: Record<string, unknown>): string | null {
+  const candidates = [
+    attachment.url,
+    attachment.file_url,
+    attachment.fileUrl,
+    attachment.preview_url,
+    attachment.previewUrl,
+    attachment.path,
+    attachment.local_path,
+    attachment.localPath,
+    attachment.photopath,
+    attachment.photoPath,
+    attachment.filepath,
+  ];
+
+  for (const candidate of candidates) {
+    const value = String(candidate ?? '').trim();
+    if (!value) continue;
+    if (/^(data:|blob:|https?:)/i.test(value) || value.startsWith('/')) return value;
+    const resolved = attachmentsApi.resolveAttachmentFileUrl(value);
+    if (resolved) return resolved;
+  }
+
+  return null;
+}
+
+function buildIssueDescription(item: InspectionTaskDetailDto['task_items'][number]): string {
+  const remarks = getTaskResultRemarks(item);
+  const value = getTaskResultValue(item);
+  return [item.item_name, remarks, value].filter(Boolean).join('；') || '现场发现异常，待补充问题描述。';
+}
+
+function buildIssueSuggestion(item: InspectionTaskDetailDto['task_items'][number]): string {
+  const remarks = getTaskResultRemarks(item);
+  if (remarks) return remarks;
+  const value = getTaskResultValue(item);
+  if (value) return `建议结合检查结果“${value}”安排现场复核与处理。`;
+  return '建议现场复核该问题并制定针对性的整改措施。';
+}
+
+const maintenanceDeviceRows = computed<MaintenanceDeviceRow[]>(() => {
+  const rows: MaintenanceDeviceRow[] = [];
+
+  for (const equipment of projectEquipmentList.value) {
+    const equipId = Number(equipment.equipid ?? 0);
+    const products = productsByEquipmentRef.value.get(equipId) ?? [];
+
+    if (products.length === 0) {
+      rows.push({
+        key: `equip-${equipId || rows.length}`,
+        electricRoom: resolveElectricRoom(equipment),
+        equipmentName: resolveEquipmentName(null, equipment),
+        deviceModel: '',
+        serialNumber: '',
+        department: resolveDepartment(null, equipment),
+        equipmentNumber: resolveEquipmentNumber(null, equipment),
+      });
+      continue;
+    }
+
+    for (const product of products) {
+      rows.push({
+        key: `equip-${equipId}-product-${product.productid ?? rows.length}`,
+        electricRoom: resolveElectricRoom(equipment),
+        equipmentName: resolveEquipmentName(product, equipment),
+        deviceModel: normalizeText(product.mlfb, ''),
+        serialNumber: normalizeText(product.serialno, ''),
+        department: resolveDepartment(product, equipment),
+        equipmentNumber: resolveEquipmentNumber(product, equipment),
+      });
+    }
+  }
+  return rows;
+});
+
+const reportIssueEntries = computed<ReportIssueEntry[]>(() => {
+  const rows: ReportIssueEntry[] = [];
+
+  for (const entry of taskDetailsEntries.value) {
+    const product = getEntryProduct(entry);
+    const equipment = getEntryEquipment(product);
+
+    for (const item of entry.detail.task_items) {
+      if (!isIssueItem(item)) continue;
+
+      rows.push({
+        key: `${entry.task.taskid ?? 'task'}-${item.item_id}`,
+        index: rows.length + 1,
+        electricRoom: resolveElectricRoom(equipment),
+        equipmentName: resolveEquipmentName(product, equipment),
+        deviceModel: resolveDeviceModel(product, entry),
+        serialNumber: resolveSerialNumber(product, entry),
+        equipmentNumber: resolveEquipmentNumber(product, equipment),
+        issueDescription: buildIssueDescription(item),
+        suggestion: buildIssueSuggestion(item),
+        images: (item.attachments ?? [])
+          .map((attachment) => resolveAttachmentImageUrl(attachment))
+          .filter((image): image is string => Boolean(image)),
+      });
+    }
+  }
+
+  return rows;
+});
 
 function getAppendixBreadcrumbs(value: string | null | undefined): string[] {
   return String(value ?? '')
@@ -643,6 +777,12 @@ async function loadReportData(): Promise<void> {
   if (!Number.isFinite(pid) || pid <= 0) {
     project.value = null;
     report.value = null;
+    projectCompany.value = null;
+    taskDetailsEntries.value = [];
+    projectEquipmentList.value = [];
+    equipmentMapRef.value = new Map();
+    productMapRef.value = new Map();
+    productsByEquipmentRef.value = new Map();
     return;
   }
 
@@ -654,30 +794,17 @@ async function loadReportData(): Promise<void> {
       .filter((task) => task.taskid != null && task.taskid > 0)
       .sort((left, right) => Number(right.taskid ?? 0) - Number(left.taskid ?? 0));
 
-    project.value = {
-      id: String(projectDto.projectid ?? pid),
-      name: projectDto.projectname?.trim() || `项目 #${pid}`,
-    };
-
-    if (pid === 1) {
-      report.value = getReportByProjectId('1');
-      return;
-    }
-
-    if (validTasks.length === 0) {
-      report.value = null;
-      return;
-    }
-
     const company = projectDto.companyid > 0
-      ? (await companiesApi.listCompanies()).find((item) => item.companyid === projectDto.companyid) ?? null
+      ? await companiesApi.getCompany(projectDto.companyid).catch(() => null)
       : null;
+    projectCompany.value = company;
     const taskDetailsByTask = await Promise.all(
       validTasks.map(async (task) => ({
         task,
         detail: await inspectionTasksApi.getInspectionTaskDetail(Number(task.taskid)),
       })),
     );
+    taskDetailsEntries.value = taskDetailsByTask;
     const attachmentsByTaskitem = new Map(
       (
         await Promise.all(
@@ -722,55 +849,96 @@ async function loadReportData(): Promise<void> {
         })),
       },
     }));
-    const productIds = Array.from(
-      new Set(
-        hydratedTaskDetailsByTask
-          .map(({ task, detail }) => Number(detail.task.product_id ?? task.productid))
-          .filter((id) => Number.isFinite(id) && id > 0),
-      ),
-    );
-    const products = await Promise.all(
-      productIds.map(async (id) => {
-        try {
-          return await productsApi.getProduct(id);
-        } catch {
-          return null;
-        }
-      }),
-    );
-    const productById = new Map(
-      products
-        .filter((item): item is NonNullable<typeof item> => item != null && Number(item.productid) > 0)
-        .map((item) => [Number(item.productid), item]),
-    );
+    taskDetailsEntries.value = hydratedTaskDetailsByTask;
+
+    const projectEquipmentLinks = await projectEquipmentsApi.listByProject(pid).catch(() => []);
     const equipmentIds = Array.from(
       new Set(
-        products
-          .map((item) => Number(item?.equipid ?? 0))
+        projectEquipmentLinks
+          .map((item) => Number(item.equipmentid ?? 0))
           .filter((id) => Number.isFinite(id) && id > 0),
       ),
     );
+
     const equipments = await Promise.all(
-      equipmentIds.map(async (id) => {
-        try {
-          return await equipmentsApi.getEquipment(id);
-        } catch {
-          return null;
+      equipmentIds.map(async (equipmentId) => await equipmentsApi.getEquipment(equipmentId).catch(() => null)),
+    );
+    const realEquipments = equipments.filter((item): item is EquipmentDto => item != null);
+    projectEquipmentList.value = realEquipments;
+    equipmentMapRef.value = new Map(
+      realEquipments
+        .filter((item) => Number(item.equipid ?? 0) > 0)
+        .map((item) => [Number(item.equipid), item]),
+    );
+
+    const productsByEquipment = new Map<number, ProductDto[]>();
+    const productById = new Map<number, ProductDto>();
+
+    await Promise.all(
+      realEquipments.map(async (equipment) => {
+        const equipId = Number(equipment.equipid ?? 0);
+        if (!Number.isFinite(equipId) || equipId <= 0) return;
+        const products = await productsApi.searchProducts({ equipmentid: equipId }).catch(() => []);
+        productsByEquipment.set(equipId, products);
+        for (const product of products) {
+          const productId = Number(product.productid ?? 0);
+          if (Number.isFinite(productId) && productId > 0) {
+            productById.set(productId, product);
+          }
         }
       }),
     );
-    const equipmentById = new Map(
-      equipments
-        .filter((item): item is NonNullable<typeof item> => item != null && Number(item.equipid) > 0)
-        .map((item) => [Number(item.equipid), item]),
+
+    for (const entry of hydratedTaskDetailsByTask) {
+      const productId = Number(entry.detail.task.product_id ?? entry.task.productid ?? 0);
+      if (!Number.isFinite(productId) || productId <= 0 || productById.has(productId)) continue;
+      const product = await productsApi.getProduct(productId).catch(() => null);
+      if (!product) continue;
+      productById.set(productId, product);
+      const equipId = Number(product.equipid ?? 0);
+      if (Number.isFinite(equipId) && equipId > 0) {
+        const list = productsByEquipment.get(equipId) ?? [];
+        if (!list.some((item) => Number(item.productid ?? 0) === productId)) {
+          list.push(product);
+          productsByEquipment.set(equipId, list);
+        }
+        if (!equipmentMapRef.value.has(equipId)) {
+          const equipment = await equipmentsApi.getEquipment(equipId).catch(() => null);
+          if (equipment) {
+            equipmentMapRef.value.set(equipId, equipment);
+            projectEquipmentList.value = [...projectEquipmentList.value, equipment];
+          }
+        }
+      }
+    }
+
+    productMapRef.value = productById;
+    productsByEquipmentRef.value = productsByEquipment;
+
+    const factoryList = Array.from(
+      new Set(
+        projectEquipmentList.value
+          .map((item) => String(item.factory ?? '').trim())
+          .filter(Boolean),
+      ),
     );
+    project.value = {
+      id: String(projectDto.projectid ?? pid),
+      name: projectDto.projectname?.trim() || `项目 #${pid}`,
+      factory: factoryList.join(' / ') || undefined,
+    };
+
+    if (validTasks.length === 0) {
+      report.value = getReportByProjectId(String(pid)) ?? null;
+      return;
+    }
 
     report.value = buildReportFromProjectTaskDetailsSource({
       project: projectDto as ProjectDto,
       company,
       tasks: validTasks,
-      productById,
-      equipmentById,
+      productById: productMapRef.value,
+      equipmentById: equipmentMapRef.value,
       taskDetailsByTask: hydratedTaskDetailsByTask,
     });
   } catch (error) {
@@ -825,14 +993,193 @@ async function exportWord() {
 function downloadPdf() {
   alert('下载 PDF：原型占位（待接入真实导出逻辑）');
 }
-
-function onViewDetail(card: ProblemCardView) {
-  alert(`查看详细建议：${card.title}（原型占位）`);
-}
 </script>
 
 <style scoped>
 @import './styles/report-page.css';
+
+.report-device-shell {
+  overflow: hidden;
+  border: 1px solid var(--theme-color-soft-border);
+  border-radius: 0.75rem;
+  background: var(--theme-color-surface, #fff);
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.05);
+}
+
+.report-device-caption {
+  padding: 0.9rem 1.1rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--theme-color-text);
+  background: color-mix(in srgb, var(--theme-color-primary) 5%, white);
+  border-bottom: 1px solid var(--theme-color-soft-border);
+}
+
+.report-device-table-wrap {
+  overflow-x: auto;
+}
+
+.report-device-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 820px;
+}
+
+.report-device-table th,
+.report-device-table td {
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--theme-color-soft-border);
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+.report-device-table th {
+  color: var(--theme-color-text);
+  font-weight: 600;
+  background: color-mix(in srgb, var(--theme-color-primary) 8%, white);
+}
+
+.report-device-table tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--theme-color-primary) 2%, white);
+}
+
+.report-issue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.report-issue-block {
+  overflow: hidden;
+  border: 1px solid var(--theme-color-soft-border);
+  border-radius: 0.75rem;
+  background: var(--theme-color-surface, #fff);
+}
+
+.report-issue-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.report-issue-table td {
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--theme-color-soft-border);
+  vertical-align: middle;
+}
+
+.report-issue-table__room {
+  width: 64px;
+  background: color-mix(in srgb, var(--theme-color-primary) 8%, white);
+  color: var(--theme-color-primary);
+  font-weight: 700;
+  text-align: center;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+}
+
+.report-issue-table__number {
+  width: 96px;
+  font-weight: 700;
+  color: var(--theme-color-text);
+  text-align: center;
+  background: color-mix(in srgb, var(--theme-color-primary) 4%, white);
+}
+
+.report-issue-table__label {
+  width: 112px;
+  color: var(--theme-color-weak-text);
+  font-weight: 600;
+  text-align: right;
+  background: color-mix(in srgb, var(--theme-color-primary) 2%, white);
+}
+
+.report-issue-table__textcell {
+  line-height: 1.8;
+  color: var(--theme-color-text);
+}
+
+.report-issue-table__textcell strong {
+  display: block;
+  margin-bottom: 0.45rem;
+  color: var(--theme-color-text);
+}
+
+.report-issue-table__textcell p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.report-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.report-photo-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 148px;
+  padding: 0.85rem;
+  border: 1px dashed color-mix(in srgb, var(--theme-color-primary) 30%, var(--theme-color-soft-border));
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--theme-color-primary) 2%, white);
+}
+
+.report-photo-slot__button {
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: zoom-in;
+}
+
+.report-photo-slot__image {
+  display: block;
+  width: 100%;
+  height: 140px;
+  object-fit: cover;
+  border-radius: 0.6rem;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.1);
+}
+
+.report-photo-slot__placeholder {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--theme-color-text);
+}
+
+.report-photo-slot__hint {
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--theme-color-weak-text);
+}
+
+.report-photo-empty {
+  padding: 1rem 0;
+  font-size: 0.875rem;
+  color: var(--theme-color-text-soft);
+}
+
+@media (max-width: 768px) {
+  .report-issue-table__room {
+    width: 42px;
+    font-size: 0.75rem;
+  }
+
+  .report-issue-table__number,
+  .report-issue-table__label,
+  .report-issue-table td,
+  .report-device-table th,
+  .report-device-table td {
+    font-size: 0.8rem;
+  }
+
+  .report-photo-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 
 .appendix-workshops {
   display: flex;

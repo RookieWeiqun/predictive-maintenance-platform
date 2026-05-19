@@ -9,7 +9,7 @@ function quoteList(values: readonly string[]): string {
   return values.map((value) => `'${value}'`).join(', ');
 }
 
-export const OFFLINE_DB_VERSION = 5;
+export const OFFLINE_DB_VERSION = 6;
 
 export const OFFLINE_TASK_TABLE = 'offline_task';
 export const OFFLINE_TASK_ITEM_TABLE = 'offline_task_item';
@@ -22,6 +22,9 @@ CREATE TABLE IF NOT EXISTS ${OFFLINE_TASK_TABLE} (
   server_task_id TEXT,
   task_no TEXT,
   serial_no TEXT,
+  equipment_name TEXT,
+  equipment_number TEXT,
+  department TEXT,
   assigned_user_name TEXT,
   assigned_user_id TEXT,
   download_device_name TEXT,
@@ -109,6 +112,12 @@ FROM ${OFFLINE_TASK_ITEM_TABLE};
   `CREATE INDEX IF NOT EXISTS idx_offline_task_item_task_uuid ON ${OFFLINE_TASK_ITEM_TABLE}(task_uuid);`,
   `CREATE INDEX IF NOT EXISTS idx_offline_task_item_sync_status ON ${OFFLINE_TASK_ITEM_TABLE}(sync_status);`,
   `CREATE INDEX IF NOT EXISTS idx_offline_task_item_server_item_id ON ${OFFLINE_TASK_ITEM_TABLE}(server_item_id);`,
+];
+
+export const OFFLINE_DB_MIGRATION_V6_SQL = [
+  `ALTER TABLE ${OFFLINE_TASK_TABLE} ADD COLUMN equipment_name TEXT;`,
+  `ALTER TABLE ${OFFLINE_TASK_TABLE} ADD COLUMN equipment_number TEXT;`,
+  `ALTER TABLE ${OFFLINE_TASK_TABLE} ADD COLUMN department TEXT;`,
 ];
 
 export const CREATE_OFFLINE_TASK_ITEM_TABLE_SQL = `
