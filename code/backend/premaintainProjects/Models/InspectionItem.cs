@@ -41,4 +41,16 @@ public partial class InspectionItem
     /// Critical
     /// </summary>
     public string? Priority { get; set; }
+
+    public string? Displaycondition { get; set; }
+
+    public string? Operationguide { get; set; }
+
+    public string? Recommendedrules { get; set; }
+
+    public string? Recommendationcontent { get; set; }
+
+    public string? Hiddenhazardcontent { get; set; }
+
+    public string? Maintenanceinstructions { get; set; }
 }
