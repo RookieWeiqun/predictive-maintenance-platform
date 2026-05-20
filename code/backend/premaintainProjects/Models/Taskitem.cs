@@ -44,4 +44,14 @@ public partial class Taskitem
     public string? RenderSchemaJson { get; set; }
 
     public int? Inspectionitemid { get; set; }
+
+    public string? Recommendedrules { get; set; }
+
+    public string? Recommendationcontent { get; set; }
+
+    public string? Hiddenhazardcontent { get; set; }
+
+    public string? Maintenanceinstructions { get; set; }
+
+    public string? Displaycondition { get; set; }
 }

@@ -150,26 +150,26 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
                 .HasColumnType("jsonb")
                 .HasColumnName("displaycondition");
             entity.Property(e => e.Hiddenhazardcontent)
-                .HasMaxLength(100)
+                .HasMaxLength(200)
                 .HasColumnName("hiddenhazardcontent");
             entity.Property(e => e.Maintenanceinstructions)
-                .HasMaxLength(100)
+                .HasMaxLength(200)
                 .HasColumnName("maintenanceinstructions");
             entity.Property(e => e.Name)
                 .HasMaxLength(100)
                 .HasColumnName("name");
             entity.Property(e => e.Operationguide)
-                .HasMaxLength(100)
+                .HasMaxLength(200)
                 .HasColumnName("operationguide");
             entity.Property(e => e.Priority)
                 .HasMaxLength(20)
                 .HasComment("High\r\nMedium\r\nLow\r\nCritical")
                 .HasColumnName("priority");
             entity.Property(e => e.Recommendationcontent)
-                .HasMaxLength(100)
+                .HasMaxLength(200)
                 .HasColumnName("recommendationcontent");
             entity.Property(e => e.Recommendedrules)
-                .HasMaxLength(100)
+                .HasMaxLength(200)
                 .HasColumnName("recommendedrules");
             entity.Property(e => e.RuleType)
                 .HasMaxLength(50)
@@ -375,15 +375,30 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
                 .HasDefaultValueSql("now()")
                 .HasColumnType("timestamp without time zone")
                 .HasColumnName("createtime");
+            entity.Property(e => e.Displaycondition)
+                .HasColumnType("jsonb")
+                .HasColumnName("displaycondition");
             entity.Property(e => e.ExecutionStatus)
                 .HasDefaultValue((short)1)
                 .HasComment("1.pending 待执行。任务包刚下发或尚未填写结果时使用。\r\n2.\r\ncompleted 已执行并已填写结果。\r\n\r\n3.skipped 本次现场决定跳过该项，但该项原本是计划中的标准检查项。\r\n4. not_applicable 该项对当前设备或现场不适用。\r\n5.\r\nrecheck_required 已执行，但需要后续复检或二次确认。")
                 .HasColumnName("execution_status");
+            entity.Property(e => e.Hiddenhazardcontent)
+                .HasMaxLength(200)
+                .HasColumnName("hiddenhazardcontent");
             entity.Property(e => e.Inspectionitemid).HasColumnName("inspectionitemid");
             entity.Property(e => e.Isnormal)
                 .HasDefaultValue(true)
                 .HasColumnName("isnormal");
             entity.Property(e => e.Isrecheck).HasColumnName("isrecheck");
+            entity.Property(e => e.Maintenanceinstructions)
+                .HasMaxLength(200)
+                .HasColumnName("maintenanceinstructions");
+            entity.Property(e => e.Recommendationcontent)
+                .HasMaxLength(200)
+                .HasColumnName("recommendationcontent");
+            entity.Property(e => e.Recommendedrules)
+                .HasMaxLength(200)
+                .HasColumnName("recommendedrules");
             entity.Property(e => e.RenderSchemaJson)
                 .HasColumnType("jsonb")
                 .HasColumnName("render_schema_json");

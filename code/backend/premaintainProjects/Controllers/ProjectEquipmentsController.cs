@@ -316,12 +316,13 @@ namespace premaintainProjects.Controllers
                             Createtime = _serviceTools.NowInChina(),
                             ExecutionStatus = 1,
                             Updatetime = _serviceTools.NowInChina(),
-                            SourceType = 1
+                            SourceType = 1,
+                             RenderSchemaJson = null
                         });
                     }
                 }
 
-                _context.Taskitems.AddRange(taskitems);
+                _context.Taskitems.AddRange(taskitems);     
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
 

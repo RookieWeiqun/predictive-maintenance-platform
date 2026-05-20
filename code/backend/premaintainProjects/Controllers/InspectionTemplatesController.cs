@@ -253,7 +253,7 @@ namespace premaintainProjects.Controllers
                         ? null
                         : JsonSerializer.Serialize(x.Threshold), // 彻底修复JSONB
                     SortOrder = x.SortOrder,
-                    Priority = x.Priority
+                    Priority = x.Priority                     
                 }).ToList();
 
                 _context.InspectionItems.AddRange(items);

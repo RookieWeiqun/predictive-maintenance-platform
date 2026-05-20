@@ -318,7 +318,12 @@ namespace premaintainProjects.Controllers
                 ExecutionStatus = item.ExecutionStatus,
                 Updatetime = _serviceTools.NormalizeChinaTime(item.Updatetime),
                 SourceType = item.SourceType,
-                RenderSchemaJson = item.RenderSchemaJson                
+                RenderSchemaJson = item.RenderSchemaJson,                
+                Displaycondition = item.Displaycondition,
+                Hiddenhazardcontent = item.Hiddenhazardcontent,
+                Maintenanceinstructions = item.Maintenanceinstructions,
+                Recommendationcontent = item.Recommendationcontent,
+                Recommendedrules = item.Recommendedrules
             }).ToList();
 
             var data = new UpdateInspectionTaskDetailDto
@@ -371,6 +376,13 @@ namespace premaintainProjects.Controllers
                 Updatetime = _serviceTools.NormalizeChinaTime(item.Updatetime?? DateTime.Now),
                 SourceType = item.SourceType,
                 RenderSchemaJson = item.RenderSchemaJson,
+                Displaycondition =item.Displaycondition,
+                Hiddenhazardcontent = item.Hiddenhazardcontent,
+                Maintenanceinstructions = item.Maintenanceinstructions,
+                Recommendationcontent = item.Recommendationcontent,
+                Recommendedrules = item.Recommendedrules,
+                
+                
                 Attachments = attachments
                     .Where(a => a.Taskitemid == item.Itemid)
                     .ToList()

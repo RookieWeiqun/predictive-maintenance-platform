@@ -68,7 +68,21 @@ public class InspectionItemImportDto
 
     public int SortOrder { get; set; } = 1;
     public string? Priority { get; set; }
-}
+
+
+        public string? Displaycondition { get; set; }
+
+        public string? Operationguide { get; set; }
+
+        public string? Recommendedrules { get; set; }
+
+        public string? Recommendationcontent { get; set; }
+
+        public string? Hiddenhazardcontent { get; set; }
+
+        public string? Maintenanceinstructions { get; set; }
+
+    }
 
     public class TaskitemDetailDto
     {
@@ -111,6 +125,16 @@ public class InspectionItemImportDto
         public string? RenderSchemaJson { get; set; }
 
         public int? Inspectionitemid { get; set; }
+
+        public string? Recommendedrules { get; set; }
+
+        public string? Recommendationcontent { get; set; }
+
+        public string? Hiddenhazardcontent { get; set; }
+
+        public string? Maintenanceinstructions { get; set; }
+
+        public string? Displaycondition { get; set; }
 
         public List<Attachment> Attachments { get; set; } = new();
     }
