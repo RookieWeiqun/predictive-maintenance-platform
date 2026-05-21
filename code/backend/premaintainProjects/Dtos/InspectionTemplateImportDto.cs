@@ -136,6 +136,8 @@ public class InspectionItemImportDto
 
         public string? Displaycondition { get; set; }
 
+        public string? Operationguide { get; set; }
+
         public List<Attachment> Attachments { get; set; } = new();
     }
     public class InspectionTaskDetailDto

@@ -10,6 +10,8 @@ using static premaintainProjects.Models.otherModels;
 using Microsoft.Extensions.Logging;
 using premaintainProjects.Services;
 
+
+
 namespace premaintainProjects.Controllers
 {
     [Route("api/[controller]")]
@@ -226,28 +228,29 @@ namespace premaintainProjects.Controllers
                     .Where(p => p.Equipid == projectEquipment.Equipmentid)
                     .Select(p => p.Productid)
                     .ToListAsync();
-                
-                
-                    if (equipment.Number.HasValue && equipment.Number.Value > 0 && productIds.Count < equipment.Number.Value)
-                    {
-                        var products = new List<Product>();
 
-                        for (int i = productIds.Count; i < equipment.Number.Value; i++)
+                if (equipment.Number.HasValue && equipment.Number.Value > 0 && productIds.Count < equipment.Number.Value)
+                {
+                    var products = new List<Product>();
+
+                    for (int i = productIds.Count; i < equipment.Number.Value; i++)
+                    {
+                        products.Add(new Product
                         {
-                            products.Add(new Product
-                            {
-                                Equipid = equipment.Equipid,
-                                Mlfb = equipment.Mlfb,
-                                Serialno = null
-                            });
-                        }
-                        _context.Products.AddRange(products);
-                        await _context.SaveChangesAsync();
-                        productIds = await _context.Products
-                             .Where(p => p.Equipid == projectEquipment.Equipmentid)
-                             .Select(p => p.Productid)
-                             .ToListAsync();
-                    }                               
+                            Equipid = equipment.Equipid,
+                            Mlfb = equipment.Mlfb,
+                            Serialno = null
+                        });
+                    }
+
+                    _context.Products.AddRange(products);
+                    await _context.SaveChangesAsync();
+
+                    productIds = await _context.Products
+                        .Where(p => p.Equipid == projectEquipment.Equipmentid)
+                        .Select(p => p.Productid)
+                        .ToListAsync();
+                }
 
                 var template = await _context.InspectionTemplates.FindAsync(projectEquipment.Templateid);
 
@@ -260,37 +263,34 @@ namespace premaintainProjects.Controllers
 
                 var tasks = new List<InspectionTask>();
 
-                
-                    foreach (var productId in productIds)
+                foreach (var productId in productIds)
+                {
+                    tasks.Add(new InspectionTask
                     {
-                        tasks.Add(new InspectionTask
-                        {
-                            Taskid = 0,
-                            Projectid = projectEquipment.Projectid,
-                            Templateid = template.Templateid,
-                            Productid = productId,
-                            Status = 1,
-                            Assigneduserid = null,
-                            TaskNo = await _serviceTools.GenerateTaskNoAsync(),
-                            Inspectiontype = template.Inspectiontype,
-                            Ifdel = false,
-                             Assignedusername = null,
-                              Version = 1,
-                               DownloadedAt = null,
-                                LocalUpdatedAt = null,
-                                 DownloadDeviceName = null
-
-                        });
-                    }
-                
+                        Taskid = 0,
+                        Projectid = projectEquipment.Projectid,
+                        Templateid = template.Templateid,
+                        Productid = productId,
+                        Status = 1,
+                        Assigneduserid = null,
+                        TaskNo = await _serviceTools.GenerateTaskNoAsync(),
+                        Inspectiontype = template.Inspectiontype,
+                        Ifdel = false,
+                        Assignedusername = null,
+                        Version = 1,
+                        DownloadedAt = null,
+                        LocalUpdatedAt = null,
+                        DownloadDeviceName = null
+                    });
+                }
 
                 _context.InspectionTasks.AddRange(tasks);
                 await _context.SaveChangesAsync();
 
                 var inspectionItems = await _context.InspectionItems
-                        .Where(x => x.Templateid == template.Templateid)
-                        .OrderBy(x => x.SortOrder)
-                        .ToListAsync();
+                    .Where(x => x.Templateid == template.Templateid)
+                    .OrderBy(x => x.SortOrder)
+                    .ToListAsync();
 
                 var categoryPathMap = await BuildCategoryPathMapAsync(template.Templateid);
 
@@ -317,12 +317,20 @@ namespace premaintainProjects.Controllers
                             ExecutionStatus = 1,
                             Updatetime = _serviceTools.NowInChina(),
                             SourceType = 1,
-                             RenderSchemaJson = null
+                            RenderSchemaJson = null,
+                            Operationguide = inspectionItem.Operationguide,
+                            Displaycondition = inspectionItem.Displaycondition,
+                            Recommendedrules = inspectionItem.Recommendedrules,
+                            Recommendationcontent = inspectionItem.Recommendationcontent,
+                            Hiddenhazardcontent = inspectionItem.Hiddenhazardcontent,
+                            Maintenanceinstructions = inspectionItem.Maintenanceinstructions
                         });
                     }
                 }
 
-                _context.Taskitems.AddRange(taskitems);     
+
+
+                _context.Taskitems.AddRange(taskitems);
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
 

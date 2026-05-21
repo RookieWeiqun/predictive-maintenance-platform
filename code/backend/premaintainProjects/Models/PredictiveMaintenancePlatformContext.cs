@@ -393,6 +393,9 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
             entity.Property(e => e.Maintenanceinstructions)
                 .HasMaxLength(200)
                 .HasColumnName("maintenanceinstructions");
+            entity.Property(e => e.Operationguide)
+                .HasMaxLength(200)
+                .HasColumnName("operationguide");
             entity.Property(e => e.Recommendationcontent)
                 .HasMaxLength(200)
                 .HasColumnName("recommendationcontent");

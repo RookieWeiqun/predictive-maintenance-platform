@@ -54,4 +54,6 @@ public partial class Taskitem
     public string? Maintenanceinstructions { get; set; }
 
     public string? Displaycondition { get; set; }
+
+    public string? Operationguide { get; set; }
 }
