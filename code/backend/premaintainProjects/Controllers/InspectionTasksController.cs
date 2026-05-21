@@ -143,19 +143,7 @@ namespace premaintainProjects.Controllers
                     _logger.LogWarning("整单更新失败，巡检任务不存在，ID：{Id}", dto.Task.Taskid);
                     return new JsonResult(new { code = ResponseCode.记录不存在, data = (object)null, msg = "记录不存在" });
                 }
-                /*
-                if (dto.Task.Version != existingTask.Version + 1)
-                {
-                    _logger.LogWarning("整单更新失败，版本冲突，ID：{Id}，当前版本：{CurrentVersion}，提交版本：{SubmitVersion}",
-                        dto.Task.Taskid, existingTask.Version, dto.Task.Version);
 
-                    return new JsonResult(new
-                    {
-                        code = ResponseCode.参数无效,
-                        data = (object)null,
-                        msg = "版本冲突"
-                    });
-                }*/
 
                 // 更新 task 主表
                 existingTask.Projectid = dto.Task.Projectid;
@@ -180,7 +168,17 @@ namespace premaintainProjects.Controllers
                 var existingItemMap = existingItems.ToDictionary(x => x.Itemid, x => x);
                 var inputItems = dto.Taskitems ?? new List<Taskitem>();
 
+                var inspectionItemIds = inputItems
+                    .Where(x => x.Inspectionitemid.HasValue)
+                    .Select(x => x.Inspectionitemid!.Value)
+                    .Distinct()
+                    .ToList();
+
+                var inspectionItemMap = await _context.InspectionItems
+                    .Where(x => inspectionItemIds.Contains(x.Itemid))
+                    .ToDictionaryAsync(x => x.Itemid);
                 // 传入中已有ID
+
                 var inputIds = inputItems
                     .Where(x => x.Itemid != Guid.Empty)
                     .Select(x => x.Itemid)
@@ -212,6 +210,8 @@ namespace premaintainProjects.Controllers
                 {
                     if (input.Itemid != Guid.Empty && existingItemMap.TryGetValue(input.Itemid, out var existingItem))
                     {
+                        inspectionItemMap.TryGetValue(input.Inspectionitemid ?? 0, out var sourceInspectionItem);
+
                         existingItem.Inspectionitemid = input.Inspectionitemid;
                         existingItem.Taskname = input.Taskname;
                         existingItem.Categorypath = input.Categorypath;
@@ -222,10 +222,18 @@ namespace premaintainProjects.Controllers
                         existingItem.Updatetime = _serviceTools.NowInChina();
                         existingItem.SourceType = input.SourceType;
                         existingItem.Taskid = input.Taskid;
+                        existingItem.Operationguide = sourceInspectionItem?.Operationguide;
+                        existingItem.Displaycondition = sourceInspectionItem?.Displaycondition;
+                        existingItem.Hiddenhazardcontent = sourceInspectionItem?.Hiddenhazardcontent;
+                        existingItem.Maintenanceinstructions = sourceInspectionItem?.Maintenanceinstructions;
+                        existingItem.Recommendationcontent = sourceInspectionItem?.Recommendationcontent;
+                        existingItem.Recommendedrules = sourceInspectionItem?.Recommendedrules;
 
                     }
                     else
                     {
+                        inspectionItemMap.TryGetValue(input.Inspectionitemid ?? 0, out var sourceInspectionItem);
+
                         var newItem = new Taskitem
                         {
                             Itemid = Guid.NewGuid(),
@@ -240,6 +248,12 @@ namespace premaintainProjects.Controllers
                             ExecutionStatus = input.ExecutionStatus,
                             Updatetime = _serviceTools.NowInChina(),
                             SourceType = input.SourceType,
+                            Operationguide = sourceInspectionItem?.Operationguide,
+                            Displaycondition = sourceInspectionItem?.Displaycondition,
+                            Hiddenhazardcontent = sourceInspectionItem?.Hiddenhazardcontent,
+                            Maintenanceinstructions = sourceInspectionItem?.Maintenanceinstructions,
+                            Recommendationcontent = sourceInspectionItem?.Recommendationcontent,
+                            Recommendedrules = sourceInspectionItem?.Recommendedrules
                         };
                         _context.Taskitems.Add(newItem);
                     }
@@ -318,7 +332,13 @@ namespace premaintainProjects.Controllers
                 ExecutionStatus = item.ExecutionStatus,
                 Updatetime = _serviceTools.NormalizeChinaTime(item.Updatetime),
                 SourceType = item.SourceType,
-                RenderSchemaJson = item.RenderSchemaJson                
+                RenderSchemaJson = item.RenderSchemaJson,                
+                Displaycondition = item.Displaycondition,
+                Hiddenhazardcontent = item.Hiddenhazardcontent,
+                Maintenanceinstructions = item.Maintenanceinstructions,
+                Recommendationcontent = item.Recommendationcontent,
+                Recommendedrules = item.Recommendedrules,
+                Operationguide = item.Operationguide
             }).ToList();
 
             var data = new UpdateInspectionTaskDetailDto
@@ -371,10 +391,22 @@ namespace premaintainProjects.Controllers
                 Updatetime = _serviceTools.NormalizeChinaTime(item.Updatetime?? DateTime.Now),
                 SourceType = item.SourceType,
                 RenderSchemaJson = item.RenderSchemaJson,
+                Displaycondition =item.Displaycondition,
+                Hiddenhazardcontent = item.Hiddenhazardcontent,
+                Maintenanceinstructions = item.Maintenanceinstructions,
+                Recommendationcontent = item.Recommendationcontent,
+                Recommendedrules = item.Recommendedrules,
+                Operationguide = item.Operationguide,
+                
                 Attachments = attachments
                     .Where(a => a.Taskitemid == item.Itemid)
                     .ToList()
             }).ToList();
+
+            foreach (var item in taskitemDtos)
+            {
+                item.RenderSchemaJson = await _serviceTools.BuildRenderSchemaJsonAsync(item.Inspectionitemid);
+            }
 
             var data = new InspectionTaskDetailDto
             {

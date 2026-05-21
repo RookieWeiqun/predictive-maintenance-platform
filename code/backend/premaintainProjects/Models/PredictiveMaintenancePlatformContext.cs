@@ -39,7 +39,7 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
 
     public virtual DbSet<Taskitem> Taskitems { get; set; }
 
-    public virtual DbSet<TaskitemsBackup2025> TaskitemsBackup2025s { get; set; }
+    public virtual DbSet<Templatemapping> Templatemappings { get; set; }
 
     public virtual DbSet<User> Users { get; set; }
 
@@ -146,13 +146,31 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
 
             entity.Property(e => e.Itemid).HasColumnName("itemid");
             entity.Property(e => e.Categoryid).HasColumnName("categoryid");
+            entity.Property(e => e.Displaycondition)
+                .HasColumnType("jsonb")
+                .HasColumnName("displaycondition");
+            entity.Property(e => e.Hiddenhazardcontent)
+                .HasMaxLength(200)
+                .HasColumnName("hiddenhazardcontent");
+            entity.Property(e => e.Maintenanceinstructions)
+                .HasMaxLength(200)
+                .HasColumnName("maintenanceinstructions");
             entity.Property(e => e.Name)
                 .HasMaxLength(100)
                 .HasColumnName("name");
+            entity.Property(e => e.Operationguide)
+                .HasMaxLength(200)
+                .HasColumnName("operationguide");
             entity.Property(e => e.Priority)
                 .HasMaxLength(20)
                 .HasComment("High\r\nMedium\r\nLow\r\nCritical")
                 .HasColumnName("priority");
+            entity.Property(e => e.Recommendationcontent)
+                .HasMaxLength(200)
+                .HasColumnName("recommendationcontent");
+            entity.Property(e => e.Recommendedrules)
+                .HasMaxLength(200)
+                .HasColumnName("recommendedrules");
             entity.Property(e => e.RuleType)
                 .HasMaxLength(50)
                 .HasDefaultValueSql("'number_range'::character varying")
@@ -247,6 +265,10 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
             entity.Property(e => e.Productcategory)
                 .HasMaxLength(100)
                 .HasColumnName("productcategory");
+            entity.Property(e => e.Series)
+                .HasMaxLength(100)
+                .HasColumnName("series");
+            entity.Property(e => e.Size).HasMaxLength(100);
         });
 
         modelBuilder.Entity<Product>(entity =>
@@ -353,15 +375,33 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
                 .HasDefaultValueSql("now()")
                 .HasColumnType("timestamp without time zone")
                 .HasColumnName("createtime");
+            entity.Property(e => e.Displaycondition)
+                .HasColumnType("jsonb")
+                .HasColumnName("displaycondition");
             entity.Property(e => e.ExecutionStatus)
                 .HasDefaultValue((short)1)
                 .HasComment("1.pending 待执行。任务包刚下发或尚未填写结果时使用。\r\n2.\r\ncompleted 已执行并已填写结果。\r\n\r\n3.skipped 本次现场决定跳过该项，但该项原本是计划中的标准检查项。\r\n4. not_applicable 该项对当前设备或现场不适用。\r\n5.\r\nrecheck_required 已执行，但需要后续复检或二次确认。")
                 .HasColumnName("execution_status");
+            entity.Property(e => e.Hiddenhazardcontent)
+                .HasMaxLength(200)
+                .HasColumnName("hiddenhazardcontent");
             entity.Property(e => e.Inspectionitemid).HasColumnName("inspectionitemid");
             entity.Property(e => e.Isnormal)
                 .HasDefaultValue(true)
                 .HasColumnName("isnormal");
             entity.Property(e => e.Isrecheck).HasColumnName("isrecheck");
+            entity.Property(e => e.Maintenanceinstructions)
+                .HasMaxLength(200)
+                .HasColumnName("maintenanceinstructions");
+            entity.Property(e => e.Operationguide)
+                .HasMaxLength(200)
+                .HasColumnName("operationguide");
+            entity.Property(e => e.Recommendationcontent)
+                .HasMaxLength(200)
+                .HasColumnName("recommendationcontent");
+            entity.Property(e => e.Recommendedrules)
+                .HasMaxLength(200)
+                .HasColumnName("recommendedrules");
             entity.Property(e => e.RenderSchemaJson)
                 .HasColumnType("jsonb")
                 .HasColumnName("render_schema_json");
@@ -381,31 +421,22 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
                 .HasColumnName("updatetime");
         });
 
-        modelBuilder.Entity<TaskitemsBackup2025>(entity =>
+        modelBuilder.Entity<Templatemapping>(entity =>
         {
-            entity
-                .HasNoKey()
-                .ToTable("taskitems_backup_2025");
+            entity.HasKey(e => e.Tmid).HasName("templatemapping_pk");
 
-            entity.Property(e => e.Categorypath)
-                .HasMaxLength(200)
-                .HasColumnName("categorypath");
-            entity.Property(e => e.Createtime)
-                .HasColumnType("timestamp without time zone")
-                .HasColumnName("createtime");
-            entity.Property(e => e.Isnormal).HasColumnName("isnormal");
-            entity.Property(e => e.Isrecheck).HasColumnName("isrecheck");
-            entity.Property(e => e.Itemid).HasColumnName("itemid");
-            entity.Property(e => e.Name)
-                .HasMaxLength(200)
-                .HasColumnName("name");
-            entity.Property(e => e.Photopath)
-                .HasMaxLength(200)
-                .HasColumnName("photopath");
-            entity.Property(e => e.Result)
-                .HasColumnType("character varying")
-                .HasColumnName("result");
-            entity.Property(e => e.Taskid).HasColumnName("taskid");
+            entity.ToTable("templatemapping");
+
+            entity.Property(e => e.Tmid).HasColumnName("tmid");
+            entity.Property(e => e.Mlfb)
+                .HasMaxLength(50)
+                .HasColumnName("mlfb");
+            entity.Property(e => e.Series)
+                .HasMaxLength(50)
+                .HasColumnName("series");
+            entity.Property(e => e.Size)
+                .HasMaxLength(50)
+                .HasColumnName("size");
         });
 
         modelBuilder.Entity<User>(entity =>

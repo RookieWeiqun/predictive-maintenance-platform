@@ -53,7 +53,9 @@ namespace premaintainProjects.Controllers
         public async Task<IActionResult> SearchTemplates(
             [FromQuery] int? inspectiontype,
             [FromQuery] string? productcategory,
-            [FromQuery] string? mlfb)
+            [FromQuery] string? mlfb,
+            [FromQuery] string? series,
+            [FromQuery] string? size)
         {
             var query = _context.InspectionTemplates.AsQueryable();
 
@@ -65,6 +67,12 @@ namespace premaintainProjects.Controllers
 
             if (!string.IsNullOrEmpty(mlfb))
                 query = query.Where(t => t.Mlfb == mlfb);
+
+            if (!string.IsNullOrEmpty(series))
+                query = query.Where(t => t.Series == series);            
+
+            if (!string.IsNullOrEmpty(size))
+                query = query.Where(t => t.Size == size);
 
             var templates = await query.ToListAsync();
 
@@ -245,7 +253,13 @@ namespace premaintainProjects.Controllers
                         ? null
                         : JsonSerializer.Serialize(x.Threshold), // 彻底修复JSONB
                     SortOrder = x.SortOrder,
-                    Priority = x.Priority
+                    Priority = x.Priority,
+                     Operationguide = x.Operationguide,
+                      Displaycondition = x.Displaycondition,
+                       Hiddenhazardcontent = x.Hiddenhazardcontent,
+                        Maintenanceinstructions = x.Maintenanceinstructions,
+                         Recommendationcontent = x.Recommendationcontent,
+                          Recommendedrules = x.Recommendedrules
                 }).ToList();
 
                 _context.InspectionItems.AddRange(items);
