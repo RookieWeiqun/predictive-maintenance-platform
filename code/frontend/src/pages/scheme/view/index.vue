@@ -90,6 +90,20 @@
               placeholder="请输入适用型号（可选）"
               style="flex: 1;"
             />
+            <IxInput
+              v-model="schemeForm.series"
+              label="系列"
+              :readonly="!isEditMode"
+              placeholder="请输入 series"
+              style="flex: 1;"
+            />
+            <IxInput
+              v-model="schemeForm.size"
+              label="尺寸"
+              :readonly="!isEditMode"
+              placeholder="请输入 size"
+              style="flex: 1;"
+            />
           </template>
         </div>
 
@@ -205,6 +219,8 @@ const schemeForm = ref({
   categoryId: '',
   subCategoryId: '',
   model: '',
+  series: '',
+  size: '',
 });
 
 // 当前方案数据
@@ -219,6 +235,8 @@ const originalSchemeForm = ref({
   categoryId: '',
   subCategoryId: '',
   model: '',
+  series: '',
+  size: '',
 });
 
 // 分类列表
@@ -309,6 +327,7 @@ const handleExcelSelected = async (event: Event) => {
 // 验证是否可以保存
 const canSave = computed(() => {
   if (!schemeForm.value.atomicType || !schemeForm.value.name) return false;
+  if (!schemeForm.value.series.trim() || !schemeForm.value.size.trim()) return false;
   if (!currentAtomicScheme.value || !currentAtomicScheme.value.items || currentAtomicScheme.value.items.length === 0) {
     return false;
   }
@@ -541,6 +560,8 @@ async function bootstrapView() {
     categoryId: scheme.categoryId || '',
     subCategoryId: scheme.subCategoryId || '',
     model: scheme.model || '',
+    series: '',
+    size: '',
   };
   
   // 保存原始数据

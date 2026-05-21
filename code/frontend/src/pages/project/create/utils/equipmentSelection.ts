@@ -52,7 +52,7 @@ export function mapEquipmentToSelectable(
     subCategoryId,
     categoryName,
     subCategoryName,
-    model: e.equipmentname ?? '',
+    model: e.mlfb?.trim() || (e.equipmentname ?? ''),
     quantity: e.number ?? 0,
     factoryName: e.factory ?? '',
     workshopName: e.workshop ?? '',

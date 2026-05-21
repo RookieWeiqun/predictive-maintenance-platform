@@ -58,13 +58,32 @@
                 :value="subCategory.id" 
               />
             </IxSelect>
-            <IxInput 
-              v-if="schemeForm.atomicType === 'equipment'"
-              v-model="schemeForm.model" 
-              label="适用型号" 
-              placeholder="请输入适用型号（可选）"
+            <IxSelect
+              v-model="schemeForm.series"
+              label="系列"
+              placeholder="请选择系列"
               style="flex: 1;"
-            />
+            >
+              <IxSelectItem
+                v-for="option in seriesOptions"
+                :key="option"
+                :label="option"
+                :value="option"
+              />
+            </IxSelect>
+            <IxSelect
+              v-model="schemeForm.size"
+              label="尺寸"
+              placeholder="请选择尺寸"
+              style="flex: 1;"
+            >
+              <IxSelectItem
+                v-for="option in sizeOptions"
+                :key="option"
+                :label="option"
+                :value="option"
+              />
+            </IxSelect>
           </template>
         </div>
 
@@ -134,12 +153,15 @@ import {
 } from 'ag-grid-community';
 import * as agGrid from 'ag-grid-community';
 import productCategoriesData from '@/mockdata/common/productCategories.json';
-import { inspectionTemplatesApi } from '@/api';
+import { inspectionTemplatesApi, templatemappingsApi } from '@/api';
+import type { TemplateMappingDto } from '@/api/modules/templatemappings';
+import { dedupeTemplateMappingField } from '@/util/templateMappings';
 import { buildTemplateDtoForCreate } from '../utils/schemeInspectionTemplate';
 import { importInspectionItemsFromExcel } from '../utils/importInspectionItemsFromExcel';
 import { syncTemplateNodesWithProgress } from '../utils/syncTemplateNodes';
 import { 
   convertToFlatRows,
+  mapRequiredToPriority,
   type AtomicScheme, 
   type SchemeItem, 
   type FlatRow 
@@ -167,10 +189,13 @@ const schemeForm = ref({
   categoryId: '',
   subCategoryId: '',
   model: '',
+  series: '',
+  size: '',
 });
 
 // 当前方案数据
 const currentAtomicScheme = ref<AtomicScheme | null>(null);
+const templateMappings = ref<TemplateMappingDto[]>([]);
 
 // 分类列表
 const categories = productCategoriesData.categories;
@@ -189,6 +214,30 @@ const productCategoryLabel = computed(() =>
 const productSeriesLabel = computed(() =>
   schemeForm.value.atomicType === 'peripheral' ? '产品系列' : '子分类',
 );
+
+function withCurrentOption(options: string[], currentValue: string): string[] {
+  const value = currentValue.trim();
+  if (!value || options.includes(value)) {
+    return options;
+  }
+  return [value, ...options];
+}
+
+const seriesOptions = computed(() =>
+  withCurrentOption(dedupeTemplateMappingField(templateMappings.value, 'series'), schemeForm.value.series),
+);
+
+const sizeOptions = computed(() =>
+  withCurrentOption(dedupeTemplateMappingField(templateMappings.value, 'size'), schemeForm.value.size),
+);
+
+async function loadTemplateMappings(): Promise<void> {
+  try {
+    templateMappings.value = await templatemappingsApi.listTemplateMappings();
+  } catch (error) {
+    showToast({ message: error instanceof Error ? error.message : '型号尺寸匹配表加载失败' });
+  }
+}
 
 
 // ag-grid 配置
@@ -341,6 +390,7 @@ const handleExcelSelected = async (event: Event) => {
 const canSave = computed(() => {
   if (!schemeForm.value.atomicType || !schemeForm.value.name) return false;
   if (!schemeForm.value.categoryId || !schemeForm.value.subCategoryId) return false;
+  if (!schemeForm.value.series.trim() || !schemeForm.value.size.trim()) return false;
   if (schemeForm.value.atomicType === 'equipment' && !schemeForm.value.categoryId) return false;
   if (!currentAtomicScheme.value || !currentAtomicScheme.value.items || currentAtomicScheme.value.items.length === 0) {
     return false;
@@ -396,13 +446,13 @@ const handleAddRootItem = () => {
     id: `new-${Date.now()}`,
     name: '新检测项目',
     dataType: 'boolean',
-    priority: 'High',
     ruleType: 'boolean_equal',
     operationGuide: '',
     param1: '',
     param2: '',
     type: 'visual',
     required: true,
+    priority: mapRequiredToPriority(true),
     children: [],
   };
   
@@ -436,13 +486,13 @@ const handleAddChildItemToSelected = () => {
     id: `new-${Date.now()}`,
     name: '新子项目',
     dataType: parentItem.dataType || 'boolean',
-    priority: parentItem.priority || 'High',
     ruleType: parentItem.ruleType || 'boolean_equal',
     operationGuide: parentItem.operationGuide || '',
     param1: parentItem.param1 || '',
     param2: parentItem.param2 || '',
     type: parentItem.type || 'visual',
     required: true,
+    priority: mapRequiredToPriority(true),
     children: [],
   };
   
@@ -636,6 +686,7 @@ const updateGridOptionsForEdit = () => {
 
 // 初始化数据
 onMounted(() => {
+  void loadTemplateMappings();
   // 设置方案类型
   schemeForm.value.atomicType = schemeType;
   

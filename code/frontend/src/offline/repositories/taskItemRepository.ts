@@ -15,6 +15,12 @@ interface OfflineTaskItemRow {
   item_name: string;
   category_path: string | null;
   result: string | null;
+  display_condition: string | null;
+  operation_guide: string | null;
+  recommended_rules: string | null;
+  recommendation_content: string | null;
+  hidden_hazard_content: string | null;
+  maintenance_instructions: string | null;
   execution_status: TaskItemExecutionStatus;
   is_normal: number;
   is_recheck: number;
@@ -47,6 +53,12 @@ export class OfflineTaskItemRepository {
           item_name,
           category_path,
           result,
+          display_condition,
+          operation_guide,
+          recommended_rules,
+          recommendation_content,
+          hidden_hazard_content,
+          maintenance_instructions,
           execution_status,
           is_normal,
           is_recheck,
@@ -72,6 +84,12 @@ export class OfflineTaskItemRepository {
           item_name,
           category_path,
           result,
+          display_condition,
+          operation_guide,
+          recommended_rules,
+          recommendation_content,
+          hidden_hazard_content,
+          maintenance_instructions,
           execution_status,
           is_normal,
           is_recheck,
@@ -99,6 +117,12 @@ export class OfflineTaskItemRepository {
           item_name,
           category_path,
           result,
+          display_condition,
+          operation_guide,
+          recommended_rules,
+          recommendation_content,
+          hidden_hazard_content,
+          maintenance_instructions,
           execution_status,
           is_normal,
           is_recheck,
@@ -128,12 +152,18 @@ export class OfflineTaskItemRepository {
           item_name,
           category_path,
           result,
+          display_condition,
+          operation_guide,
+          recommended_rules,
+          recommendation_content,
+          hidden_hazard_content,
+          maintenance_instructions,
           execution_status,
           is_normal,
           is_recheck,
           local_updated_at,
           sync_status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(task_item_uuid) DO UPDATE SET
           server_item_id = excluded.server_item_id,
           task_uuid = excluded.task_uuid,
@@ -141,6 +171,12 @@ export class OfflineTaskItemRepository {
           item_name = excluded.item_name,
           category_path = excluded.category_path,
           result = excluded.result,
+          display_condition = excluded.display_condition,
+          operation_guide = excluded.operation_guide,
+          recommended_rules = excluded.recommended_rules,
+          recommendation_content = excluded.recommendation_content,
+          hidden_hazard_content = excluded.hidden_hazard_content,
+          maintenance_instructions = excluded.maintenance_instructions,
           execution_status = excluded.execution_status,
           is_normal = excluded.is_normal,
           is_recheck = excluded.is_recheck,
@@ -155,6 +191,12 @@ export class OfflineTaskItemRepository {
         record.item_name,
         record.category_path,
         record.result,
+        record.display_condition,
+        record.operation_guide,
+        record.recommended_rules,
+        record.recommendation_content,
+        record.hidden_hazard_content,
+        record.maintenance_instructions,
         record.execution_status,
         record.is_normal ? 1 : 0,
         record.is_recheck ? 1 : 0,

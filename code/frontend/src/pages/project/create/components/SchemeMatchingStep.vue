@@ -50,12 +50,20 @@
             </thead>
             <tbody>
               <tr v-for="row in equipmentSchemeRows" :key="row.key">
-                <td>{{ row.label }}</td>
+                <td>
+                  <div>{{ row.label }}</div>
+                  <div v-if="row.series || row.size" class="row-meta-hint">
+                    解析结果：{{ row.series || '-' }} / {{ row.size || '-' }}
+                  </div>
+                </td>
                 <td>{{ row.deviceCount }}</td>
                 <td>
                   <span v-if="resolveRowSelected(row)">
                     {{ resolveRowSelected(row)?.name }}
                   </span>
+                  <div v-if="resolveRowSelected(row)" class="row-meta-hint">
+                    {{ resolveRowSelected(row)?.series || '-' }} / {{ resolveRowSelected(row)?.size || '-' }}
+                  </div>
                   <span v-else class="muted">未匹配</span>
                 </td>
                 <td>
@@ -68,7 +76,7 @@
                       <IxSelectItem
                         v-for="opt in row.options"
                         :key="opt.id"
-                        :label="`${opt.name}（${opt.model}）`"
+                        :label="`${opt.name}（${opt.model}｜${opt.series}/${opt.size}）`"
                         :value="opt.id"
                       />
                     </IxSelect>
@@ -91,7 +99,10 @@
                       查看详情
                     </button>
                   </div>
-                  <span v-else class="muted">无可选方案</span>
+                  <div v-else>
+                    <span class="muted">无可选方案</span>
+                    <div v-if="row.matchMessage" class="row-match-warning">{{ row.matchMessage }}</div>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -163,7 +174,7 @@
         </div>
       </div>
       <div v-else class="empty-state">
-        <p>未匹配到模板：请确认设备已维护产品分类、工厂与车间，且后端存在对应 <code>inspectiontype</code>、<code>productcategory</code> 的模板。</p>
+        <p>未匹配到模板：请确认设备已填写 MLFB，且后端已维护 MLFB 对应的 series/size 映射以及对应模板。</p>
       </div>
       
       <div v-if="equipmentSchemeRows.length > 0" class="modal-hint">
@@ -209,7 +220,10 @@ interface Props {
     label: string;
     deviceCount: number;
     selectedId: string;
-    options: { id: string; name: string; model: string }[];
+    series?: string;
+    size?: string;
+    matchMessage?: string;
+    options: { id: string; name: string; model: string; series?: string; size?: string }[];
   }[];
   /** 各车间外围检测候选与当前选中 id */
   peripheralWorkshopRows?: PeripheralWorkshopRow[];
@@ -250,7 +264,7 @@ const equipmentSchemeRows = computed(() => props.equipmentSchemeRows ?? []);
 
 function resolveRowSelected(row: {
   selectedId: string;
-  options: { id: string; name: string; model: string }[];
+  options: { id: string; name: string; model: string; series?: string; size?: string }[];
 }) {
   const selectedId = String(row.selectedId ?? '').trim();
   if (selectedId) {
@@ -497,6 +511,20 @@ watch(
   font-weight: 700;
   color: var(--theme-color-primary, #0054a6);
   line-height: 1.2;
+}
+
+.row-meta-hint {
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--theme-color-text-soft);
+  line-height: 1.4;
+}
+
+.row-match-warning {
+  margin-top: 0.35rem;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--theme-color-warning, #b45309);
 }
 
 .scheme-cards-grid {

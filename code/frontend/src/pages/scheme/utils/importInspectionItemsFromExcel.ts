@@ -40,6 +40,11 @@ const THRESHOLD_KEYS = ['规则', 'threshold', 'Threshold'] as const;
 const DATA_TYPE_KEYS = ['数据类型'] as const;
 const PRIORITY_KEYS = ['权重', '优先级'] as const;
 const OPERATION_GUIDE_KEYS = ['操作指导', '测试步骤'] as const;
+const DISPLAY_CONDITION_KEYS = ['显示条件'] as const;
+const SUGGESTION_RULE_KEYS = ['建议规则'] as const;
+const SUGGESTION_CONTENT_KEYS = ['建议内容'] as const;
+const HAZARD_CONTENT_KEYS = ['隐患内容'] as const;
+const MAINTENANCE_DESCRIPTION_KEYS = ['维护说明'] as const;
 const PARAM1_KEYS = ['参数1', '最小阈值'] as const;
 const PARAM2_KEYS = ['参数2', '最大阈值'] as const;
 
@@ -58,7 +63,8 @@ function parseNumber(value: unknown): number | undefined {
 function parseRequired(value: unknown): boolean {
   const text = getString(value).toLowerCase();
   if (!text) return true;
-  if (['high', 'medium', 'low'].includes(text)) return true;
+  if (['high', 'medium', 'critical'].includes(text)) return true;
+  if (text === 'low') return false;
   return !['否', 'false', '0', '可选', 'n', 'no'].includes(text);
 }
 
@@ -224,6 +230,7 @@ export function importInspectionItemsFromExcel(file: File): Promise<SchemeItem[]
             ruleRaw: rawThreshold,
             context: `Excel 第 ${index + 2} 行「${itemName}」`,
           });
+          const requiredRaw = getFirstValue(row, [...REQUIRED_KEYS, ...PRIORITY_KEYS]);
           const ruleType = validatedRule.ruleType;
           const param1 = getFirstValue(row, ['参数1']);
           const param2 = getFirstValue(row, ['参数2']);
@@ -238,14 +245,18 @@ export function importInspectionItemsFromExcel(file: File): Promise<SchemeItem[]
             id: `import-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}`,
             name: itemName,
             dataType: validatedRule.valueType,
-            priority: getString(getFirstValue(row, PRIORITY_KEYS)) || undefined,
             operationGuide: getString(getFirstValue(row, OPERATION_GUIDE_KEYS)) || undefined,
+            displayCondition: getString(getFirstValue(row, DISPLAY_CONDITION_KEYS)) || undefined,
+            suggestionRule: getString(getFirstValue(row, SUGGESTION_RULE_KEYS)) || undefined,
+            suggestionContent: getString(getFirstValue(row, SUGGESTION_CONTENT_KEYS)) || undefined,
+            hazardContent: getString(getFirstValue(row, HAZARD_CONTENT_KEYS)) || undefined,
+            maintenanceDescription: getString(getFirstValue(row, MAINTENANCE_DESCRIPTION_KEYS)) || undefined,
             ruleType: parseRuleType(rawRuleType),
             thresholdRaw: validatedRule.ruleRaw ?? undefined,
             param1: getString(getFirstValue(row, PARAM1_KEYS)) || undefined,
             param2: getString(getFirstValue(row, PARAM2_KEYS)) || undefined,
             type: parseType(validatedRule.valueType || getFirstValue(row, TYPE_KEYS)),
-            required: parseRequired(getFirstValue(row, REQUIRED_KEYS)),
+            required: parseRequired(requiredRaw),
             unit: getString(getFirstValue(row, UNIT_KEYS)) || undefined,
             standardValue: parseNumber(getFirstValue(row, STANDARD_VALUE_KEYS)),
             minThreshold,

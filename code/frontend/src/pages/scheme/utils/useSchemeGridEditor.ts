@@ -5,6 +5,7 @@ import { getIxTheme } from '@siemens/ix-aggrid';
 import { 
   convertToFlatRows,
   getTypeLabel,
+  mapRequiredToPriority,
   type AtomicScheme, 
   type SchemeItem, 
   type FlatRow 
@@ -213,13 +214,13 @@ export function useSchemeGridEditor(
       id: `new-${Date.now()}`,
       name: '新检测项目',
       dataType: 'boolean',
-      priority: 'High',
       ruleType: 'boolean_equal',
       operationGuide: '',
       param1: '',
       param2: '',
       type: 'visual',
       required: true,
+      priority: mapRequiredToPriority(true),
       children: [],
     };
     
@@ -253,13 +254,13 @@ export function useSchemeGridEditor(
       id: `new-${Date.now()}`,
       name: '新子项目',
       dataType: parentItem.dataType || 'boolean',
-      priority: parentItem.priority || 'High',
       ruleType: parentItem.ruleType || 'boolean_equal',
       operationGuide: parentItem.operationGuide || '',
       param1: parentItem.param1 || '',
       param2: parentItem.param2 || '',
       type: parentItem.type || 'visual',
       required: true,
+      priority: mapRequiredToPriority(true),
       children: [],
     };
     
@@ -468,13 +469,13 @@ export function useSchemeGridEditor(
           },
         },
         {
-          field: 'priority',
-          headerName: '权重',
-          width: 100,
+          field: 'requiredLabel',
+          headerName: '是否必填',
+          width: 110,
           valueGetter: (params: any) => {
             const data = params.data as FlatRow;
             if (!data.isDetectionItem) return '-';
-            return data.priority || (data.required !== false ? 'High' : 'Low');
+            return data.required !== false ? '必填' : '可选';
           },
           cellStyle: (params: any) => {
             const data = params.data as FlatRow;

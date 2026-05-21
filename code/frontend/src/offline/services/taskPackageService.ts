@@ -10,6 +10,7 @@ import {
 import { getSchemeById } from '@/mockdata/scheme';
 import tasksData from '@/mockdata/task/tasks.json';
 import { loadTemplateItemsByTemplateId } from '@/pages/scheme/utils/loadTemplateItems';
+import { decodeDisplayCondition } from '@/pages/scheme/utils/displayConditionCodec';
 import { isDetectionItem, type SchemeItem } from '@/pages/scheme/utils/schemeUtils';
 import { normalizeChinaDateTime, nowChinaDateTime, nowChinaTimestamptz, toChinaTimestamptz } from '../utils/dateTime';
 
@@ -58,6 +59,12 @@ type TaskPackageResultDto = {
   value?: string | null;
   remarks?: string | null;
   result_state?: string | null;
+  hazardResolved?: boolean | null;
+  hazard_resolved?: boolean | null;
+  recommendationContent?: string | null;
+  recommendation_content?: string | null;
+  actionTaken?: string | null;
+  action_taken?: string | null;
 };
 
 type TaskPackageItemDto = {
@@ -77,6 +84,12 @@ type TaskPackageItemDto = {
     threshold?: Record<string, unknown> | null;
     sort_order?: number | null;
     priority?: string | null;
+    display_condition?: string | null;
+    operation_guide?: string | null;
+    suggestion_rule?: string | null;
+    suggestion_content?: string | null;
+    hazard_content?: string | null;
+    maintenance_description?: string | null;
   } | null;
   task_result?: TaskPackageResultDto | null;
   taskresult?: TaskPackageResultDto | null;
@@ -182,6 +195,17 @@ function buildOfflineResultPayloadFromTaskResult(taskResult: TaskPackageResultDt
   return JSON.stringify({
     value,
     remarks,
+    hazardResolved:
+      typeof taskResult.hazardResolved === 'boolean'
+        ? taskResult.hazardResolved
+        : typeof taskResult.hazard_resolved === 'boolean'
+          ? taskResult.hazard_resolved
+          : null,
+    recommendationContent:
+      taskResult.recommendationContent
+      ?? taskResult.recommendation_content
+      ?? '',
+    actionTaken: taskResult.actionTaken ?? taskResult.action_taken ?? '',
   });
 }
 
@@ -261,6 +285,12 @@ function createSchemeCacheFromPackageItems(taskItems: TaskPackageItemDto[]): Sch
       required: true,
       ruleType: item.render_schema_json?.rule_type ?? undefined,
       priority: item.render_schema_json?.priority ?? undefined,
+      displayCondition: decodeDisplayCondition(item.render_schema_json?.display_condition) || undefined,
+      operationGuide: item.render_schema_json?.operation_guide ?? undefined,
+      suggestionRule: item.render_schema_json?.suggestion_rule ?? undefined,
+      suggestionContent: item.render_schema_json?.suggestion_content ?? undefined,
+      hazardContent: item.render_schema_json?.hazard_content ?? undefined,
+      maintenanceDescription: item.render_schema_json?.maintenance_description ?? undefined,
       thresholdRaw: threshold ? JSON.stringify(threshold) : undefined,
       minThreshold: typeof threshold?.min === 'number' ? threshold.min : undefined,
       maxThreshold: typeof threshold?.max === 'number' ? threshold.max : undefined,
@@ -444,6 +474,12 @@ async function downloadTaskPackageFromResponse(
     item_name: item.item_name,
     category_path: item.category_path ?? null,
     result: buildOfflineResultPayloadFromTaskResult(item.task_result ?? item.taskresult),
+    display_condition: item.render_schema_json?.display_condition ?? null,
+    operation_guide: item.render_schema_json?.operation_guide ?? null,
+    recommended_rules: item.render_schema_json?.suggestion_rule ?? null,
+    recommendation_content: item.render_schema_json?.suggestion_content ?? null,
+    hidden_hazard_content: item.render_schema_json?.hazard_content ?? null,
+    maintenance_instructions: item.render_schema_json?.maintenance_description ?? null,
     execution_status: mapTaskItemExecutionStatusToOfflineStatus(item.execution_status),
     is_normal: Boolean(item.is_normal),
     is_recheck: Boolean(item.is_recheck),
@@ -454,6 +490,15 @@ async function downloadTaskPackageFromResponse(
   for (const item of offlineItems) {
     const existing = await offlineTaskItemRepository.getByTaskItemUuid(item.task_item_uuid);
     if (existing?.sync_status === 'pending') {
+      await offlineTaskItemRepository.upsert({
+        ...item,
+        result: existing.result,
+        execution_status: existing.execution_status,
+        is_normal: existing.is_normal,
+        is_recheck: existing.is_recheck,
+        sync_status: existing.sync_status,
+        local_updated_at: existing.local_updated_at,
+      });
       continue;
     }
     await offlineTaskItemRepository.upsert(item);
@@ -560,6 +605,12 @@ function flattenSchemeItems(taskUuid: string, items: any[], path: string[] = [])
           item_name: processItemName,
           category_path: joinCategoryPath(path, itemName),
           result: null,
+             display_condition: processItem.displayCondition ?? null,
+             operation_guide: processItem.operationGuide ?? null,
+             recommended_rules: processItem.suggestionRule ?? null,
+             recommendation_content: processItem.suggestionContent ?? null,
+             hidden_hazard_content: processItem.hazardContent ?? null,
+             maintenance_instructions: processItem.maintenanceDescription ?? null,
           execution_status: 'pending',
           is_normal: false,
           is_recheck: false,

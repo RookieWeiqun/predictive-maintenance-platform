@@ -71,13 +71,32 @@
                   :value="subCategory.id" 
                 />
               </IxSelect>
-              <IxInput 
-                v-if="schemeForm.atomicType === 'equipment'"
-                v-model="schemeForm.model" 
-                label="适用型号" 
-                placeholder="请输入适用型号（可选）"
+              <IxSelect
+                v-model="schemeForm.series"
+                label="系列"
+                placeholder="请选择系列"
                 style="flex: 1;"
-              />
+              >
+                <IxSelectItem
+                  v-for="option in seriesOptions"
+                  :key="option"
+                  :label="option"
+                  :value="option"
+                />
+              </IxSelect>
+              <IxSelect
+                v-model="schemeForm.size"
+                label="尺寸"
+                placeholder="请选择尺寸"
+                style="flex: 1;"
+              >
+                <IxSelectItem
+                  v-for="option in sizeOptions"
+                  :key="option"
+                  :label="option"
+                  :value="option"
+                />
+              </IxSelect>
             </template>
           </template>
         </div>
@@ -153,13 +172,13 @@
                 >
                   <IxSelectItem :label="itemForm.ruleType" :value="itemForm.ruleType" />
                 </IxSelect>
-                <IxSelect 
-                  v-model="itemForm.priority" 
-                  label="权重"
+                <IxSelect
+                  :model-value="itemForm.required ? '必填' : '可选'"
+                  label="是否必填"
+                  @update:modelValue="handleRequiredChange"
                 >
-                  <IxSelectItem label="High" value="High" />
-                  <IxSelectItem label="Medium" value="Medium" />
-                  <IxSelectItem label="Low" value="Low" />
+                  <IxSelectItem label="必填" value="必填" />
+                  <IxSelectItem label="可选" value="可选" />
                 </IxSelect>
                 <IxTextarea
                   v-model="itemForm.operationGuide"
@@ -218,10 +237,13 @@ import SchemeTree from '../components/SchemeTree.vue';
 import {
   findItemById,
   isDetectionItem,
+  mapRequiredToPriority,
   type SchemeItem as SchemeItemType,
   type AtomicScheme as AtomicSchemeType,
 } from '../utils/schemeUtils';
-import { inspectionTemplatesApi } from '@/api';
+import { inspectionTemplatesApi, templatemappingsApi } from '@/api';
+import type { TemplateMappingDto } from '@/api/modules/templatemappings';
+import { dedupeTemplateMappingField } from '@/util/templateMappings';
 import {
   isTemplateApiId,
   templateDtoToFormAndAtomic,
@@ -245,6 +267,7 @@ const schemeId = route.params.id as string;
 const isNew = schemeId === 'new';
 
 const loadedTemplateCreatedate = ref<string | null>(null);
+const templateMappings = ref<TemplateMappingDto[]>([]);
 
 // 使用共享的类型定义
 type SchemeItem = SchemeItemType;
@@ -268,6 +291,8 @@ const schemeForm = ref({
   categoryId: '',
   subCategoryId: '',
   model: '',
+  series: '',
+  size: '',
 });
 
 // 选中的检测项目ID
@@ -293,6 +318,30 @@ const productCategoryLabel = computed(() =>
 const productSeriesLabel = computed(() =>
   schemeForm.value.atomicType === 'peripheral' ? '产品系列' : '子分类',
 );
+
+function withCurrentOption(options: string[], currentValue: string): string[] {
+  const value = currentValue.trim();
+  if (!value || options.includes(value)) {
+    return options;
+  }
+  return [value, ...options];
+}
+
+const seriesOptions = computed(() =>
+  withCurrentOption(dedupeTemplateMappingField(templateMappings.value, 'series'), schemeForm.value.series),
+);
+
+const sizeOptions = computed(() =>
+  withCurrentOption(dedupeTemplateMappingField(templateMappings.value, 'size'), schemeForm.value.size),
+);
+
+async function loadTemplateMappings(): Promise<void> {
+  try {
+    templateMappings.value = await templatemappingsApi.listTemplateMappings();
+  } catch (error) {
+    showToast({ message: error instanceof Error ? error.message : '型号尺寸匹配表加载失败' });
+  }
+}
 
 
 // 选中的检测项目
@@ -322,7 +371,6 @@ function createEmptyItemForm() {
     dataType: 'boolean',
     ruleType: 'boolean_equal',
     thresholdRaw: getDefaultRuleJsonForValueType('boolean'),
-    priority: 'High',
     operationGuide: '',
   };
 }
@@ -337,6 +385,7 @@ const syncProgress = ref({ visible: false, percent: 0, message: '' });
 // 验证是否可以保存
 const canSave = computed(() => {
   if (!schemeForm.value.atomicType || !schemeForm.value.name) return false;
+  if (!schemeForm.value.series.trim() || !schemeForm.value.size.trim()) return false;
   if (!currentAtomicScheme.value || !currentAtomicScheme.value.items || currentAtomicScheme.value.items.length === 0) {
     return false;
   }
@@ -356,9 +405,12 @@ const loadItemToForm = (item: SchemeItem) => {
     dataType: valueType,
     ruleType: item.ruleType || getDefaultRuleTypeForValueType(valueType),
     thresholdRaw: item.thresholdRaw || getDefaultRuleJsonForValueType(valueType),
-    priority: item.priority || 'High',
     operationGuide: item.operationGuide || item.testProcedure || '',
   };
+};
+
+const handleRequiredChange = (value: string) => {
+  itemForm.value.required = value !== '可选';
 };
 
 const handleDataTypeChange = (value: string) => {
@@ -392,7 +444,6 @@ const handleAddItem = () => {
     id: `new-${Date.now()}`,
     name: '新检测项目',
     dataType: 'boolean',
-    priority: 'High',
     ruleType: 'boolean_equal',
     thresholdRaw: getDefaultRuleJsonForValueType('boolean'),
     operationGuide: '',
@@ -420,7 +471,6 @@ const handleAddChildItem = () => {
     id: `new-${Date.now()}`,
     name: '新子项目',
     dataType: parentItem.dataType || 'boolean',
-    priority: parentItem.priority || 'High',
     ruleType: parentItem.ruleType || 'boolean_equal',
     thresholdRaw: parentItem.thresholdRaw || getDefaultRuleJsonForValueType('boolean'),
     operationGuide: parentItem.operationGuide || '',
@@ -490,7 +540,7 @@ const handleSaveItem = () => {
     dataType: validatedRule.valueType,
     ruleType: validatedRule.ruleType,
     thresholdRaw: validatedRule.ruleRaw ?? undefined,
-    priority: itemForm.value.priority,
+    priority: mapRequiredToPriority(itemForm.value.required),
     operationGuide: itemForm.value.operationGuide,
     testProcedure: itemForm.value.operationGuide,
     type: mapValueTypeToSchemeType(validatedRule.valueType),
@@ -611,6 +661,7 @@ const handleCancel = () => {
 };
 
 onMounted(() => {
+  void loadTemplateMappings();
   void (async () => {
     if (isNew) {
       return;
@@ -653,6 +704,8 @@ onMounted(() => {
       categoryId: scheme.categoryId || '',
       subCategoryId: scheme.subCategoryId || '',
       model: scheme.model || '',
+      series: scheme.series || '',
+      size: scheme.size || '',
     };
 
     const schemeItems: SchemeItem[] = (scheme.items || []).map((item: any) => ({

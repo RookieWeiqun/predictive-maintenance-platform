@@ -190,25 +190,34 @@
                     :key="field.id"
                     class="data-field"
                   >
-                    <IxFieldLabel :htmlFor="`field-${field.id}`">
+                    <IxFieldLabel :id="`field-label-${field.id}`" :htmlFor="`field-${field.id}`">
                       {{ field.name }}
                       <span v-if="field.required" class="required-mark">*</span>
                     </IxFieldLabel>
-                    <IxSelect
+                    <div
                       v-if="field.dataType === 'boolean' || field.dataType === 'enum'"
-                      :id="`field-${field.id}`"
-                      v-model="field.value"
-                      :placeholder="field.placeholder || '请选择'"
-                      class="full-width-input"
-                      @update:modelValue="handleFieldUpdate(field.id, $event)"
+                      class="radio-option-group"
+                      role="radiogroup"
+                      :aria-labelledby="`field-label-${field.id}`"
                     >
-                      <IxSelectItem
+                      <label
                         v-for="option in field.options"
                         :key="`${field.id}-${option}`"
-                        :value="option"
-                        :label="option"
-                      />
-                    </IxSelect>
+                        class="radio-option"
+                        :class="{ 'radio-option--active': field.value === option }"
+                      >
+                        <input
+                          :name="`field-${field.id}`"
+                          type="radio"
+                          class="radio-option__input"
+                          :value="option"
+                          :checked="field.value === option"
+                          @change="handleFieldUpdate(field.id, option)"
+                        />
+                        <span class="radio-option__icon" aria-hidden="true" />
+                        <span class="radio-option__label">{{ option }}</span>
+                      </label>
+                    </div>
                     <div v-else-if="field.dataType === 'numeric'" class="numeric-input-wrapper">
                       <IxInput
                         :id="`field-${field.id}`"
@@ -307,6 +316,65 @@
                   <div class="result-status-label">{{ getResultDisplayLabel(task.result) }}</div>
                   <div class="result-status-hint">{{ getResultHint(task.result) }}</div>
                 </div>
+
+                <div v-if="task.result === 'abnormal'" class="hazard-resolution-section">
+                  <div class="section-title">隐患处理</div>
+                  <div
+                    class="radio-option-group"
+                    role="radiogroup"
+                    :aria-labelledby="`hazard-resolved-label-${task.id}`"
+                  >
+                    <span :id="`hazard-resolved-label-${task.id}`" class="sr-only">隐患是否解决</span>
+                    <label
+                      class="radio-option"
+                      :class="{ 'radio-option--active': task.hazardResolved === 'yes' }"
+                    >
+                      <input
+                        :name="`hazard-resolved-${task.id}`"
+                        type="radio"
+                        class="radio-option__input"
+                        value="yes"
+                        :checked="task.hazardResolved === 'yes'"
+                        @change="handleHazardResolvedUpdate(task.id, 'yes')"
+                      />
+                      <span class="radio-option__icon" aria-hidden="true" />
+                      <span class="radio-option__label">是</span>
+                    </label>
+                    <label
+                      class="radio-option"
+                      :class="{ 'radio-option--active': task.hazardResolved === 'no' }"
+                    >
+                      <input
+                        :name="`hazard-resolved-${task.id}`"
+                        type="radio"
+                        class="radio-option__input"
+                        value="no"
+                        :checked="task.hazardResolved === 'no'"
+                        @change="handleHazardResolvedUpdate(task.id, 'no')"
+                      />
+                      <span class="radio-option__icon" aria-hidden="true" />
+                      <span class="radio-option__label">否</span>
+                    </label>
+                  </div>
+                  <div v-if="task.hazardResolved === 'no'" class="hazard-resolution-editor">
+                    <div class="data-field-hint">未解决时自动带出模板建议，可继续编辑更新。</div>
+                    <IxTextarea
+                      v-model="task.recommendationContent"
+                      placeholder="请输入建议内容"
+                      textarea-width="400px"
+                      @update:modelValue="handleRecommendationContentUpdate(task.id, $event)"
+                    />
+                  </div>
+                  <div v-else-if="task.hazardResolved === 'yes'" class="hazard-resolution-editor">
+                    <div class="data-field-hint">已解决时请填写已采取措施。</div>
+                    <IxTextarea
+                      v-model="task.actionTaken"
+                      placeholder="请输入已采取措施"
+                      textarea-width="400px"
+                      @update:modelValue="handleActionTakenUpdate(task.id, $event)"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -355,8 +423,6 @@ import {
   IxIconButton,
   IxEventList,
   IxEventListItem,
-  IxSelect,
-  IxSelectItem,
   IxModal,
   showToast,
 } from "@siemens/ix-vue";
@@ -883,6 +949,9 @@ function parseOfflineResult(raw: string | null): {
   resultState?: string;
   remarks?: string;
   dataFields?: Record<string, any>;
+  hazardResolved?: boolean | null;
+  recommendationContent?: string;
+  actionTaken?: string;
 } {
   if (raw == null || raw === '') {
     return {};
@@ -905,6 +974,28 @@ function parseOfflineResult(raw: string | null): {
           : typeof parsed.result === 'string' && ['normal', 'warning', 'abnormal'].includes(parsed.result)
             ? parsed.result
             : undefined,
+        hazardResolved:
+          typeof parsed.hazardResolved === 'boolean'
+            ? parsed.hazardResolved
+            : typeof parsed.hazardResolved === 'string'
+              ? parsed.hazardResolved.toLowerCase() === 'true'
+              : typeof parsed.hazard_resolved === 'boolean'
+                ? parsed.hazard_resolved
+                : typeof parsed.hazard_resolved === 'string'
+                  ? parsed.hazard_resolved.toLowerCase() === 'true'
+                  : undefined,
+        recommendationContent:
+          typeof parsed.recommendationContent === 'string'
+            ? parsed.recommendationContent
+            : typeof parsed.recommendation_content === 'string'
+              ? parsed.recommendation_content
+              : undefined,
+        actionTaken:
+          typeof parsed.actionTaken === 'string'
+            ? parsed.actionTaken
+            : typeof parsed.action_taken === 'string'
+              ? parsed.action_taken
+              : undefined,
       };
     }
   } catch {
@@ -931,18 +1022,18 @@ function getPrimaryTaskFieldValue(task: any): string | null {
 }
 
 function buildOfflineResult(task: any): string {
-  const dataFields = Object.fromEntries(
-    (Array.isArray(task.dataFields) ? task.dataFields : []).map((field: any) => [
-      field.id,
-      field.value == null ? '' : String(field.value),
-    ]),
-  );
-
   return JSON.stringify({
     value: getPrimaryTaskFieldValue(task),
-    dataFields,
     remarks: task.remarks || '',
     resultState: task.result || '',
+    hazardResolved:
+      task.hazardResolved === 'yes'
+        ? true
+        : task.hazardResolved === 'no'
+          ? false
+          : null,
+    recommendationContent: task.recommendationContent || '',
+    actionTaken: task.actionTaken || '',
   });
 }
 
@@ -960,6 +1051,12 @@ async function persistTaskRecord(task: any): Promise<void> {
     item_name: task.name,
     category_path: existing?.category_path ?? `${currentCategoryPath.value} / ${currentSubCategoryName.value}`,
     result: buildOfflineResult(task),
+    display_condition: task.displayCondition ?? existing?.display_condition ?? null,
+    operation_guide: task.operationGuide ?? existing?.operation_guide ?? null,
+    recommended_rules: task.suggestionRule ?? existing?.recommended_rules ?? null,
+    recommendation_content: task.suggestionContent ?? existing?.recommendation_content ?? null,
+    hidden_hazard_content: task.hazardContent ?? existing?.hidden_hazard_content ?? null,
+    maintenance_instructions: task.maintenanceDescription ?? existing?.maintenance_instructions ?? null,
     execution_status: executionStatus,
     is_normal: task.result === 'normal',
     is_recheck: false,
@@ -992,6 +1089,16 @@ async function loadOfflineTaskItems(): Promise<void> {
       result: payload.resultState ?? payload.result ?? '',
       remarks: payload.remarks ?? '',
       dataFields: payload.dataFields ?? {},
+      displayCondition: record.display_condition ?? '',
+      operationGuide: record.operation_guide ?? '',
+      suggestionRule: record.recommended_rules ?? '',
+      suggestionContent: record.recommendation_content ?? '',
+      hazardContent: record.hidden_hazard_content ?? '',
+      maintenanceDescription: record.maintenance_instructions ?? '',
+      hazardResolved:
+        payload.hazardResolved === true ? 'yes' : payload.hazardResolved === false ? 'no' : '',
+      recommendationContent: payload.recommendationContent ?? '',
+      actionTaken: payload.actionTaken ?? '',
     };
   }
 
@@ -1173,7 +1280,7 @@ const hasPreviousModule = computed(() => {
   
   // 检查当前类别内是否有上一个子类别
   const category = categoryList.value[currentIndex];
-  const subIndex = category.children?.findIndex((sub: any) => sub.id === currentSubCategoryId.value) || -1;
+  const subIndex = category.children?.findIndex((sub: any) => sub.id === currentSubCategoryId.value) ?? -1;
   
   if (subIndex > 0) return true;
   if (currentIndex > 0) return true;
@@ -1187,7 +1294,7 @@ const hasNextModule = computed(() => {
   if (currentIndex === -1) return false;
   
   const category = categoryList.value[currentIndex];
-  const subIndex = category.children?.findIndex((sub: any) => sub.id === currentSubCategoryId.value) || -1;
+  const subIndex = category.children?.findIndex((sub: any) => sub.id === currentSubCategoryId.value) ?? -1;
   
   if (subIndex !== -1 && subIndex < category.children.length - 1) return true;
   if (currentIndex < categoryList.value.length - 1) return true;
@@ -1351,6 +1458,15 @@ const createTaskItem = (item: any, existingData: any) => {
     dataFields,
     result: existingData.result || computedResult,
     remarks: existingData.remarks || '',
+    displayCondition: existingData.displayCondition || item.displayCondition || '',
+    operationGuide: existingData.operationGuide || item.operationGuide || '',
+    suggestionRule: existingData.suggestionRule || item.suggestionRule || '',
+    suggestionContent: existingData.suggestionContent || item.suggestionContent || '',
+    hazardContent: existingData.hazardContent || item.hazardContent || '',
+    maintenanceDescription: existingData.maintenanceDescription || item.maintenanceDescription || '',
+    hazardResolved: existingData.hazardResolved || '',
+    recommendationContent: existingData.recommendationContent || '',
+    actionTaken: existingData.actionTaken || '',
   };
 };
 
@@ -1458,6 +1574,7 @@ const createFieldDefinition = (sourceItem: any, fieldId: string, fieldName: stri
     options: dynamicConfig.options || [],
     normalValue: dynamicConfig.normalValue,
     normalValues: dynamicConfig.normalValues,
+    suggestionContent: sourceItem.suggestionContent || '',
     value: '',
   };
 
@@ -1485,6 +1602,18 @@ const restoreFieldValue = (field: any, rawValue: any) => {
   }
 
   field.value = String(rawValue);
+};
+
+const getTaskSuggestionContent = (task: any): string => {
+  if (typeof task?.suggestionContent === 'string' && task.suggestionContent.trim()) {
+    return task.suggestionContent;
+  }
+
+  const fields = Array.isArray(task?.dataFields) ? task.dataFields : [];
+  const fieldWithSuggestion = fields.find(
+    (field: any) => typeof field?.suggestionContent === 'string' && field.suggestionContent.trim(),
+  );
+  return fieldWithSuggestion?.suggestionContent || '';
 };
 
 const evaluateTaskResult = (task: any): string => {
@@ -1550,6 +1679,11 @@ const handleFieldUpdate = (fieldId: string, value: any) => {
   
   field.value = value == null ? '' : value;
   task.result = evaluateTaskResult(task);
+  if (task.result !== 'abnormal') {
+    task.hazardResolved = '';
+    task.recommendationContent = '';
+    task.actionTaken = '';
+  }
   
   // 保存到任务数据
   if (!taskDataMap.value[task.id]) {
@@ -1560,6 +1694,11 @@ const handleFieldUpdate = (fieldId: string, value: any) => {
   }
   taskDataMap.value[task.id].dataFields[fieldId] = field.value;
   taskDataMap.value[task.id].result = task.result;
+  if (task.result !== 'abnormal') {
+    taskDataMap.value[task.id].hazardResolved = '';
+    taskDataMap.value[task.id].recommendationContent = '';
+    taskDataMap.value[task.id].actionTaken = '';
+  }
   
   saveDraft();
   void persistTaskRecord(task);
@@ -1585,6 +1724,35 @@ const updateTaskData = (taskId: string, updates: Record<string, any>) => {
 // 更新备注
 const handleRemarksUpdate = (taskId: string, remarks: string) => {
   updateTaskData(taskId, { remarks });
+};
+
+const handleHazardResolvedUpdate = (taskId: string, value: 'yes' | 'no') => {
+  const task = currentTaskList.value.find(t => t.id === taskId);
+  if (!task) return;
+
+  const updates: Record<string, any> = {
+    hazardResolved: value,
+  };
+
+  if (value === 'no') {
+    updates.actionTaken = '';
+    updates.recommendationContent = (task.recommendationContent || '').trim()
+      ? task.recommendationContent
+      : getTaskSuggestionContent(task);
+  } else {
+    updates.recommendationContent = '';
+    updates.actionTaken = '';
+  }
+
+  updateTaskData(taskId, updates);
+};
+
+const handleRecommendationContentUpdate = (taskId: string, recommendationContent: string) => {
+  updateTaskData(taskId, { recommendationContent });
+};
+
+const handleActionTakenUpdate = (taskId: string, actionTaken: string) => {
+  updateTaskData(taskId, { actionTaken });
 };
 
 
@@ -2121,6 +2289,31 @@ watch(department, () => {
   border-top: 1px solid var(--theme-color-soft-border);
 }
 
+.hazard-resolution-section {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.hazard-resolution-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .task-photos-section {
   margin-top: 0.25rem;
   padding-top: 0.85rem;
@@ -2211,6 +2404,60 @@ watch(department, () => {
 .full-width-input,
 .full-width-toggle {
   width: 100%;
+}
+
+.radio-option-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  width: 100%;
+}
+
+.radio-option {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.5rem;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--theme-color-soft-border);
+  border-radius: 999px;
+  background: var(--theme-color-surface);
+  color: var(--theme-color-text);
+  cursor: pointer;
+  transition: border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.radio-option--active {
+  border-color: color-mix(in srgb, var(--theme-color-primary) 55%, var(--theme-color-soft-border));
+  background: color-mix(in srgb, var(--theme-color-primary) 10%, white);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--theme-color-primary) 18%, transparent);
+}
+
+.radio-option__input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.radio-option__icon {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid var(--theme-color-soft-border);
+  border-radius: 999px;
+  background: var(--theme-color-surface);
+  box-sizing: border-box;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.radio-option--active .radio-option__icon {
+  border-color: var(--theme-color-primary);
+  box-shadow: inset 0 0 0 3px var(--theme-color-surface), inset 0 0 0 999px var(--theme-color-primary);
+}
+
+.radio-option__label {
+  font-size: 0.875rem;
+  line-height: 1.2;
 }
 
 .numeric-input-wrapper {

@@ -223,6 +223,9 @@
                     <tr>
                       <td colspan="5" class="report-issue-table__textcell">
                         <strong>问题描述:</strong>
+                        <div v-if="issue.issueHierarchy" class="report-issue-table__hierarchy">
+                          {{ issue.issueHierarchy }}
+                        </div>
                         <p>{{ issue.issueDescription }}</p>
                       </td>
                     </tr>
@@ -362,21 +365,22 @@
                         <div class="appendix-gallery__grid">
                           <figure
                             v-for="(image, imageIndex) in getAppendixVisibleImages(group)"
-                            :key="`image-${workshopIndex}-${deviceIndex}-${groupIndex}-${imageIndex}`"
+                            :key="`image-${workshopIndex}-${deviceIndex}-${groupIndex}-${image.src}-${imageIndex}`"
                             class="appendix-gallery__item"
                           >
                             <button
                               type="button"
                               class="appendix-gallery__button"
-                              @click="openAppendixImagePreview(image, `${group.name || '检查分组'} 图片 ${imageIndex + 1}`)"
+                              @click="openAppendixImagePreview(image.src, `${image.label || group.name || '检查分组'} 图片 ${imageIndex + 1}`)"
                             >
                               <img
-                                :src="image"
-                                :alt="`${group.name || '检查分组'} 图片 ${imageIndex + 1}`"
+                                :src="image.src"
+                                :alt="`${image.label || group.name || '检查分组'} 图片 ${imageIndex + 1}`"
                                 class="appendix-gallery__image"
                                 loading="lazy"
                               />
                             </button>
+                            <figcaption class="appendix-gallery__caption">{{ image.label || '-' }}</figcaption>
                           </figure>
                         </div>
                       </div>
@@ -442,6 +446,7 @@ import type { InspectionTaskDetailDto, InspectionTaskDto } from '@/api/modules/i
 import type { ProductDto } from '@/api/modules/products';
 import type { ProjectDto } from '@/api/modules/projects';
 import { buildReportFromProjectTaskDetailsSource } from './reportApiAdapter';
+import { getIssueSuggestionText } from './reportIssueUtils';
 
 import {
   buildTocNodes,
@@ -481,6 +486,7 @@ type ReportIssueEntry = {
   deviceModel: string;
   serialNumber: string;
   equipmentNumber: string;
+  issueHierarchy: string;
   issueDescription: string;
   suggestion: string;
   images: string[];
@@ -656,17 +662,21 @@ function resolveAttachmentImageUrl(attachment: Record<string, unknown>): string 
 }
 
 function buildIssueDescription(item: InspectionTaskDetailDto['task_items'][number]): string {
+  const itemName = String(item.item_name ?? '').trim();
   const remarks = getTaskResultRemarks(item);
   const value = getTaskResultValue(item);
-  return [item.item_name, remarks, value].filter(Boolean).join('；') || '现场发现异常，待补充问题描述。';
+  const detailText = [value, remarks].filter(Boolean).join('；');
+  if (itemName && detailText) return `${itemName}：${detailText}`;
+  if (itemName) return itemName;
+  return detailText || '现场发现异常，待补充问题描述。';
+}
+
+function buildIssueHierarchy(item: InspectionTaskDetailDto['task_items'][number]): string {
+  return getAppendixBreadcrumbs(item.category_path).join('›');
 }
 
 function buildIssueSuggestion(item: InspectionTaskDetailDto['task_items'][number]): string {
-  const remarks = getTaskResultRemarks(item);
-  if (remarks) return remarks;
-  const value = getTaskResultValue(item);
-  if (value) return `建议结合检查结果“${value}”安排现场复核与处理。`;
-  return '建议现场复核该问题并制定针对性的整改措施。';
+  return getIssueSuggestionText(item);
 }
 
 const maintenanceDeviceRows = computed<MaintenanceDeviceRow[]>(() => {
@@ -722,6 +732,7 @@ const reportIssueEntries = computed<ReportIssueEntry[]>(() => {
         deviceModel: resolveDeviceModel(product, entry),
         serialNumber: resolveSerialNumber(product, entry),
         equipmentNumber: resolveEquipmentNumber(product, equipment),
+        issueHierarchy: buildIssueHierarchy(item),
         issueDescription: buildIssueDescription(item),
         suggestion: buildIssueSuggestion(item),
         images: (item.attachments ?? [])
@@ -747,15 +758,22 @@ function isAppendixRenderableImage(value: string | null | undefined): boolean {
   return /^(data:|blob:|https?:)/i.test(text) || text.startsWith('/');
 }
 
-function getAppendixVisibleImages(group: { children?: Array<{ images?: string[] | null }> } | null | undefined): string[] {
-  const imageSet = new Set<string>();
+function getAppendixVisibleImages(
+  group: { children?: Array<{ name?: string | null; images?: string[] | null }> } | null | undefined,
+): Array<{ src: string; label: string }> {
+  const imageMap = new Map<string, { src: string; label: string }>();
   for (const entry of group?.children ?? []) {
     for (const image of entry.images ?? []) {
       if (!isAppendixRenderableImage(image)) continue;
-      imageSet.add(image);
+      if (!imageMap.has(image)) {
+        imageMap.set(image, {
+          src: image,
+          label: normalizeText(entry.name, '-'),
+        });
+      }
     }
   }
-  return Array.from(imageSet);
+  return Array.from(imageMap.values());
 }
 
 function openAppendixImagePreview(src: string, alt: string): void {
@@ -1104,6 +1122,14 @@ function downloadPdf() {
   color: var(--theme-color-text);
 }
 
+.report-issue-table__hierarchy {
+  margin-bottom: 0.45rem;
+  font-size: 0.84rem;
+  line-height: 1.5;
+  color: var(--theme-color-primary);
+  font-weight: 600;
+}
+
 .report-issue-table__textcell p {
   margin: 0;
   white-space: pre-wrap;
@@ -1319,6 +1345,8 @@ function downloadPdf() {
   border: 1px solid var(--theme-color-soft-border);
   border-radius: 0.75rem;
   background: #f8fafc;
+  display: flex;
+  flex-direction: column;
 }
 
 .appendix-gallery__button {
@@ -1337,6 +1365,14 @@ function downloadPdf() {
   object-fit: cover;
   background: #e2e8f0;
   transition: transform 160ms ease, filter 160ms ease;
+}
+
+.appendix-gallery__caption {
+  padding: 0.65rem 0.75rem 0.8rem;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--theme-color-text);
+  text-align: center;
 }
 
 .appendix-gallery__button:hover .appendix-gallery__image,

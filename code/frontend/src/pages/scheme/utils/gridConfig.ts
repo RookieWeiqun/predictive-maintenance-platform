@@ -1,4 +1,4 @@
-import { getTypeLabel, type FlatRow } from './schemeUtils';
+import { getTypeLabel, mapRequiredToPriority, type FlatRow } from './schemeUtils';
 import { Ref } from 'vue';
 
 /**
@@ -105,13 +105,13 @@ export function createBaseColumnDefs(
       },
     },
     {
-      field: 'priority',
-      headerName: '权重',
-      width: 100,
+      field: 'requiredLabel',
+      headerName: '是否必填',
+      width: 110,
       valueGetter: (params: any) => {
         const data = params.data as FlatRow;
         if (!data.isDetectionItem) return '-';
-        return data.priority || (data.required !== false ? 'High' : 'Low');
+        return data.required !== false ? '必填' : '可选';
       },
       valueFormatter: (params: any) => {
         if (params.value === undefined || params.value === null) return '-';
@@ -285,24 +285,25 @@ export function configureColumnEditing(
         }
         return false;
       };
-    } else if (field === 'priority') {
+    } else if (field === 'requiredLabel') {
       colDef.editable = (params: any) => !!params.data.isDetectionItem;
       colDef.cellEditor = 'agSelectCellEditor';
-      colDef.cellEditorParams = { values: ['High', 'Medium', 'Low'] };
+      colDef.cellEditorParams = { values: ['必填', '可选'] };
       colDef.valueGetter = (params: any) => {
         const data = params.data as FlatRow;
         if (!data.isDetectionItem) return '-';
-        return data.priority || (data.required !== false ? 'High' : 'Low');
+        return data.required !== false ? '必填' : '可选';
       };
       colDef.valueSetter = (params: any) => {
         const rowData = params.data as FlatRow;
         if (rowData.isDetectionItem) {
           const item = findItemByRowId(rowData.id);
           if (item) {
-            item.priority = params.newValue || undefined;
-            rowData.priority = params.newValue || undefined;
-            item.required = (params.newValue || 'High') !== 'Low';
+            item.required = (params.newValue || '必填') !== '可选';
+            item.priority = mapRequiredToPriority(item.required);
+            rowData.priority = item.priority;
             rowData.required = item.required;
+            rowData.requiredLabel = item.required ? '必填' : '可选';
             updateGridData();
             return true;
           }

@@ -115,6 +115,7 @@ const router = useRouter();
 
 type TaskListRow = {
   id: string;
+  taskNo: string;
   projectId: string;
   projectNo: string;
   projectName: string;
@@ -208,8 +209,7 @@ async function mapInspectionTasksToRows(
 
         if (productid > 0 && !productCache.has(productid)) {
           try {
-            const list = await productsApi.searchProducts({ productid });
-            const p0 = list[0];
+            const p0 = await productsApi.getProduct(productid);
             productCache.set(productid, {
               mlfb: p0?.mlfb?.trim() || '-',
               serialno: p0?.serialno?.trim() || '-',
@@ -227,6 +227,7 @@ async function mapInspectionTasksToRows(
 
         return {
           id: displayId,
+          taskNo: displayId,
           projectId: String(projectId),
           projectNo,
           projectName,
@@ -510,6 +511,7 @@ const handleCreateSubTask = (task: TaskListRow | null) => {
   
   const newSubTask: TaskListRow = {
     id: subTaskId,
+    taskNo: subTaskId,
     projectId: task.projectId,
     projectNo: task.projectNo,
     projectName: task.projectName,
@@ -759,6 +761,15 @@ onMounted(() => {
                 : 'var(--theme-color-text-soft)',
           };
         },
+      },
+      {
+        field: 'taskNo',
+        headerName: '任务号',
+        resizable: true,
+        sortable: true,
+        filter: true,
+        flex: 1.05,
+        minWidth: 140,
       },
       {
         field: 'deviceModel',

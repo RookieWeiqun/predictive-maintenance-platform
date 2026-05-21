@@ -4,6 +4,7 @@ import type { ProjectDto } from '@/api/modules/projects';
 import type { ProductDto } from '@/api/modules/products';
 import type { CompanyDto } from '@/api/modules/companies';
 import type { ReportData } from '@/mockdata/report';
+import { getIssueSuggestionText } from './reportIssueUtils';
 
 type ProjectTaskDetailsReportSource = {
   project: ProjectDto;
@@ -262,7 +263,7 @@ export function buildReportFromProjectTaskDetailsSource(source: ProjectTaskDetai
           serialNumber: entry.detail.task.serial_no?.trim() || String(entry.task.taskid ?? '-'),
           severity: getSeverity(item),
           issue: item.item_name,
-          suggestion: getTaskResultRemarks(item) || getTaskResultValue(item),
+          suggestion: getIssueSuggestionText(item),
         })),
       ),
       attachments: taskDetailsByTask.flatMap((entry) =>

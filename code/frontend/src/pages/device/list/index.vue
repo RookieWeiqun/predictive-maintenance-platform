@@ -22,7 +22,10 @@
             </IxSelect>
             <IxButton variant="secondary" @click="handleSearch">搜索</IxButton>
           </div>
-          <IxButton variant="primary" :icon="iconAdd" @click="openCreateModal">新建设备</IxButton>
+          <div class="filter-section__right">
+            <IxButton variant="secondary" @click="openTemplateMappingModal">型号尺寸匹配表</IxButton>
+            <IxButton variant="primary" :icon="iconAdd" @click="openCreateModal">新建设备</IxButton>
+          </div>
         </div>
 
         <div class="table-container">
@@ -64,9 +67,11 @@ import { iconAdd } from '@siemens/ix-icons/icons';
 import productCategoriesData from '@/mockdata/common/productCategories.json';
 import DeviceFormModal, { type DeviceFormPayload } from '../components/DeviceFormModal.vue';
 import DeviceSerialFullWidthRenderer from '../components/DeviceSerialFullWidthRenderer.vue';
-import { companiesApi, equipmentsApi } from '@/api';
+import TemplateMappingManageModal from '../components/TemplateMappingManageModal.vue';
+import { companiesApi, equipmentsApi, productsApi } from '@/api';
 import type { CompanyDto } from '@/api/modules/companies';
 import type { EquipmentDto } from '@/api/modules/equipments';
+import type { ProductDto } from '@/api/modules/products';
 
 const deviceGridComponents = {
   DeviceSerialFullWidthRenderer,
@@ -88,6 +93,7 @@ type DeviceRow = {
   customerName: string;
   factoryName: string;
   workshopName: string;
+  electricRoom: string;
   categoryId: string;
   categoryName: string;
   subCategoryId: string;
@@ -166,24 +172,33 @@ function matchCategoryFromApi(
   return { categoryId, subCategoryId, categoryName, subCategoryName };
 }
 
-function mapEquipmentToRow(e: EquipmentDto, customerName: string, index: number): DeviceRow {
+function mapEquipmentToRow(
+  e: EquipmentDto,
+  customerName: string,
+  index: number,
+  products: ProductDto[],
+): DeviceRow {
   const { categoryId, subCategoryId, categoryName, subCategoryName } = matchCategoryFromApi(
     e.productcategory,
     e.productgroup,
   );
+  const serialNumbers = products
+    .map((product) => (product.serialno ?? '').trim())
+    .filter(Boolean);
   return {
     id: String(e.equipid ?? index),
     customerId: String(e.companyid),
     customerName,
     factoryName: e.factory ?? '',
     workshopName: e.workshop ?? '',
+    electricRoom: e.electricroom ?? '',
     categoryId,
     categoryName,
     subCategoryId,
     subCategoryName,
-    model: e.equipmentname ?? '',
-    quantity: e.number ?? 0,
-    serialNumbers: [],
+    model: e.mlfb?.trim() || '',
+    quantity: e.number ?? serialNumbers.length,
+    serialNumbers,
     maintenance: maintenanceForIndex(index),
   };
 }
@@ -288,15 +303,58 @@ async function refreshAll() {
   try {
     companies.value = await companiesApi.listCompanies();
     const list = await equipmentsApi.listEquipments();
+    const productListByEquipment = await Promise.all(
+      list.map(async (equipment) => {
+        const equipid = equipment.equipid;
+        if (equipid == null || equipid <= 0 || Number.isNaN(equipid)) {
+          return [] as ProductDto[];
+        }
+        try {
+          return await productsApi.searchProducts({ equipmentid: equipid });
+        } catch {
+          return [] as ProductDto[];
+        }
+      }),
+    );
     const nameMap = new Map(
       companies.value.map((c) => [c.companyid, c.companyname ?? ''] as const),
     );
     devices.value = list.map((e, i) =>
-      mapEquipmentToRow(e, nameMap.get(e.companyid) ?? `客户#${e.companyid}`, i),
+      mapEquipmentToRow(e, nameMap.get(e.companyid) ?? `客户#${e.companyid}`, i, productListByEquipment[i] ?? []),
     );
     updateGridData();
   } catch (e) {
     showToast({ message: e instanceof Error ? e.message : '设备列表加载失败' });
+  }
+}
+
+async function syncProductsForEquipment(equipmentId: number, payload: DeviceFormPayload): Promise<void> {
+  const existingProducts = await productsApi.searchProducts({ equipmentid: equipmentId });
+  const reusableProducts = existingProducts.filter(
+    (product): product is ProductDto & { productid: number } => product.productid != null && product.productid > 0,
+  );
+
+  for (let index = 0; index < payload.serialNumbers.length; index += 1) {
+    const serialno = payload.serialNumbers[index]?.trim() ?? '';
+    const current = reusableProducts[index];
+    if (current) {
+      await productsApi.updateProduct({
+        productid: current.productid,
+        equipid: equipmentId,
+        mlfb: payload.model,
+        serialno,
+        equipmentname: null,
+      });
+      continue;
+    }
+
+    await productsApi.createProduct({
+      productid: 0,
+      equipid: equipmentId,
+      mlfb: payload.model,
+      serialno,
+      equipmentname: null,
+    });
   }
 }
 
@@ -305,6 +363,7 @@ function formInitialFromDevice(d: DeviceRow) {
     customerId: d.customerId,
     factoryName: d.factoryName,
     workshopName: d.workshopName,
+    electricRoom: d.electricRoom,
     categoryId: d.categoryId,
     subCategoryId: d.subCategoryId,
     model: d.model,
@@ -318,6 +377,7 @@ function emptyFormInitial() {
     customerId: '',
     factoryName: '',
     workshopName: '',
+    electricRoom: '',
     categoryId: '',
     subCategoryId: '',
     model: '',
@@ -336,7 +396,9 @@ function toEquipmentBody(equipId: number | undefined, payload: DeviceFormPayload
     companyid: Number.parseInt(payload.customerId, 10),
     factory: payload.factoryName,
     workshop: payload.workshopName,
-    equipmentname: payload.model,
+    electricroom: payload.electricRoom,
+    mlfb: payload.model,
+    equipmentname: null,
     productcategory: categoryName || null,
     productgroup: subCategoryName || null,
     number: payload.quantity,
@@ -354,13 +416,31 @@ function openCreateModal() {
         initial: emptyFormInitial(),
         onSubmit: async (payload: DeviceFormPayload) => {
           try {
-            await equipmentsApi.createEquipment(toEquipmentBody(undefined, payload));
+            const created = await equipmentsApi.createEquipment(toEquipmentBody(undefined, payload));
+            const equipId = Number(created.equipid);
+            if (Number.isFinite(equipId) && equipId > 0) {
+              await syncProductsForEquipment(equipId, payload);
+            }
             expandedRows.value.clear();
             await refreshAll();
             showToast({ message: '新增成功' });
           } catch (e) {
             showToast({ message: e instanceof Error ? e.message : '新增失败' });
           }
+        },
+      },
+    }),
+  });
+}
+
+function openTemplateMappingModal() {
+  showModal({
+    size: '900',
+    centered: true,
+    content: h(TemplateMappingManageModal, {
+      data: {
+        onChanged: async () => {
+          await refreshAll();
         },
       },
     }),
@@ -382,6 +462,7 @@ function openEditModal(id: string) {
         onSubmit: async (payload: DeviceFormPayload) => {
           try {
             await equipmentsApi.updateEquipment(toEquipmentBody(equipId, payload));
+            await syncProductsForEquipment(equipId, payload);
             await refreshAll();
             showToast({ message: '保存成功' });
           } catch (e) {
@@ -487,6 +568,18 @@ onMounted(() => {
       {
         field: 'workshopName',
         headerName: '车间',
+        resizable: true,
+        sortable: true,
+        filter: true,
+        width: 150,
+        cellRenderer: (params: { data?: DeviceFlatRow; value?: string }) => {
+          if (params.data?.rowKind !== 'device') return '';
+          return params.value ?? '';
+        },
+      },
+      {
+        field: 'electricRoom',
+        headerName: '电气室',
         resizable: true,
         sortable: true,
         filter: true,
@@ -618,6 +711,12 @@ watch([searchText, selectedCustomer, devices], () => {
   align-items: center;
   flex: 1;
   min-width: 0;
+}
+
+.filter-section__right {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
 }
 
 .hint-text {

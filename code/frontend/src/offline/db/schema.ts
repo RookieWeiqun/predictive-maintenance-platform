@@ -9,7 +9,7 @@ function quoteList(values: readonly string[]): string {
   return values.map((value) => `'${value}'`).join(', ');
 }
 
-export const OFFLINE_DB_VERSION = 6;
+export const OFFLINE_DB_VERSION = 7;
 
 export const OFFLINE_TASK_TABLE = 'offline_task';
 export const OFFLINE_TASK_ITEM_TABLE = 'offline_task_item';
@@ -129,6 +129,12 @@ CREATE TABLE IF NOT EXISTS ${OFFLINE_TASK_ITEM_TABLE} (
   item_name TEXT NOT NULL,
   category_path TEXT,
   result TEXT,
+  display_condition TEXT,
+  operation_guide TEXT,
+  recommended_rules TEXT,
+  recommendation_content TEXT,
+  hidden_hazard_content TEXT,
+  maintenance_instructions TEXT,
   execution_status TEXT NOT NULL CHECK (execution_status IN (${quoteList(TASK_ITEM_EXECUTION_STATUSES)})),
   is_normal INTEGER NOT NULL DEFAULT 0,
   is_recheck INTEGER NOT NULL DEFAULT 0,
@@ -136,6 +142,15 @@ CREATE TABLE IF NOT EXISTS ${OFFLINE_TASK_ITEM_TABLE} (
   sync_status TEXT NOT NULL CHECK (sync_status IN (${quoteList(TASK_ITEM_SYNC_STATUSES)}))
 );
 `;
+
+export const OFFLINE_DB_MIGRATION_V7_SQL = [
+  `ALTER TABLE ${OFFLINE_TASK_ITEM_TABLE} ADD COLUMN display_condition TEXT;`,
+  `ALTER TABLE ${OFFLINE_TASK_ITEM_TABLE} ADD COLUMN operation_guide TEXT;`,
+  `ALTER TABLE ${OFFLINE_TASK_ITEM_TABLE} ADD COLUMN recommended_rules TEXT;`,
+  `ALTER TABLE ${OFFLINE_TASK_ITEM_TABLE} ADD COLUMN recommendation_content TEXT;`,
+  `ALTER TABLE ${OFFLINE_TASK_ITEM_TABLE} ADD COLUMN hidden_hazard_content TEXT;`,
+  `ALTER TABLE ${OFFLINE_TASK_ITEM_TABLE} ADD COLUMN maintenance_instructions TEXT;`,
+];
 
 export const CREATE_OFFLINE_ATTACHMENT_TABLE_SQL = `
 CREATE TABLE IF NOT EXISTS ${OFFLINE_ATTACHMENT_TABLE} (
