@@ -341,12 +341,6 @@ namespace premaintainProjects.Controllers
                 Operationguide = item.Operationguide
             }).ToList();
 
-            foreach (var item in taskitemList)
-            {
-                await _serviceTools.RefreshRenderSchemaAsync(item);
-            }
-
-
             var data = new UpdateInspectionTaskDetailDto
             {
                 Task = task,
