@@ -355,6 +355,8 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
                 .HasMaxLength(200)
                 .HasColumnName("path");
             entity.Property(e => e.Projectid).HasColumnName("projectid");
+            entity.Property(e => e.Sparepartsrecommendation).HasColumnName("sparepartsrecommendation");
+            entity.Property(e => e.Summarydescription).HasColumnName("summarydescription");
         });
 
         modelBuilder.Entity<Taskitem>(entity =>

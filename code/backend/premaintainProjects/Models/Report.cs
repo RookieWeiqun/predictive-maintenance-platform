@@ -14,4 +14,8 @@ public partial class Report
     public DateOnly Createdate { get; set; }
 
     public bool Ifdel { get; set; }
+
+    public string? Summarydescription { get; set; }
+
+    public string? Sparepartsrecommendation { get; set; }
 }
