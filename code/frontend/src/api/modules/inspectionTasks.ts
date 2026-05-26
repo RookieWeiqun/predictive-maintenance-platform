@@ -57,16 +57,28 @@ export type InspectionTaskDetailDto = {
       threshold?: Record<string, unknown> | null;
       sort_order?: number | null;
       priority?: string | null;
+      display_condition?: string | null;
+      operation_guide?: string | null;
+      suggestion_rule?: string | null;
+      suggestion_content?: string | null;
+      hazard_content?: string | null;
+      maintenance_description?: string | null;
     } | null;
     taskresult?: {
       value?: string | null;
       remarks?: string | null;
       result_state?: string | null;
+      hazardResolved?: boolean | null;
+      recommendationContent?: string | null;
+      actionTaken?: string | null;
     } | null;
     task_result?: {
       value?: string | null;
       remarks?: string | null;
       result_state?: string | null;
+      hazardResolved?: boolean | null;
+      recommendationContent?: string | null;
+      actionTaken?: string | null;
     } | null;
     attachments?: Array<Record<string, unknown>>;
   }>;
@@ -154,6 +166,30 @@ function parseRenderSchemaJson(raw: unknown): InspectionTaskDetailDto['task_item
         threshold: (gv(parsed, 'threshold', 'Threshold') as Record<string, unknown> | null | undefined) ?? null,
         sort_order: toOptionalNumber(gv(parsed, 'sort_order', 'sortOrder')) ?? null,
         priority: toOptionalString(gv(parsed, 'priority', 'Priority')) ?? null,
+        display_condition:
+          toOptionalString(gv(parsed, 'display_condition', 'displayCondition'))
+          ?? toOptionalString(gv(parsed, 'displaycondition', 'Displaycondition'))
+          ?? null,
+        operation_guide:
+          toOptionalString(gv(parsed, 'operation_guide', 'operationGuide'))
+          ?? toOptionalString(gv(parsed, 'operationguide', 'Operationguide'))
+          ?? null,
+        suggestion_rule:
+          toOptionalString(gv(parsed, 'suggestion_rule', 'suggestionRule'))
+          ?? toOptionalString(gv(parsed, 'recommendedrules', 'Recommendedrules'))
+          ?? null,
+        suggestion_content:
+          toOptionalString(gv(parsed, 'suggestion_content', 'suggestionContent'))
+          ?? toOptionalString(gv(parsed, 'recommendationcontent', 'Recommendationcontent'))
+          ?? null,
+        hazard_content:
+          toOptionalString(gv(parsed, 'hazard_content', 'hazardContent'))
+          ?? toOptionalString(gv(parsed, 'hiddenhazardcontent', 'Hiddenhazardcontent'))
+          ?? null,
+        maintenance_description:
+          toOptionalString(gv(parsed, 'maintenance_description', 'maintenanceDescription'))
+          ?? toOptionalString(gv(parsed, 'maintenanceinstructions', 'Maintenanceinstructions'))
+          ?? null,
       };
     } catch {
       return null;
@@ -167,6 +203,57 @@ function parseRenderSchemaJson(raw: unknown): InspectionTaskDetailDto['task_item
     threshold: (gv(parsed, 'threshold', 'Threshold') as Record<string, unknown> | null | undefined) ?? null,
     sort_order: toOptionalNumber(gv(parsed, 'sort_order', 'sortOrder')) ?? null,
     priority: toOptionalString(gv(parsed, 'priority', 'Priority')) ?? null,
+    display_condition:
+      toOptionalString(gv(parsed, 'display_condition', 'displayCondition'))
+      ?? toOptionalString(gv(parsed, 'displaycondition', 'Displaycondition'))
+      ?? null,
+    operation_guide:
+      toOptionalString(gv(parsed, 'operation_guide', 'operationGuide'))
+      ?? toOptionalString(gv(parsed, 'operationguide', 'Operationguide'))
+      ?? null,
+    suggestion_rule:
+      toOptionalString(gv(parsed, 'suggestion_rule', 'suggestionRule'))
+      ?? toOptionalString(gv(parsed, 'recommendedrules', 'Recommendedrules'))
+      ?? null,
+    suggestion_content:
+      toOptionalString(gv(parsed, 'suggestion_content', 'suggestionContent'))
+      ?? toOptionalString(gv(parsed, 'recommendationcontent', 'Recommendationcontent'))
+      ?? null,
+    hazard_content:
+      toOptionalString(gv(parsed, 'hazard_content', 'hazardContent'))
+      ?? toOptionalString(gv(parsed, 'hiddenhazardcontent', 'Hiddenhazardcontent'))
+      ?? null,
+    maintenance_description:
+      toOptionalString(gv(parsed, 'maintenance_description', 'maintenanceDescription'))
+      ?? toOptionalString(gv(parsed, 'maintenanceinstructions', 'Maintenanceinstructions'))
+      ?? null,
+  };
+}
+
+function mergeRenderSchemaJson(
+  base: InspectionTaskDetailDto['task_items'][number]['render_schema_json'],
+  fallbackRaw: unknown,
+): InspectionTaskDetailDto['task_items'][number]['render_schema_json'] {
+  const fallback = parseRenderSchemaJson(fallbackRaw);
+  if (base == null) {
+    return fallback;
+  }
+  if (fallback == null) {
+    return base;
+  }
+
+  return {
+    value_type: base.value_type ?? fallback.value_type ?? null,
+    rule_type: base.rule_type ?? fallback.rule_type ?? null,
+    threshold: base.threshold ?? fallback.threshold ?? null,
+    sort_order: base.sort_order ?? fallback.sort_order ?? null,
+    priority: base.priority ?? fallback.priority ?? null,
+    display_condition: base.display_condition ?? fallback.display_condition ?? null,
+    operation_guide: base.operation_guide ?? fallback.operation_guide ?? null,
+    suggestion_rule: base.suggestion_rule ?? fallback.suggestion_rule ?? null,
+    suggestion_content: base.suggestion_content ?? fallback.suggestion_content ?? null,
+    hazard_content: base.hazard_content ?? fallback.hazard_content ?? null,
+    maintenance_description: base.maintenance_description ?? fallback.maintenance_description ?? null,
   };
 }
 
@@ -174,6 +261,9 @@ function parseTaskResultBlock(raw: unknown): {
   value?: string | null;
   remarks?: string | null;
   result_state?: string | null;
+  hazardResolved?: boolean | null;
+  recommendationContent?: string | null;
+  actionTaken?: string | null;
 } | null {
   if (raw == null) return null;
 
@@ -186,6 +276,12 @@ function parseTaskResultBlock(raw: unknown): {
         value: toOptionalString(gv(parsed, 'value', 'Value')) ?? null,
         remarks: toOptionalString(gv(parsed, 'remarks', 'Remarks')) ?? null,
         result_state: toOptionalString(gv(parsed, 'resultState', 'result_state')) ?? null,
+        hazardResolved:
+          typeof gv(parsed, 'hazardResolved', 'hazard_resolved') === 'boolean'
+            ? (gv(parsed, 'hazardResolved', 'hazard_resolved') as boolean)
+            : null,
+        recommendationContent: toOptionalString(gv(parsed, 'recommendationContent', 'recommendation_content')) ?? null,
+        actionTaken: toOptionalString(gv(parsed, 'actionTaken', 'action_taken')) ?? null,
       };
     } catch {
       return {
@@ -201,6 +297,12 @@ function parseTaskResultBlock(raw: unknown): {
     value: toOptionalString(gv(parsed, 'value', 'Value')) ?? null,
     remarks: toOptionalString(gv(parsed, 'remarks', 'Remarks')) ?? null,
     result_state: toOptionalString(gv(parsed, 'resultState', 'result_state')) ?? null,
+    hazardResolved:
+      typeof gv(parsed, 'hazardResolved', 'hazard_resolved') === 'boolean'
+        ? (gv(parsed, 'hazardResolved', 'hazard_resolved') as boolean)
+        : null,
+    recommendationContent: toOptionalString(gv(parsed, 'recommendationContent', 'recommendation_content')) ?? null,
+    actionTaken: toOptionalString(gv(parsed, 'actionTaken', 'action_taken')) ?? null,
   };
 }
 
@@ -238,6 +340,10 @@ function mapInspectionTaskDetailRaw(raw: unknown): InspectionTaskDetailDto {
       const item = itemRaw as Record<string, unknown>;
       const sourceType = gv(item, 'source_type', 'sourceType');
       const executionStatus = gv(item, 'execution_status', 'executionStatus');
+      const renderSchema = mergeRenderSchemaJson(
+        parseRenderSchemaJson(gv(item, 'render_schema_json', 'renderSchemaJson')),
+        item,
+      );
       return {
         item_id: String(gv(item, 'item_id', 'itemid') ?? ''),
         source_type:
@@ -260,7 +366,7 @@ function mapInspectionTaskDetailRaw(raw: unknown): InspectionTaskDetailDto {
         is_recheck: toBoolean(gv(item, 'is_recheck', 'isrecheck')) ?? null,
         version: toOptionalNumber(gv(item, 'version', 'Version')) ?? null,
         updated_at: toOptionalString(gv(item, 'updated_at', 'updatetime')) ?? null,
-        render_schema_json: parseRenderSchemaJson(gv(item, 'render_schema_json', 'renderSchemaJson')),
+        render_schema_json: renderSchema,
         taskresult: parseTaskResultBlock(gv(item, 'taskresult', 'taskResult')),
         task_result: parseTaskResultBlock(gv(item, 'task_result', 'taskResult')),
         attachments: Array.isArray(item.attachments)

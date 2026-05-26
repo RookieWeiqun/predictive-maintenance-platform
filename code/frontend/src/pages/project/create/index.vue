@@ -165,6 +165,7 @@ import {
 import { loadTemplateItemsByTemplateId } from '@/pages/scheme/utils/loadTemplateItems';
 import {
   searchTemplatesForProjectDevices,
+  searchEquipmentTemplatesWithDiagnostics,
   searchPeripheralTemplatesByWorkshop,
   INSPECTION_TYPE_EQUIPMENT,
   workshopKey,
@@ -330,6 +331,7 @@ const adjustedSchemeItems = ref<any[]>([]);
 const matchedEquipmentTemplates = ref<InspectionTemplateDto[]>([]);
 /** 设备检测模板：按“产品型号（含分类）”分组匹配结果 */
 const equipmentTemplatesByModel = ref<Record<string, InspectionTemplateDto[]>>({});
+const equipmentMatchDiagnosticsByModel = ref<Record<string, { series: string; size: string; message: string }>>({});
 /** 每个型号行当前选中的设备模板 id */
 const equipmentSchemeIdByModel = ref<Record<string, string>>({});
 /** 外围检测模板：按车间 key（factory\\tworkshop）分组 */
@@ -398,10 +400,15 @@ const equipmentSchemeRows = computed(() => {
       label: v.label,
       deviceCount: v.deviceCount,
       selectedId: v.selectedId,
+      series: equipmentMatchDiagnosticsByModel.value[key]?.series ?? '',
+      size: equipmentMatchDiagnosticsByModel.value[key]?.size ?? '',
+      matchMessage: equipmentMatchDiagnosticsByModel.value[key]?.message ?? '',
       options: v.options.map((t) => ({
         id: String(t.templateid),
         name: t.name?.trim() ? (t.name as string) : `模板 #${t.templateid}`,
         model: t.mlfb?.trim() ? (t.mlfb as string) : '-',
+        series: t.series?.trim() ? (t.series as string) : '-',
+        size: t.size?.trim() ? (t.size as string) : '-',
       })),
     }))
     .sort((a, b) => a.label.localeCompare(b.label, 'zh-CN'));
@@ -522,6 +529,7 @@ async function refreshMatchedTemplates() {
   if (deviceList.value.length === 0) {
     matchedEquipmentTemplates.value = [];
     equipmentTemplatesByModel.value = {};
+    equipmentMatchDiagnosticsByModel.value = {};
     equipmentSchemeIdByModel.value = {};
     peripheralTemplatesByWorkshop.value = {};
     peripheralSchemeIdByWorkshop.value = {};
@@ -541,26 +549,39 @@ async function refreshMatchedTemplates() {
     }
     const [equipByModelEntries, perMap] = await Promise.all([
       Promise.all(
-        [...modelGroups.entries()].map(async ([key, list]) => [
-          key,
-          await searchTemplatesForProjectDevices(list, INSPECTION_TYPE_EQUIPMENT),
-        ] as const),
+        [...modelGroups.entries()].map(async ([key, list]) => {
+          const result = await searchEquipmentTemplatesWithDiagnostics(list);
+          return [key, result] as const;
+        }),
       ),
       searchPeripheralTemplatesByWorkshop(deviceList.value),
     ]);
     if (seq !== refreshMatchedSeq) return;
 
-    equipmentTemplatesByModel.value = Object.fromEntries(equipByModelEntries);
+    equipmentTemplatesByModel.value = Object.fromEntries(
+      equipByModelEntries.map(([key, result]) => [key, result.options]),
+    );
+    equipmentMatchDiagnosticsByModel.value = Object.fromEntries(
+      equipByModelEntries.map(([key, result]) => [
+        key,
+        {
+          series: result.series,
+          size: result.size,
+          message: result.message,
+        },
+      ]),
+    );
     const mergedEquip = new Map<number, InspectionTemplateDto>();
-    for (const [, opts] of equipByModelEntries) {
-      for (const t of opts) mergedEquip.set(t.templateid, t);
+    for (const [, result] of equipByModelEntries) {
+      for (const t of result.options) mergedEquip.set(t.templateid, t);
     }
     matchedEquipmentTemplates.value = [...mergedEquip.values()];
     peripheralTemplatesByWorkshop.value = Object.fromEntries(perMap);
 
     const prevEquipment = { ...equipmentSchemeIdByModel.value };
     const nextEquipment: Record<string, string> = {};
-    for (const [key, opts] of equipByModelEntries) {
+    for (const [key, result] of equipByModelEntries) {
+      const opts = result.options;
       if (!opts || opts.length === 0) continue;
       const prev = prevEquipment[key];
       const prevValid = prev && opts.some((t) => String(t.templateid) === prev);
@@ -948,7 +969,8 @@ async function resolvePersistedEquipmentIds(): Promise<number[]> {
       companyid,
       factory: (d.factoryName ?? formData.value.factory ?? '').trim() || null,
       workshop: (d.workshopName ?? '').trim() || null,
-      equipmentname: d.model || null,
+      mlfb: d.model || null,
+      equipmentname: null,
       productcategory: cat?.name ?? null,
       productgroup: sub?.name ?? null,
       number: d.quantity,
@@ -986,7 +1008,8 @@ async function resolvePersistedEquipmentBindings(): Promise<PersistedEquipmentBi
       companyid,
       factory: (d.factoryName ?? formData.value.factory ?? '').trim() || null,
       workshop: (d.workshopName ?? '').trim() || null,
-      equipmentname: d.model || null,
+      mlfb: d.model || null,
+      equipmentname: null,
       productcategory: cat?.name ?? null,
       productgroup: sub?.name ?? null,
       number: d.quantity,

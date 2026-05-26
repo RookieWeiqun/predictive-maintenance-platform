@@ -4,7 +4,7 @@ import type { EquipmentProjectDto } from '@/api/modules/equipments';
 import { workshopKey, workshopLabel } from '@/pages/project/create/utils/matchInspectionTemplates';
 import type { ProjectSchemePeripheralRowV1 } from '@/pages/project/utils/projectSchemeSelectionStorage';
 
-/** 与 `syncProjectInspectionTasksFromWizard` 中外围任务 `taskNoSuffix` 一致 */
+/** 历史外围任务号后缀约定：`-P2` */
 export function isPeripheralInspectionTask(taskNo: string | null | undefined): boolean {
   const t = (taskNo ?? '').trim();
   return t.length > 0 && t.endsWith('-P2');
@@ -65,8 +65,8 @@ export async function resolveProjectSchemesFromInspectionTasks(
       await Promise.all(
         ids.map(async (productid) => {
           try {
-            const rows = await productsApi.searchProducts({ productid });
-            const eq = rows[0]?.equipid;
+            const product = await productsApi.getProduct(productid);
+            const eq = product.equipid;
             if (eq != null && eq > 0) m.set(productid, eq);
           } catch {
             /* 忽略单条 */

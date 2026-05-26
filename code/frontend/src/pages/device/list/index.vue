@@ -22,7 +22,10 @@
             </IxSelect>
             <IxButton variant="secondary" @click="handleSearch">搜索</IxButton>
           </div>
-          <IxButton variant="primary" :icon="iconAdd" @click="openCreateModal">新建设备</IxButton>
+          <div class="filter-section__right">
+            <IxButton variant="secondary" @click="openTemplateMappingModal">型号尺寸匹配表</IxButton>
+            <IxButton variant="primary" :icon="iconAdd" @click="openCreateModal">新建设备</IxButton>
+          </div>
         </div>
 
         <div class="table-container">
@@ -64,9 +67,12 @@ import { iconAdd } from '@siemens/ix-icons/icons';
 import productCategoriesData from '@/mockdata/common/productCategories.json';
 import DeviceFormModal, { type DeviceFormPayload } from '../components/DeviceFormModal.vue';
 import DeviceSerialFullWidthRenderer from '../components/DeviceSerialFullWidthRenderer.vue';
-import { companiesApi, equipmentsApi } from '@/api';
+import TemplateMappingManageModal from '../components/TemplateMappingManageModal.vue';
+import { companiesApi, equipmentsApi, productsApi, templatemappingsApi } from '@/api';
 import type { CompanyDto } from '@/api/modules/companies';
 import type { EquipmentDto } from '@/api/modules/equipments';
+import type { ProductDto } from '@/api/modules/products';
+import type { TemplateMappingDto } from '@/api/modules/templatemappings';
 
 const deviceGridComponents = {
   DeviceSerialFullWidthRenderer,
@@ -88,6 +94,7 @@ type DeviceRow = {
   customerName: string;
   factoryName: string;
   workshopName: string;
+  electricRoom: string;
   categoryId: string;
   categoryName: string;
   subCategoryId: string;
@@ -95,7 +102,18 @@ type DeviceRow = {
   model: string;
   quantity: number;
   serialNumbers: string[];
+  products: DeviceProductRow[];
   maintenance: MaintenanceInfo;
+};
+
+type DeviceProductRow = {
+  id: string;
+  productId: number | null;
+  mlfb: string;
+  serialno: string;
+  series: string;
+  size: string;
+  lastMaintenanceText: string;
 };
 
 /** 与任务列表相同：父行 + 可选子行（详情） */
@@ -105,15 +123,15 @@ type DeviceFlatParent = DeviceRow & {
   rowKind: 'device';
 };
 
-/** 序列号全宽行（横跨所有列含固定列，不占「客户名称」单格） */
-type DeviceSerialStripRow = {
+/** 产品子表全宽行（横跨所有列含固定列，不占「客户名称」单格） */
+type DeviceProductTableRow = {
   id: string;
-  rowKind: 'serialStrip';
+  rowKind: 'productTable';
   __fullWidth: true;
   parent: DeviceRow;
 };
 
-type DeviceFlatRow = DeviceFlatParent | DeviceSerialStripRow;
+type DeviceFlatRow = DeviceFlatParent | DeviceProductTableRow;
 
 const MAINTENANCE_SAMPLES: MaintenanceInfo[] = [
   {
@@ -143,6 +161,31 @@ function maintenanceForIndex(i: number): MaintenanceInfo {
   return { ...MAINTENANCE_SAMPLES[i % MAINTENANCE_SAMPLES.length] };
 }
 
+function formatDateYmd(iso: string) {
+  if (!iso) return '—';
+  try {
+    return new Date(iso).toLocaleDateString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+  } catch {
+    return iso;
+  }
+}
+
+function normalizeMlfbKey(value: string | null | undefined): string {
+  return (value ?? '').trim().toLowerCase();
+}
+
+function buildTemplateMappingMap(rows: TemplateMappingDto[]): Map<string, TemplateMappingDto> {
+  return new Map(
+    rows
+      .filter((row) => (row.mlfb ?? '').trim())
+      .map((row) => [normalizeMlfbKey(row.mlfb), row] as const),
+  );
+}
+
 function matchCategoryFromApi(
   productcategory: string | null | undefined,
   productgroup: string | null | undefined,
@@ -166,25 +209,51 @@ function matchCategoryFromApi(
   return { categoryId, subCategoryId, categoryName, subCategoryName };
 }
 
-function mapEquipmentToRow(e: EquipmentDto, customerName: string, index: number): DeviceRow {
+function mapEquipmentToRow(
+  e: EquipmentDto,
+  customerName: string,
+  index: number,
+  products: ProductDto[],
+  templateMappingMap: Map<string, TemplateMappingDto>,
+): DeviceRow {
   const { categoryId, subCategoryId, categoryName, subCategoryName } = matchCategoryFromApi(
     e.productcategory,
     e.productgroup,
   );
+  const maintenance = maintenanceForIndex(index);
+  const lastMaintenanceText = formatDateYmd(maintenance.lastMaintenanceDate);
+  const productRows = products.map((product, productIndex) => {
+    const resolvedMlfb = (product.mlfb ?? e.mlfb ?? '').trim();
+    const mapping = templateMappingMap.get(normalizeMlfbKey(resolvedMlfb));
+    return {
+      id: `${e.equipid ?? index}-${product.productid ?? productIndex}`,
+      productId: product.productid ?? null,
+      mlfb: resolvedMlfb || '—',
+      serialno: (product.serialno ?? '').trim() || '—',
+      series: (mapping?.series ?? '').trim() || '—',
+      size: (mapping?.size ?? '').trim() || '—',
+      lastMaintenanceText,
+    };
+  });
+  const serialNumbers = productRows
+    .map((product) => product.serialno)
+    .filter((serial) => serial && serial !== '—');
   return {
     id: String(e.equipid ?? index),
     customerId: String(e.companyid),
     customerName,
     factoryName: e.factory ?? '',
     workshopName: e.workshop ?? '',
+    electricRoom: e.electricroom ?? '',
     categoryId,
     categoryName,
     subCategoryId,
     subCategoryName,
-    model: e.equipmentname ?? '',
-    quantity: e.number ?? 0,
-    serialNumbers: [],
-    maintenance: maintenanceForIndex(index),
+    model: e.mlfb?.trim() || '',
+    quantity: e.number ?? productRows.length,
+    serialNumbers,
+    products: productRows,
+    maintenance,
   };
 }
 
@@ -243,8 +312,8 @@ function convertToFlatRows(list: DeviceRow[], expanded: Set<string>): DeviceFlat
     });
     if (expanded.has(d.id)) {
       flat.push({
-        id: `${d.id}__serial`,
-        rowKind: 'serialStrip',
+        id: `${d.id}__products`,
+        rowKind: 'productTable',
         __fullWidth: true,
         parent: d,
       });
@@ -286,17 +355,71 @@ function resolveCategoryNames(categoryId: string, subCategoryId: string) {
 
 async function refreshAll() {
   try {
-    companies.value = await companiesApi.listCompanies();
-    const list = await equipmentsApi.listEquipments();
+    const [companyList, list, templateMappings] = await Promise.all([
+      companiesApi.listCompanies(),
+      equipmentsApi.listEquipments(),
+      templatemappingsApi.listTemplateMappings().catch(() => []),
+    ]);
+    companies.value = companyList;
+    const productListByEquipment = await Promise.all(
+      list.map(async (equipment) => {
+        const equipid = equipment.equipid;
+        if (equipid == null || equipid <= 0 || Number.isNaN(equipid)) {
+          return [] as ProductDto[];
+        }
+        try {
+          return await productsApi.searchProducts({ equipmentid: equipid });
+        } catch {
+          return [] as ProductDto[];
+        }
+      }),
+    );
     const nameMap = new Map(
       companies.value.map((c) => [c.companyid, c.companyname ?? ''] as const),
     );
+    const templateMappingMap = buildTemplateMappingMap(templateMappings);
     devices.value = list.map((e, i) =>
-      mapEquipmentToRow(e, nameMap.get(e.companyid) ?? `客户#${e.companyid}`, i),
+      mapEquipmentToRow(
+        e,
+        nameMap.get(e.companyid) ?? `客户#${e.companyid}`,
+        i,
+        productListByEquipment[i] ?? [],
+        templateMappingMap,
+      ),
     );
     updateGridData();
   } catch (e) {
     showToast({ message: e instanceof Error ? e.message : '设备列表加载失败' });
+  }
+}
+
+async function syncProductsForEquipment(equipmentId: number, payload: DeviceFormPayload): Promise<void> {
+  const existingProducts = await productsApi.searchProducts({ equipmentid: equipmentId });
+  const reusableProducts = existingProducts.filter(
+    (product): product is ProductDto & { productid: number } => product.productid != null && product.productid > 0,
+  );
+
+  for (let index = 0; index < payload.serialNumbers.length; index += 1) {
+    const serialno = payload.serialNumbers[index]?.trim() ?? '';
+    const current = reusableProducts[index];
+    if (current) {
+      await productsApi.updateProduct({
+        productid: current.productid,
+        equipid: equipmentId,
+        mlfb: payload.model,
+        serialno,
+        equipmentname: null,
+      });
+      continue;
+    }
+
+    await productsApi.createProduct({
+      productid: 0,
+      equipid: equipmentId,
+      mlfb: payload.model,
+      serialno,
+      equipmentname: null,
+    });
   }
 }
 
@@ -305,6 +428,7 @@ function formInitialFromDevice(d: DeviceRow) {
     customerId: d.customerId,
     factoryName: d.factoryName,
     workshopName: d.workshopName,
+    electricRoom: d.electricRoom,
     categoryId: d.categoryId,
     subCategoryId: d.subCategoryId,
     model: d.model,
@@ -318,6 +442,7 @@ function emptyFormInitial() {
     customerId: '',
     factoryName: '',
     workshopName: '',
+    electricRoom: '',
     categoryId: '',
     subCategoryId: '',
     model: '',
@@ -336,7 +461,9 @@ function toEquipmentBody(equipId: number | undefined, payload: DeviceFormPayload
     companyid: Number.parseInt(payload.customerId, 10),
     factory: payload.factoryName,
     workshop: payload.workshopName,
-    equipmentname: payload.model,
+    electricroom: payload.electricRoom,
+    mlfb: payload.model,
+    equipmentname: null,
     productcategory: categoryName || null,
     productgroup: subCategoryName || null,
     number: payload.quantity,
@@ -354,13 +481,31 @@ function openCreateModal() {
         initial: emptyFormInitial(),
         onSubmit: async (payload: DeviceFormPayload) => {
           try {
-            await equipmentsApi.createEquipment(toEquipmentBody(undefined, payload));
+            const created = await equipmentsApi.createEquipment(toEquipmentBody(undefined, payload));
+            const equipId = Number(created.equipid);
+            if (Number.isFinite(equipId) && equipId > 0) {
+              await syncProductsForEquipment(equipId, payload);
+            }
             expandedRows.value.clear();
             await refreshAll();
             showToast({ message: '新增成功' });
           } catch (e) {
             showToast({ message: e instanceof Error ? e.message : '新增失败' });
           }
+        },
+      },
+    }),
+  });
+}
+
+function openTemplateMappingModal() {
+  showModal({
+    size: '840',
+    centered: true,
+    content: h(TemplateMappingManageModal, {
+      data: {
+        onChanged: async () => {
+          await refreshAll();
         },
       },
     }),
@@ -382,6 +527,7 @@ function openEditModal(id: string) {
         onSubmit: async (payload: DeviceFormPayload) => {
           try {
             await equipmentsApi.updateEquipment(toEquipmentBody(equipId, payload));
+            await syncProductsForEquipment(equipId, payload);
             await refreshAll();
             showToast({ message: '保存成功' });
           } catch (e) {
@@ -417,15 +563,15 @@ onMounted(() => {
     /* false：避免在固定列区域重复渲染全宽行；概念见 AG Grid Full Width Rows 文档 */
     embedFullWidthRows: false,
     isFullWidthRow: (p) =>
-      !!(p.rowNode.data as DeviceSerialStripRow | undefined)?.__fullWidth,
-    fullWidthCellRenderer: 'DeviceSerialFullWidthRenderer',
+      !!(p.rowNode.data as DeviceProductTableRow | undefined)?.__fullWidth,
+    fullWidthCellRenderer: DeviceSerialFullWidthRenderer,
     getRowId: (p) => {
       const d = p.data as DeviceFlatRow | undefined;
       return d?.id ?? '';
     },
     getRowClass: (p) => {
       const d = p.data as DeviceFlatRow | undefined;
-      if (d?.rowKind === 'serialStrip') return 'ag-row-device-serial-strip';
+      if (d?.rowKind === 'productTable') return 'ag-row-device-product-table';
       if (d?.rowKind === 'device') return 'ag-row-device-parent';
       return '';
     },
@@ -487,6 +633,18 @@ onMounted(() => {
       {
         field: 'workshopName',
         headerName: '车间',
+        resizable: true,
+        sortable: true,
+        filter: true,
+        width: 150,
+        cellRenderer: (params: { data?: DeviceFlatRow; value?: string }) => {
+          if (params.data?.rowKind !== 'device') return '';
+          return params.value ?? '';
+        },
+      },
+      {
+        field: 'electricRoom',
+        headerName: '电气室',
         resizable: true,
         sortable: true,
         filter: true,
@@ -620,6 +778,12 @@ watch([searchText, selectedCustomer, devices], () => {
   min-width: 0;
 }
 
+.filter-section__right {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
 .hint-text {
   margin: 0 0 0.75rem;
   font-size: 0.8125rem;
@@ -637,7 +801,7 @@ watch([searchText, selectedCustomer, devices], () => {
   cursor: default;
 }
 
-.ag-row-device-serial-strip {
+.ag-row-device-product-table {
   background: var(--theme-color-soft-bg, rgba(0, 0, 0, 0.04)) !important;
 }
 

@@ -115,6 +115,8 @@ function validateTemplatePayloadLengths(payload: InspectionTemplateDto): void {
   const productcategory = payload.productcategory ?? '';
   const description = payload.description ?? '';
   const mlfb = payload.mlfb ?? '';
+  const series = payload.series ?? '';
+  const size = payload.size ?? '';
 
   if (name.length > 100) {
     throw new Error(`方案名称过长（${name.length}/100）`);
@@ -124,6 +126,12 @@ function validateTemplatePayloadLengths(payload: InspectionTemplateDto): void {
   }
   if (mlfb.length > 100) {
     throw new Error(`适用型号过长（${mlfb.length}/100）`);
+  }
+  if (series.length > 100) {
+    throw new Error(`系列过长（${series.length}/100）`);
+  }
+  if (size.length > 100) {
+    throw new Error(`尺寸过长（${size.length}/100）`);
   }
   if (description.length > 500) {
     throw new Error(`方案内容过长（${description.length}/500），请减少检测项或联系后端扩展字段长度`);
@@ -149,6 +157,8 @@ export type SchemeListRow = {
   categoryId: string;
   subCategoryId: string;
   model: string;
+  series: string;
+  size: string;
   items: SchemeItem[];
 };
 
@@ -167,6 +177,8 @@ export function templateDtoToListRow(dto: InspectionTemplateDto): SchemeListRow 
     categoryId: embedded?.categoryId ?? parsed.categoryId,
     subCategoryId: embedded?.subCategoryId ?? parsed.subCategoryId,
     model: embedded?.model ?? dto.mlfb ?? '',
+    series: dto.series ?? '',
+    size: dto.size ?? '',
     items,
   };
 }
@@ -179,6 +191,8 @@ export function templateDtoToFormAndAtomic(dto: InspectionTemplateDto): {
     categoryId: string;
     subCategoryId: string;
     model: string;
+    series: string;
+    size: string;
   };
   atomic: AtomicScheme;
 } {
@@ -221,6 +235,8 @@ export function templateDtoToFormAndAtomic(dto: InspectionTemplateDto): {
     categoryId,
     subCategoryId,
     model,
+    series: dto.series ?? '',
+    size: dto.size ?? '',
   };
 
   return { schemeForm, atomic };
@@ -235,6 +251,8 @@ export function buildTemplateDtoForSave(
     categoryId: string;
     subCategoryId: string;
     model: string;
+    series: string;
+    size: string;
   },
   atomic: AtomicScheme,
   createdate?: string | null,
@@ -264,6 +282,8 @@ export function buildTemplateDtoForSave(
     productcategory,
     mlfb: resolvedType === 'equipment' ? schemeForm.model || '' : '',
     createdate: normalizeDateOnly(createdate) ?? todayDateOnly(),
+    series: schemeForm.series || '',
+    size: schemeForm.size || '',
   };
   validateTemplatePayloadLengths(payload);
   return payload;
@@ -277,6 +297,8 @@ export function buildTemplateDtoForCreate(
     categoryId: string;
     subCategoryId: string;
     model: string;
+    series: string;
+    size: string;
   },
   atomic: AtomicScheme,
 ): InspectionTemplateDto {

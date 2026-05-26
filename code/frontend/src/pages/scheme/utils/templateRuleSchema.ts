@@ -71,7 +71,12 @@ function parseRuleObject(ruleRaw: string, context: string): RuleObject {
   try {
     parsed = JSON.parse(ruleRaw);
   } catch {
-    throw new Error(`${context} 的 rule 不是合法 JSON`);
+    const normalizedRuleRaw = normalizeJsonLikeRule(ruleRaw);
+    try {
+      parsed = JSON.parse(normalizedRuleRaw);
+    } catch {
+      throw new Error(`${context} 的 rule 不是合法 JSON`);
+    }
   }
 
   if (!isPlainObject(parsed)) {
@@ -79,6 +84,13 @@ function parseRuleObject(ruleRaw: string, context: string): RuleObject {
   }
 
   return parsed;
+}
+
+function normalizeJsonLikeRule(ruleRaw: string): string {
+  return ruleRaw
+    .replace(/([,{]\s*)"([^"\\]+)"\s+(?=["[{\-\d]|true|false|null)/g, '$1"$2": ')
+    .replace(/([,{]\s*)([A-Za-z_][\w-]*)\s*:(?=\s*["[{\-\d]|\s*true|\s*false|\s*null)/g, '$1"$2":')
+    .replace(/([,{]\s*)([A-Za-z_][\w-]*)\s+(?=["[{\-\d]|true|false|null)/g, '$1"$2": ');
 }
 
 function assertSupportedCombination(
@@ -135,7 +147,8 @@ export function validateRuleDefinition(params: {
     throw new Error(`${context} 的 rule 不能为空`);
   }
 
-  const ruleObject = parseRuleObject(trimmedRule, context);
+  const normalizedRule = normalizeJsonLikeRule(trimmedRule);
+  const ruleObject = parseRuleObject(normalizedRule, context);
 
   if (ruleType === 'number_range') {
     const min = asFiniteNumber(ruleObject.min);
@@ -196,7 +209,7 @@ export function validateRuleDefinition(params: {
   return {
     valueType,
     ruleType,
-    ruleRaw: trimmedRule,
+    ruleRaw: JSON.stringify(ruleObject),
     ruleObject,
   };
 }

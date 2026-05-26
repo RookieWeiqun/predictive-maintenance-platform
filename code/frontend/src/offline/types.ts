@@ -28,6 +28,12 @@ export interface OfflineTaskItemRecord {
   item_name: string;
   category_path: string | null;
   result: string | null;
+  display_condition: string | null;
+  operation_guide: string | null;
+  recommended_rules: string | null;
+  recommendation_content: string | null;
+  hidden_hazard_content: string | null;
+  maintenance_instructions: string | null;
   execution_status: TaskItemExecutionStatus;
   is_normal: boolean;
   is_recheck: boolean;

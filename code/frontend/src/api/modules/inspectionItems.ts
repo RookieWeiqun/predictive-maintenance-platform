@@ -11,6 +11,12 @@ export type InspectionItemDto = {
   threshold?: string | null;
   sortOrder: number;
   priority?: string | null;
+  displayCondition?: string | null;
+  operationGuide?: string | null;
+  suggestionRule?: string | null;
+  suggestionContent?: string | null;
+  hazardContent?: string | null;
+  maintenanceDescription?: string | null;
 };
 
 function unwrap<T>(res: ApiEnvelope<T>): T {
@@ -22,7 +28,7 @@ function unwrap<T>(res: ApiEnvelope<T>): T {
 
 function mapItemRaw(raw: unknown): InspectionItemDto {
   const r = raw as Record<string, unknown>;
-  const gv = (a: string, b: string) => r[a] ?? r[b];
+  const gv = (...keys: string[]) => keys.map((key) => r[key]).find((value) => value !== undefined);
   return {
     itemid: Number(gv('itemid', 'Itemid')),
     templateid: Number(gv('templateid', 'Templateid')),
@@ -33,6 +39,12 @@ function mapItemRaw(raw: unknown): InspectionItemDto {
     threshold: (gv('threshold', 'Threshold') as string | null | undefined) ?? null,
     sortOrder: Number(gv('sortOrder', 'SortOrder') ?? 1),
     priority: (gv('priority', 'Priority') as string | null | undefined) ?? null,
+    displayCondition: (gv('displaycondition', 'Displaycondition', 'displayCondition', 'DisplayCondition') as string | null | undefined) ?? null,
+    operationGuide: (gv('operationguide', 'Operationguide', 'operationGuide', 'OperationGuide') as string | null | undefined) ?? null,
+    suggestionRule: (gv('recommendedrules', 'Recommendedrules', 'suggestionRule', 'SuggestionRule') as string | null | undefined) ?? null,
+    suggestionContent: (gv('recommendationcontent', 'Recommendationcontent', 'suggestionContent', 'SuggestionContent') as string | null | undefined) ?? null,
+    hazardContent: (gv('hiddenhazardcontent', 'Hiddenhazardcontent', 'hazardContent', 'HazardContent') as string | null | undefined) ?? null,
+    maintenanceDescription: (gv('maintenanceinstructions', 'Maintenanceinstructions', 'maintenanceDescription', 'MaintenanceDescription') as string | null | undefined) ?? null,
   };
 }
 
@@ -46,7 +58,22 @@ export async function createInspectionItem(
 ): Promise<number> {
   const res = await requestJson<ApiEnvelope<number>>('/api/InspectionItems', {
     method: 'POST',
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      templateid: payload.templateid,
+      categoryid: payload.categoryid ?? null,
+      name: payload.name ?? null,
+      valueType: payload.valueType ?? null,
+      ruleType: payload.ruleType ?? null,
+      threshold: payload.threshold ?? null,
+      sortOrder: payload.sortOrder,
+      priority: payload.priority ?? null,
+      displaycondition: payload.displayCondition ?? null,
+      operationguide: payload.operationGuide ?? null,
+      recommendedrules: payload.suggestionRule ?? null,
+      recommendationcontent: payload.suggestionContent ?? null,
+      hiddenhazardcontent: payload.hazardContent ?? null,
+      maintenanceinstructions: payload.maintenanceDescription ?? null,
+    }),
   });
   return unwrap(res);
 }

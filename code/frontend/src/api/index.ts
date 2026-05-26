@@ -5,6 +5,7 @@ export * as equipmentsApi from './modules/equipments';
 export * as projectEquipmentsApi from './modules/projectEquipments';
 export * as projectsApi from './modules/projects';
 export * as inspectionTemplatesApi from './modules/inspectionTemplates';
+export * as templatemappingsApi from './modules/templatemappings';
 export * as inspectionCategoriesApi from './modules/inspectionCategories';
 export * as inspectionItemsApi from './modules/inspectionItems';
 export * as inspectionTasksApi from './modules/inspectionTasks';

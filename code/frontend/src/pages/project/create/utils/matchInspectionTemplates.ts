@@ -1,4 +1,4 @@
-import { inspectionTemplatesApi } from '@/api';
+import { inspectionTemplatesApi, templatemappingsApi } from '@/api';
 import type { InspectionTemplateDto } from '@/api/modules/inspectionTemplates';
 import { buildProductCategoryField } from '@/pages/scheme/utils/schemeInspectionTemplate';
 
@@ -9,6 +9,14 @@ export const INSPECTION_TYPE_PERIPHERAL = 2;
 type DeviceLike = {
   categoryId?: string;
   subCategoryId?: string;
+  model?: string;
+};
+
+export type EquipmentTemplateMatchDiagnostics = {
+  options: InspectionTemplateDto[];
+  series: string;
+  size: string;
+  message: string;
 };
 
 /** 含工厂/车间，用于按车间匹配外围方案 */
@@ -64,6 +72,115 @@ export function collectProductCategoriesFromDevices(devices: DeviceLike[]): stri
   return [...set];
 }
 
+function normalizeKey(value: string | null | undefined): string {
+  return String(value ?? '').trim().toUpperCase();
+}
+
+async function collectEquipmentSeriesSizeQueries(
+  devices: DeviceLike[],
+): Promise<Array<{ series: string; size: string }>> {
+  const uniqueMlfbList = Array.from(
+    new Set(
+      devices
+        .map((device) => String(device.model ?? '').trim())
+        .filter((mlfb) => mlfb.length > 0 && mlfb !== '-'),
+    ),
+  );
+
+  const pairs = new Map<string, { series: string; size: string }>();
+
+  for (const mlfb of uniqueMlfbList) {
+    const mappings = await templatemappingsApi.searchTemplateMappingsByMlfb(mlfb).catch(() => []);
+    const normalizedMlfb = normalizeKey(mlfb);
+    const exactMappings = mappings.filter((mapping) => normalizeKey(mapping.mlfb) === normalizedMlfb);
+    const candidates = exactMappings.length > 0 ? exactMappings : mappings;
+
+    for (const candidate of candidates) {
+      const series = String(candidate.series ?? '').trim();
+      const size = String(candidate.size ?? '').trim();
+      if (!series || !size) continue;
+      pairs.set(`${series}\t${size}`, { series, size });
+    }
+  }
+
+  return [...pairs.values()];
+}
+
+export async function searchEquipmentTemplatesWithDiagnostics(
+  devices: DeviceLike[],
+): Promise<EquipmentTemplateMatchDiagnostics> {
+  const rawMlfb = String(devices[0]?.model ?? '').trim();
+  if (!rawMlfb || rawMlfb === '-') {
+    return {
+      options: [],
+      series: '',
+      size: '',
+      message: '该设备未填写 MLFB，无法匹配设备检测方案。',
+    };
+  }
+
+  const mappings = await templatemappingsApi.searchTemplateMappingsByMlfb(rawMlfb).catch(() => []);
+  const normalizedMlfb = normalizeKey(rawMlfb);
+  const exactMappings = mappings.filter((mapping) => normalizeKey(mapping.mlfb) === normalizedMlfb);
+
+  if (exactMappings.length === 0) {
+    return {
+      options: [],
+      series: '',
+      size: '',
+      message: `未找到 MLFB ${rawMlfb} 对应的 series/size 映射。`,
+    };
+  }
+
+  const pairs = new Map<string, { series: string; size: string }>();
+  for (const mapping of exactMappings) {
+    const series = String(mapping.series ?? '').trim();
+    const size = String(mapping.size ?? '').trim();
+    if (!series || !size) continue;
+    pairs.set(`${series}\t${size}`, { series, size });
+  }
+
+  const seriesSizePairs = [...pairs.values()];
+  if (seriesSizePairs.length === 0) {
+    return {
+      options: [],
+      series: '',
+      size: '',
+      message: `MLFB ${rawMlfb} 已查到映射，但 series/size 为空。`,
+    };
+  }
+
+  const merged = new Map<number, InspectionTemplateDto>();
+  for (const pair of seriesSizePairs) {
+    const list = await inspectionTemplatesApi.searchInspectionTemplates({
+      inspectiontype: INSPECTION_TYPE_EQUIPMENT,
+      series: pair.series,
+      size: pair.size,
+    });
+    for (const template of list) {
+      merged.set(template.templateid, template);
+    }
+  }
+
+  const primaryPair = seriesSizePairs[0];
+  const options = [...merged.values()];
+  if (options.length === 0) {
+    return {
+      options,
+      series: primaryPair?.series ?? '',
+      size: primaryPair?.size ?? '',
+      message: `已根据 MLFB ${rawMlfb} 解析到 ${primaryPair?.series ?? '-'} / ${primaryPair?.size ?? '-'}，但未查到对应方案。`,
+    };
+  }
+
+  return {
+    options,
+    series: primaryPair?.series ?? '',
+    size: primaryPair?.size ?? '',
+    message: '',
+  };
+}
+
 /**
  * 外围检测：保存时一般为 **子类（产品系列）名称**；后端 Search 为全等匹配。
  * 同时尝试 `大类/子类`，兼容库里异常/历史数据。
@@ -86,6 +203,11 @@ export async function searchTemplatesForProjectDevices(
   devices: DeviceLike[],
   inspectiontype: number = INSPECTION_TYPE_EQUIPMENT,
 ): Promise<InspectionTemplateDto[]> {
+  if (inspectiontype === INSPECTION_TYPE_EQUIPMENT) {
+    const result = await searchEquipmentTemplatesWithDiagnostics(devices);
+    return result.options;
+  }
+
   const categories =
     inspectiontype === INSPECTION_TYPE_PERIPHERAL
       ? collectPeripheralProductCategoryQueries(devices)

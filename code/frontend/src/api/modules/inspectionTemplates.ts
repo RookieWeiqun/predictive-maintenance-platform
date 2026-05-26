@@ -9,6 +9,8 @@ export type InspectionTemplateDto = {
   inspectiontype: number;
   mlfb?: string | null;
   createdate?: string | null;
+  series?: string | null;
+  size?: string | null;
 };
 
 function unwrap<T>(res: ApiEnvelope<T>): T {
@@ -30,6 +32,8 @@ function mapTemplateRaw(raw: unknown): InspectionTemplateDto {
     inspectiontype: Number(gv('inspectiontype', 'Inspectiontype')),
     mlfb: (gv('mlfb', 'Mlfb') as string | null | undefined) ?? null,
     createdate: (gv('createdate', 'Createdate') as string | null | undefined) ?? null,
+    series: (gv('series', 'Series') as string | null | undefined) ?? null,
+    size: (gv('size', 'Size') as string | null | undefined) ?? null,
   };
 }
 
@@ -75,11 +79,15 @@ export async function searchInspectionTemplates(params: {
   inspectiontype?: number;
   productcategory?: string;
   mlfb?: string;
+  series?: string;
+  size?: string;
 }): Promise<InspectionTemplateDto[]> {
   const q = new URLSearchParams();
   if (params.inspectiontype != null) q.set('inspectiontype', String(params.inspectiontype));
   if (params.productcategory) q.set('productcategory', params.productcategory);
   if (params.mlfb) q.set('mlfb', params.mlfb);
+  if (params.series) q.set('series', params.series);
+  if (params.size) q.set('size', params.size);
   const qs = q.toString();
   const path = qs ? `/api/InspectionTemplates/Search?${qs}` : '/api/InspectionTemplates/Search';
   const res = await requestJson<ApiEnvelope<unknown[]>>(path);

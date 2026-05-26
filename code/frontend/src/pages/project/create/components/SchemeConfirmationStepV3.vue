@@ -99,8 +99,7 @@ import { getIxTheme } from '@siemens/ix-aggrid';
 import { ModuleRegistry, AllCommunityModule, type GridOptions } from 'ag-grid-community';
 import * as agGrid from 'ag-grid-community';
 import usersData from '@/mockdata/common/users.json';
-import type { SchemeItem } from '@/pages/scheme/utils/schemeUtils';
-import { flattenSchemeToTaskitemRows } from '../utils/syncProjectInspectionTasks';
+import { isDetectionItem, type SchemeItem } from '@/pages/scheme/utils/schemeUtils';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -170,6 +169,39 @@ const resolvePeripheralSelected = (row: PeripheralWorkshopRow) =>
 const taskGridOptions = ref<GridOptions | null>(null);
 const taskGridApi = ref<any>(null);
 const taskRows = ref<TaskRow[]>([]);
+
+function clip200(text: string): string {
+  const normalized = text.trim();
+  if (normalized.length <= 200) return normalized;
+  return normalized.slice(0, 200);
+}
+
+function flattenSchemeToTaskitemRows(
+  roots: SchemeItem[],
+  checkedItemIds: string[],
+): { name: string; categorypath: string }[] {
+  const rows: { name: string; categorypath: string }[] = [];
+  const checkedSet = checkedItemIds.length > 0 ? new Set(checkedItemIds) : null;
+
+  function walk(nodes: SchemeItem[], path: string[]) {
+    for (const node of nodes) {
+      if (isDetectionItem(node)) {
+        if (checkedSet && !checkedSet.has(node.id)) continue;
+        rows.push({
+          name: clip200((node.name || '未命名').trim() || '未命名'),
+          categorypath: clip200(path.join(' / ')),
+        });
+        continue;
+      }
+
+      const label = (node.name || '').trim();
+      walk(node.children || [], label ? [...path, label] : path);
+    }
+  }
+
+  walk(roots, []);
+  return rows;
+}
 
 function getSelectedTemplateName(): string {
   const currentId = String(props.formData.maintenanceSchemeId ?? '').trim();

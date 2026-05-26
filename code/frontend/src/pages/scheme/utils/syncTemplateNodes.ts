@@ -1,5 +1,7 @@
 import { inspectionCategoriesApi, inspectionItemsApi } from '@/api';
 import type { SchemeItem } from './schemeUtils';
+import { mapRequiredToPriority } from './schemeUtils';
+import { encodeDisplayCondition } from './displayConditionCodec';
 import { validateRuleDefinition } from './templateRuleSchema';
 
 type FlatCategoryNode = {
@@ -14,18 +16,22 @@ type FlatItemNode = {
   name: string;
   sortOrder: number;
   required: boolean;
-  priority?: string;
   valueType: string;
   ruleType: string;
   threshold: string | null;
+  displayCondition: string | null;
+  operationGuide: string | null;
+  suggestionRule: string | null;
+  suggestionContent: string | null;
+  hazardContent: string | null;
+  maintenanceDescription: string | null;
 };
 
 function isDetectionNode(node: SchemeItem): boolean {
   return (
     (node.type !== undefined && node.required !== undefined) ||
     !!node.dataType ||
-    !!node.ruleType ||
-    !!node.priority
+    !!node.ruleType
   );
 }
 
@@ -106,10 +112,16 @@ function flattenScheme(items: SchemeItem[]): {
           name: node.name,
           sortOrder: idx + 1,
           required: node.required !== false,
-          priority: node.priority,
+                    priority: node.priority?.trim() || mapRequiredToPriority(node.required),
           valueType: validatedRule.valueType,
           ruleType: validatedRule.ruleType,
           threshold: validatedRule.ruleRaw,
+          displayCondition: encodeDisplayCondition(node.displayCondition),
+          operationGuide: node.operationGuide?.trim() || node.testProcedure?.trim() || null,
+          suggestionRule: node.suggestionRule?.trim() || null,
+          suggestionContent: node.suggestionContent?.trim() || null,
+          hazardContent: node.hazardContent?.trim() || null,
+          maintenanceDescription: node.maintenanceDescription?.trim() || null,
         });
         return;
       }
@@ -196,7 +208,13 @@ export async function syncTemplateNodesWithProgress(
       ruleType: item.ruleType,
       threshold: item.threshold,
       sortOrder: item.sortOrder,
-      priority: item.priority || (item.required ? 'High' : 'Low'),
+      priority: mapRequiredToPriority(item.required),
+      displayCondition: item.displayCondition,
+      operationGuide: item.operationGuide,
+      suggestionRule: item.suggestionRule,
+      suggestionContent: item.suggestionContent,
+      hazardContent: item.hazardContent,
+      maintenanceDescription: item.maintenanceDescription,
     });
     tick('正在创建检测项...');
   }

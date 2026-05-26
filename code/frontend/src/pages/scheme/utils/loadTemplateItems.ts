@@ -2,6 +2,8 @@ import { inspectionCategoriesApi, inspectionItemsApi } from '@/api';
 import type { InspectionCategoryDto } from '@/api/modules/inspectionCategories';
 import type { InspectionItemDto } from '@/api/modules/inspectionItems';
 import type { SchemeItem } from './schemeUtils';
+import { decodeDisplayCondition } from './displayConditionCodec';
+import { mapPriorityToRequired } from './schemeUtils';
 
 function mapDataTypeToSchemeType(dataType?: string | null): string {
   const t = String(dataType || '').toLowerCase();
@@ -51,7 +53,13 @@ function toSchemeItemFromApi(item: InspectionItemDto): SchemeItem {
     thresholdRaw: item.threshold || undefined,
     priority: item.priority || undefined,
     type: mapDataTypeToSchemeType(item.valueType),
-    required: (item.priority || 'High') !== 'Low',
+    required: mapPriorityToRequired(item.priority),
+    displayCondition: decodeDisplayCondition(item.displayCondition) || undefined,
+    operationGuide: item.operationGuide || undefined,
+    suggestionRule: item.suggestionRule || undefined,
+    suggestionContent: item.suggestionContent || undefined,
+    hazardContent: item.hazardContent || undefined,
+    maintenanceDescription: item.maintenanceDescription || undefined,
     ...threshold,
     children: [],
   };

@@ -205,10 +205,10 @@ async function loadTaskRows(projectId: number | undefined): Promise<void> {
 
         if (productid > 0 && !productInfoCache.has(productid)) {
           try {
-            const products = await productsApi.searchProducts({ productid });
+            const product = await productsApi.getProduct(productid);
             productInfoCache.set(productid, {
-              serialno: products[0]?.serialno?.trim() || '-',
-              model: products[0]?.mlfb?.trim() || '-',
+              serialno: product?.serialno?.trim() || '-',
+              model: product?.mlfb?.trim() || '-',
             });
           } catch {
             productInfoCache.set(productid, { serialno: '-', model: '-' });

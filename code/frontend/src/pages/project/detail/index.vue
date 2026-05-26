@@ -381,7 +381,7 @@ function mapEquipmentProjectToRow(
     categoryName,
     subCategoryId,
     subCategoryName,
-    model: e.equipmentname ?? '',
+    model: e.mlfb?.trim() || (e.equipmentname ?? ''),
     quantity: e.number ?? 0,
     serialNumbers: rawSerials.length ? rawSerials : ['—'],
     maintenance: { ...EMPTY_MAINTENANCE },

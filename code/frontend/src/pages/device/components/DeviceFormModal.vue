@@ -26,6 +26,13 @@
           <IxFieldLabel htmlFor="deviceWorkshop">车间 <span class="required">*</span></IxFieldLabel>
           <IxInput id="deviceWorkshop" v-model="form.workshopName" placeholder="车间名称" />
 
+          <IxFieldLabel htmlFor="deviceElectricRoom">电气室 <span class="required">*</span></IxFieldLabel>
+          <IxInput
+            id="deviceElectricRoom"
+            v-model="form.electricRoom"
+            placeholder="电气室名称"
+          />
+
           <IxFieldLabel htmlFor="deviceCategory">产品大类 <span class="required">*</span></IxFieldLabel>
           <IxSelect
             id="deviceCategory"
@@ -57,7 +64,16 @@
           </IxSelect>
 
           <IxFieldLabel htmlFor="deviceModel">产品型号 <span class="required">*</span></IxFieldLabel>
-          <IxInput id="deviceModel" v-model="form.model" placeholder="型号" />
+          <input
+            id="deviceModel"
+            v-model="form.model"
+            class="native-model-input"
+            list="device-model-options"
+            placeholder="请选择产品型号"
+          />
+          <datalist id="device-model-options">
+            <option v-for="option in modelOptions" :key="option" :value="option" />
+          </datalist>
 
           <IxFieldLabel htmlFor="deviceQty">数量 <span class="required">*</span></IxFieldLabel>
           <IxInput
@@ -85,7 +101,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue';
+import { ref, computed, watch, nextTick, onMounted } from 'vue';
 import {
   Modal,
   IxModalHeader,
@@ -99,11 +115,14 @@ import {
   IxSelectItem,
 } from '@siemens/ix-vue';
 import productCategoriesData from '@/mockdata/common/productCategories.json';
+import { templatemappingsApi } from '@/api';
+import { dedupeTemplateMappingField } from '@/util/templateMappings';
 
 export type DeviceFormPayload = {
   customerId: string;
   factoryName: string;
   workshopName: string;
+  electricRoom: string;
   categoryId: string;
   subCategoryId: string;
   model: string;
@@ -121,6 +140,7 @@ const props = defineProps<{
       customerId: string;
       factoryName: string;
       workshopName: string;
+      electricRoom: string;
       categoryId: string;
       subCategoryId: string;
       model: string;
@@ -137,12 +157,15 @@ const form = ref({
   customerId: '',
   factoryName: '',
   workshopName: '',
+  electricRoom: '',
   categoryId: '',
   subCategoryId: '',
   model: '',
   quantity: 1,
   serialNumbersText: '',
 });
+
+const modelOptions = ref<string[]>([]);
 
 const selectedCategory = computed(() =>
   categoryOptions.find((c) => c.id === form.value.categoryId),
@@ -155,12 +178,28 @@ function emptyForm() {
     customerId: '',
     factoryName: '',
     workshopName: '',
+    electricRoom: '',
     categoryId: '',
     subCategoryId: '',
     model: '',
     quantity: 1,
     serialNumbersText: '',
   };
+}
+
+async function loadModelOptions(keyword = ''): Promise<void> {
+  try {
+    const mappings = keyword.trim()
+      ? await templatemappingsApi.searchTemplateMappingsByMlfb(keyword.trim())
+      : await templatemappingsApi.listTemplateMappings();
+    const options = dedupeTemplateMappingField(mappings, 'mlfb');
+    if (form.value.model && !options.includes(form.value.model)) {
+      options.unshift(form.value.model);
+    }
+    modelOptions.value = options;
+  } catch {
+    modelOptions.value = form.value.model ? [form.value.model] : [];
+  }
 }
 
 const skipCategoryCascade = ref(true);
@@ -176,9 +215,21 @@ watch(
     }
     await nextTick();
     skipCategoryCascade.value = false;
+    await loadModelOptions(form.value.model || '');
   },
   { immediate: true },
 );
+
+watch(
+  () => form.value.model,
+  (model) => {
+    void loadModelOptions(model || '');
+  },
+);
+
+onMounted(() => {
+  void loadModelOptions();
+});
 
 watch(
   () => form.value.categoryId,
@@ -215,6 +266,7 @@ function submit(closeModal: () => void) {
   const customerId = form.value.customerId.trim();
   const factoryName = form.value.factoryName.trim();
   const workshopName = form.value.workshopName.trim();
+  const electricRoom = form.value.electricRoom.trim();
   const categoryId = form.value.categoryId.trim();
   const subCategoryId = form.value.subCategoryId.trim();
   const model = form.value.model.trim();
@@ -224,8 +276,8 @@ function submit(closeModal: () => void) {
     alert('请选择客户');
     return;
   }
-  if (!factoryName || !workshopName) {
-    alert('请填写工厂与车间');
+  if (!factoryName || !workshopName || !electricRoom) {
+    alert('请填写工厂、车间与电气室');
     return;
   }
   if (!categoryId || !subCategoryId) {
@@ -253,6 +305,7 @@ function submit(closeModal: () => void) {
     customerId,
     factoryName,
     workshopName,
+    electricRoom,
     categoryId,
     subCategoryId,
     model,
@@ -266,5 +319,21 @@ function submit(closeModal: () => void) {
 <style scoped>
 .required {
   color: var(--theme-color-alarm);
+}
+
+.native-model-input {
+  width: 100%;
+  min-height: 2.5rem;
+  border: 1px solid var(--theme-color-soft-border);
+  border-radius: 0.25rem;
+  padding: 0.625rem 0.75rem;
+  font: inherit;
+  color: var(--theme-color-text);
+  background: var(--theme-color-base-1, #fff);
+}
+
+.native-model-input:focus {
+  outline: 2px solid var(--theme-color-primary);
+  outline-offset: 1px;
 }
 </style>

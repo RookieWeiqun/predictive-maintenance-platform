@@ -12,6 +12,9 @@ type ParsedOfflineResult = {
   result: string | null;
   remarks: string | null;
   data_fields: Record<string, unknown> | null;
+  hazardResolved?: boolean | null;
+  recommendationContent?: string | null;
+  actionTaken?: string | null;
 };
 
 export type OfflineSyncAttachmentPayload = {
@@ -120,6 +123,28 @@ function parseOfflineResult(raw: string | null): ParsedOfflineResult {
           : null,
       remarks: typeof parsed.remarks === 'string' ? parsed.remarks : null,
       data_fields: dataFields,
+      hazardResolved:
+        typeof parsed.hazardResolved === 'boolean'
+          ? parsed.hazardResolved
+          : typeof parsed.hazard_resolved === 'boolean'
+            ? parsed.hazard_resolved
+            : typeof parsed.hazardResolved === 'string'
+              ? parsed.hazardResolved.toLowerCase() === 'true'
+              : typeof parsed.hazard_resolved === 'string'
+                ? parsed.hazard_resolved.toLowerCase() === 'true'
+                : null,
+      recommendationContent:
+        typeof parsed.recommendationContent === 'string'
+          ? parsed.recommendationContent
+          : typeof parsed.recommendation_content === 'string'
+            ? parsed.recommendation_content
+            : null,
+      actionTaken:
+        typeof parsed.actionTaken === 'string'
+          ? parsed.actionTaken
+          : typeof parsed.action_taken === 'string'
+            ? parsed.action_taken
+            : null,
     };
   } catch {
     return {
@@ -488,14 +513,18 @@ function getRecheckValue(dataFields: Record<string, unknown> | null): string | n
 
 function buildBackendTaskResult(raw: string | null): string | null {
   const parsed = parseOfflineResult(raw);
+  const recheckValue = getRecheckValue(parsed.data_fields);
   const payload = {
     value: parsed.value,
-    recheckvalue: getRecheckValue(parsed.data_fields),
+    recheckvalue: recheckValue,
     remarks: parsed.remarks ?? '',
     resultState: parsed.result,
+    hazardResolved: parsed.hazardResolved ?? null,
+    recommendationContent: parsed.recommendationContent ?? '',
+    actionTaken: parsed.actionTaken ?? '',
   };
 
-  if (!payload.value && !payload.recheckvalue && !payload.remarks && !payload.resultState) {
+  if (!payload.value && !payload.recheckvalue && !payload.remarks && !payload.resultState && !payload.recommendationContent && !payload.actionTaken && payload.hazardResolved == null) {
     return null;
   }
 
