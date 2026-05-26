@@ -26,7 +26,7 @@ export function createBaseColumnDefs(
         
         let displayName = name;
         if (isDetectionItem && data.typeLabel) {
-          displayName = `${name} (${data.typeLabel}${data.requiredLabel ? ' [' + data.requiredLabel + ']' : ''})`;
+          displayName = `${name} (${data.typeLabel})`;
         }
         
         const editIcon = isEditMode.value ? '<span class="edit-icon" style="margin-left: 8px; cursor: pointer; color: var(--theme-color-primary);">✎</span>' : '';
@@ -111,7 +111,7 @@ export function createBaseColumnDefs(
       valueGetter: (params: any) => {
         const data = params.data as FlatRow;
         if (!data.isDetectionItem) return '-';
-        return data.required !== false ? '必填' : '可选';
+        return data.required !== false ? '是' : '否';
       },
       valueFormatter: (params: any) => {
         if (params.value === undefined || params.value === null) return '-';
@@ -126,9 +126,9 @@ export function createBaseColumnDefs(
       },
     },
     {
-      field: 'unit',
-      headerName: '单位',
-      width: 100,
+      field: 'thresholdRaw',
+      headerName: '规则',
+      width: 240,
       valueFormatter: (params: any) => {
         if (params.value === undefined || params.value === null || params.value === '') return '-';
         return String(params.value);
@@ -142,12 +142,12 @@ export function createBaseColumnDefs(
       },
     },
     {
-      field: 'standardValue',
-      headerName: '标准值',
-      width: 120,
+      field: 'displayCondition',
+      headerName: '显示条件',
+      width: 220,
       valueFormatter: (params: any) => {
-        if (params.value === undefined || params.value === null) return '-';
-        return params.value.toString();
+        if (params.value === undefined || params.value === null || params.value === '') return '-';
+        return String(params.value);
       },
       cellStyle: (params: any) => {
         const data = params.data as FlatRow;
@@ -190,11 +190,11 @@ export function createBaseColumnDefs(
       },
     },
     {
-      field: 'param1',
-      headerName: '参数1',
-      width: 120,
+      field: 'suggestionRule',
+      headerName: '建议规则',
+      width: 220,
       valueFormatter: (params: any) => {
-        if (params.value === undefined || params.value === null) return '-';
+        if (params.value === undefined || params.value === null || params.value === '') return '-';
         return String(params.value);
       },
       cellStyle: (params: any) => {
@@ -206,11 +206,11 @@ export function createBaseColumnDefs(
       },
     },
     {
-      field: 'param2',
-      headerName: '参数2',
-      width: 120,
+      field: 'suggestionContent',
+      headerName: '建议内容',
+      width: 260,
       valueFormatter: (params: any) => {
-        if (params.value === undefined || params.value === null) return '-';
+        if (params.value === undefined || params.value === null || params.value === '') return '-';
         return String(params.value);
       },
       cellStyle: (params: any) => {
@@ -222,9 +222,25 @@ export function createBaseColumnDefs(
       },
     },
     {
-      field: 'expectedResult',
-      headerName: '预期结果',
-      width: 200,
+      field: 'hazardContent',
+      headerName: '隐患内容',
+      width: 260,
+      valueFormatter: (params: any) => {
+        if (params.value === undefined || params.value === null || params.value === '') return '-';
+        return String(params.value);
+      },
+      cellStyle: (params: any) => {
+        const data = params.data as FlatRow;
+        if (!data.isDetectionItem) {
+          return { color: 'var(--theme-color-weak-text)' };
+        }
+        return { color: 'var(--theme-color-text)' };
+      },
+    },
+    {
+      field: 'maintenanceDescription',
+      headerName: '维护说明',
+      width: 240,
       valueFormatter: (params: any) => {
         if (params.value === undefined || params.value === null || params.value === '') return '-';
         return String(params.value);
@@ -288,29 +304,38 @@ export function configureColumnEditing(
     } else if (field === 'requiredLabel') {
       colDef.editable = (params: any) => !!params.data.isDetectionItem;
       colDef.cellEditor = 'agSelectCellEditor';
-      colDef.cellEditorParams = { values: ['必填', '可选'] };
+      colDef.cellEditorParams = { values: ['是', '否'] };
       colDef.valueGetter = (params: any) => {
         const data = params.data as FlatRow;
         if (!data.isDetectionItem) return '-';
-        return data.required !== false ? '必填' : '可选';
+        return data.required !== false ? '是' : '否';
       };
       colDef.valueSetter = (params: any) => {
         const rowData = params.data as FlatRow;
         if (rowData.isDetectionItem) {
           const item = findItemByRowId(rowData.id);
           if (item) {
-            item.required = (params.newValue || '必填') !== '可选';
+            item.required = (params.newValue || '是') !== '否';
             item.priority = mapRequiredToPriority(item.required);
-            rowData.priority = item.priority;
             rowData.required = item.required;
-            rowData.requiredLabel = item.required ? '必填' : '可选';
+            rowData.requiredLabel = item.required ? '是' : '否';
+            rowData.priority = item.priority;
             updateGridData();
             return true;
           }
         }
         return false;
       };
-    } else if (field === 'operationGuide' || field === 'ruleType' || field === 'param1' || field === 'param2') {
+    } else if (
+      field === 'operationGuide' ||
+      field === 'ruleType' ||
+      field === 'thresholdRaw' ||
+      field === 'displayCondition' ||
+      field === 'suggestionRule' ||
+      field === 'suggestionContent' ||
+      field === 'hazardContent' ||
+      field === 'maintenanceDescription'
+    ) {
       colDef.editable = (params: any) => params.data.isDetectionItem;
       colDef.cellEditor = 'agTextCellEditor';
       colDef.valueSetter = (params: any) => {
@@ -327,90 +352,27 @@ export function configureColumnEditing(
         } else if (field === 'ruleType') {
           item.ruleType = value;
           rowData.ruleType = value;
-        } else if (field === 'param1') {
-          item.param1 = value;
-          rowData.param1 = value;
-          const n = value ? Number.parseFloat(value) : Number.NaN;
-          if (Number.isFinite(n)) {
-            item.minThreshold = n;
-            rowData.minThreshold = n;
-          }
-        } else if (field === 'param2') {
-          item.param2 = value;
-          rowData.param2 = value;
-          const n = value ? Number.parseFloat(value) : Number.NaN;
-          if (Number.isFinite(n)) {
-            item.maxThreshold = n;
-            rowData.maxThreshold = n;
-          }
+        } else if (field === 'thresholdRaw') {
+          item.thresholdRaw = value;
+          rowData.thresholdRaw = value;
+        } else if (field === 'displayCondition') {
+          item.displayCondition = value;
+          rowData.displayCondition = value;
+        } else if (field === 'suggestionRule') {
+          item.suggestionRule = value;
+          rowData.suggestionRule = value;
+        } else if (field === 'suggestionContent') {
+          item.suggestionContent = value;
+          rowData.suggestionContent = value;
+        } else if (field === 'hazardContent') {
+          item.hazardContent = value;
+          rowData.hazardContent = value;
+        } else if (field === 'maintenanceDescription') {
+          item.maintenanceDescription = value;
+          rowData.maintenanceDescription = value;
         }
         updateGridData();
         return true;
-      };
-    } else if (field === 'unit') {
-      colDef.editable = (params: any) => !!params.data.isDetectionItem;
-      colDef.cellEditor = 'agTextCellEditor';
-      colDef.valueSetter = (params: any) => {
-        const rowData = params.data as FlatRow;
-        if (rowData.isDetectionItem) {
-          const item = findItemByRowId(rowData.id);
-          if (item) {
-            item.unit = params.newValue || undefined;
-            rowData.unit = params.newValue || undefined;
-            updateGridData();
-            return true;
-          }
-        }
-        return false;
-      };
-    } else if (field === 'standardValue' || field === 'minThreshold' || field === 'maxThreshold') {
-      colDef.editable = (params: any) => params.data.isDetectionItem;
-      colDef.cellEditor = 'agNumberCellEditor';
-      colDef.cellEditorParams = { precision: 2 };
-      colDef.valueSetter = (params: any) => {
-        const rowData = params.data as FlatRow;
-        if (rowData.isDetectionItem) {
-          const item = findItemByRowId(rowData.id);
-          if (item) {
-            const numValue = params.newValue !== null && params.newValue !== undefined && params.newValue !== '' 
-              ? parseFloat(params.newValue) 
-              : undefined;
-            if (field === 'standardValue') {
-              item.standardValue = numValue;
-              rowData.standardValue = numValue;
-            } else if (field === 'minThreshold') {
-              item.minThreshold = numValue;
-              rowData.minThreshold = numValue;
-            } else if (field === 'maxThreshold') {
-              item.maxThreshold = numValue;
-              rowData.maxThreshold = numValue;
-            }
-            updateGridData();
-            return true;
-          }
-        }
-        return false;
-      };
-    } else if (field === 'testProcedure' || field === 'expectedResult') {
-      colDef.editable = (params: any) => params.data.isDetectionItem;
-      colDef.cellEditor = 'agTextCellEditor';
-      colDef.valueSetter = (params: any) => {
-        const rowData = params.data as FlatRow;
-        if (rowData.isDetectionItem) {
-          const item = findItemByRowId(rowData.id);
-          if (item) {
-            if (field === 'testProcedure') {
-              item.testProcedure = params.newValue || undefined;
-              rowData.testProcedure = params.newValue || undefined;
-            } else if (field === 'expectedResult') {
-              item.expectedResult = params.newValue || undefined;
-              rowData.expectedResult = params.newValue || undefined;
-            }
-            updateGridData();
-            return true;
-          }
-        }
-        return false;
       };
     }
   });

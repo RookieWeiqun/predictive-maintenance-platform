@@ -157,6 +157,8 @@ export type SchemeListRow = {
   categoryId: string;
   subCategoryId: string;
   model: string;
+  series: string;
+  size: string;
   items: SchemeItem[];
 };
 
@@ -175,6 +177,8 @@ export function templateDtoToListRow(dto: InspectionTemplateDto): SchemeListRow 
     categoryId: embedded?.categoryId ?? parsed.categoryId,
     subCategoryId: embedded?.subCategoryId ?? parsed.subCategoryId,
     model: embedded?.model ?? dto.mlfb ?? '',
+    series: dto.series ?? '',
+    size: dto.size ?? '',
     items,
   };
 }

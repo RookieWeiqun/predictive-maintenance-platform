@@ -51,7 +51,7 @@ export function mapPriorityToRequired(priority: string | null | undefined): bool
   const normalized = String(priority ?? '').trim().toLowerCase();
   if (!normalized) return true;
   if (['false', '0', 'no', 'n', 'low', '否'].includes(normalized)) return false;
-  if (['true', '1', 'yes', 'y', 'high', 'medium', 'critical', '是'].includes(normalized)) return true;
+  if (['true', '1', 'yes', 'y', '是'].includes(normalized)) return true;
   return true;
 }
 
@@ -160,6 +160,7 @@ export interface FlatRow {
   hazardContent?: string;
   maintenanceDescription?: string;
   ruleType?: string;
+  thresholdRaw?: string;
   param1?: string;
   param2?: string;
   type?: string;
@@ -202,6 +203,7 @@ export const convertToFlatRows = (items: SchemeItem[], parentId?: string, level:
       hazardContent: item.hazardContent,
       maintenanceDescription: item.maintenanceDescription,
       ruleType: item.ruleType,
+      thresholdRaw: item.thresholdRaw,
       param1: item.param1 ?? (item.minThreshold !== undefined ? String(item.minThreshold) : undefined),
       param2: item.param2 ?? (item.maxThreshold !== undefined ? String(item.maxThreshold) : undefined),
       type: item.type,

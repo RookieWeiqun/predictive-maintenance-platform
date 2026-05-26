@@ -300,11 +300,10 @@
                 </div>
               </div>
 
-              <!-- 右侧：检测过程及结果 -->
+              <!-- 右侧：操作指导与结果 -->
               <div class="detection-result-section">
                 <div class="section-title">
-                  检测过程及结果
-                  <span class="required-mark">*</span>
+                  操作指导
                 </div>
                 
                 <!-- 检测过程指导 -->
@@ -1236,21 +1235,7 @@ const currentItemCount = computed(() => {
 
 // 获取检测过程指导文字
 const getDetectionGuide = (task: any): string => {
-  const name = task.name || '';
-  
-  if (name.includes('温度')) {
-    return '1. 使用温度计测量电气室内的环境温度；\n2. 记录测量值，确保在标准范围内（通常为-10°C至+40°C）；\n3. 如发现异常，检查空调系统或通风设备是否正常工作。';
-  } else if (name.includes('湿度')) {
-    return '1. 使用湿度计测量电气室内的相对湿度；\n2. 记录测量值，确保在标准范围内（通常为10%至90%RH）；\n3. 如发现异常，检查除湿设备或通风系统是否正常工作。';
-  } else if (name.includes('凝露')) {
-    return '1. 目视检查柜内是否有水珠或凝露现象；\n2. 检查柜体密封性是否良好；\n3. 如发现凝露，检查环境湿度和温度是否过高，必要时启动除湿设备。';
-  } else if (name.includes('电压') || name.includes('电流')) {
-    return '1. 使用万用表或钳形表测量相关电气参数；\n2. 记录测量值，与标准值进行对比；\n3. 如发现异常，检查接线是否松动，设备是否正常运行。';
-  } else if (name.includes('绝缘')) {
-    return '1. 使用绝缘电阻测试仪测量绝缘电阻值；\n2. 确保测量值符合标准要求（通常≥1MΩ）；\n3. 如发现异常，检查设备是否有受潮或损坏现象。';
-  }
-  
-  return '1. 按照标准检测流程进行检测；\n2. 记录检测数据和观察结果；\n3. 如发现异常情况，及时记录并上报。';
+  return task.operationGuide || '';
 };
 
 // 检测结果类型

@@ -176,18 +176,15 @@ const handleView = (schemeId: string) => {
   router.push(`/scheme/view/${schemeId}`);
 };
 
-// 编辑方案
-const handleEdit = (schemeId: string) => {
-  router.push(`/scheme/edit/${schemeId}`);
-};
-
 const handleDelete = async (schemeId: string) => {
   if (!confirm('确定要删除这个方案吗？')) {
     return;
   }
   try {
     await inspectionTemplatesApi.deleteInspectionTemplate(Number.parseInt(schemeId, 10));
-    await loadSchemes();
+          (s.model && s.model.toLowerCase().includes(q)) ||
+          (s.series && s.series.toLowerCase().includes(q)) ||
+          (s.size && s.size.toLowerCase().includes(q))
     showToast({ message: '删除成功' });
   } catch (e) {
     showToast({ message: e instanceof Error ? e.message : '删除失败' });
@@ -267,6 +264,28 @@ onMounted(async () => {
         },
       },
       {
+        field: 'series',
+        headerName: 'Series',
+        resizable: true,
+        sortable: true,
+        filter: true,
+        width: 140,
+        valueGetter: (params: any) => {
+          return params.data?.series || '-';
+        },
+      },
+      {
+        field: 'size',
+        headerName: 'Size',
+        resizable: true,
+        sortable: true,
+        filter: true,
+        width: 120,
+        valueGetter: (params: any) => {
+          return params.data?.size || '-';
+        },
+      },
+      {
         headerName: '检测项数量',
         resizable: true,
         sortable: true,
@@ -281,13 +300,12 @@ onMounted(async () => {
         resizable: false,
         sortable: false,
         filter: false,
-        width: 240,
+        width: 180,
         cellRenderer: (params: any) => {
           const schemeId = params.data.id;
           return `
             <div class="ag-action-buttons">
               <button class="ag-action-btn ag-action-btn-view" data-action="view" data-id="${schemeId}">查看</button>
-              <button class="ag-action-btn ag-action-btn-edit" data-action="edit" data-id="${schemeId}">编辑</button>
               <button class="ag-action-btn ag-action-btn-delete" data-action="delete" data-id="${schemeId}">删除</button>
             </div>
           `;
@@ -300,8 +318,6 @@ onMounted(async () => {
           if (!id) return;
           if (action === 'view') {
             handleView(id);
-          } else if (action === 'edit') {
-            handleEdit(id);
           } else if (action === 'delete') {
             void handleDelete(id);
           }

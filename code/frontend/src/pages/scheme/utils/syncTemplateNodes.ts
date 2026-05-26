@@ -112,6 +112,7 @@ function flattenScheme(items: SchemeItem[]): {
           name: node.name,
           sortOrder: idx + 1,
           required: node.required !== false,
+                    priority: node.priority?.trim() || mapRequiredToPriority(node.required),
           valueType: validatedRule.valueType,
           ruleType: validatedRule.ruleType,
           threshold: validatedRule.ruleRaw,

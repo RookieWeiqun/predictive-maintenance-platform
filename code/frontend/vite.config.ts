@@ -28,7 +28,17 @@ export default defineConfig(({ mode }) => {
     },
   };
 
-  const proxy = { ...apiProxy, ...n8nProxy };
+  const companyInfoProxyTarget =
+    env.VITE_COMPANYINFO_PROXY_TARGET || "https://csdc.siemens.com.cn:99";
+  const companyInfoProxy = {
+    "/companyinfo-proxy": {
+      target: companyInfoProxyTarget,
+      changeOrigin: true,
+      rewrite: (path: string) => path.replace(/^\/companyinfo-proxy/, ""),
+    },
+  };
+
+  const proxy = { ...apiProxy, ...companyInfoProxy, ...n8nProxy };
 
   return {
     base: "/",
