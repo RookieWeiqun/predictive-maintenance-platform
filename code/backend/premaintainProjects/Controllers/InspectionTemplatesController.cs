@@ -59,11 +59,12 @@ namespace premaintainProjects.Controllers
         {
             var query = _context.InspectionTemplates.AsQueryable();
 
-            if (inspectiontype.HasValue)
-                query = query.Where(t => t.Inspectiontype == inspectiontype.Value);
 
             if (!string.IsNullOrEmpty(productcategory))
                 query = query.Where(t => t.Productcategory == productcategory);
+
+            if (inspectiontype.HasValue)
+                query = query.Where(t => t.Inspectiontype == inspectiontype.Value);
 
             if (!string.IsNullOrEmpty(mlfb))
                 query = query.Where(t => t.Mlfb == mlfb);

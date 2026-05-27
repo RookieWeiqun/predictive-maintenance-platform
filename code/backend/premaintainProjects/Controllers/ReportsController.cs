@@ -1,13 +1,14 @@
-﻿using System;
+﻿using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using premaintainProjects.Models;
+using premaintainProjects.Services;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using premaintainProjects.Models;
 using static premaintainProjects.Models.otherModels;
-using Microsoft.Extensions.Logging;
 
 namespace premaintainProjects.Controllers
 {
@@ -17,11 +18,13 @@ namespace premaintainProjects.Controllers
     {
         private readonly PredictiveMaintenancePlatformContext _context;
         private readonly ILogger<ReportsController> _logger;
+        private readonly ReportService _reportService;
 
-        public ReportsController(PredictiveMaintenancePlatformContext context, ILogger<ReportsController> logger)
+        public ReportsController(PredictiveMaintenancePlatformContext context, ILogger<ReportsController> logger, ReportService reportService)
         {
             _context = context;
             _logger = logger;
+            _reportService = reportService;
         }
 
         // GET: api/Reports
@@ -121,6 +124,21 @@ namespace premaintainProjects.Controllers
         private bool ReportExists(int id)
         {
             return _context.Reports.Any(e => e.Reportid == id);
+        }
+
+        [HttpGet("Generate/{projectId:int}")]
+        public async Task<IActionResult> GenerateProjectReport(int projectId)
+        {
+            var result = await _reportService.GenerateProjectReportAsync(projectId);
+            return new JsonResult(new
+            {
+                code = ResponseCode.成功,
+                data = new
+                {
+                    filePath = result
+                },
+                msg = ""
+            });
         }
     }
 }

@@ -96,9 +96,6 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
             entity.Property(e => e.Electricroom)
                 .HasMaxLength(100)
                 .HasColumnName("electricroom");
-            entity.Property(e => e.Equipmentname)
-                .HasMaxLength(100)
-                .HasColumnName("equipmentname");
             entity.Property(e => e.Factory)
                 .HasMaxLength(100)
                 .HasColumnName("factory");
@@ -279,6 +276,8 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
 
             entity.HasIndex(e => e.Equipid, "products_equipid_idx");
 
+            entity.HasIndex(e => new { e.Equipid, e.Mlfb, e.Serialno }, "products_search_idx");
+
             entity.Property(e => e.Productid).HasColumnName("productid");
             entity.Property(e => e.Department)
                 .HasMaxLength(100)
@@ -355,12 +354,17 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
                 .HasMaxLength(200)
                 .HasColumnName("path");
             entity.Property(e => e.Projectid).HasColumnName("projectid");
+<<<<<<< HEAD
             entity.Property(e => e.Sparepartsrecommendation)
                 .HasMaxLength(2000)
                 .HasColumnName("sparepartsrecommendation");
             entity.Property(e => e.Summarydescription)
                 .HasMaxLength(2000)
                 .HasColumnName("summarydescription");
+=======
+            entity.Property(e => e.Sparepartsrecommendation).HasColumnName("sparepartsrecommendation");
+            entity.Property(e => e.Summarydescription).HasColumnName("summarydescription");
+>>>>>>> 5256b863398d1f3d9b64c99f3e9e579762974ea3
         });
 
         modelBuilder.Entity<Taskitem>(entity =>
@@ -432,6 +436,8 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
             entity.HasKey(e => e.Tmid).HasName("templatemapping_pk");
 
             entity.ToTable("templatemapping");
+
+            entity.HasIndex(e => e.Mlfb, "templatemappings_mlfb_idx");
 
             entity.Property(e => e.Tmid).HasColumnName("tmid");
             entity.Property(e => e.Mlfb)

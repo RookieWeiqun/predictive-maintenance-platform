@@ -24,7 +24,7 @@ builder.Services.AddSwaggerGen();
 
 builder.Services.AddDbContext<PredictiveMaintenancePlatformContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
-
+builder.Services.AddScoped<ReportService>();
 builder.Services.AddScoped<ServiceTools>();
 var app = builder.Build();
 

@@ -32,7 +32,8 @@ namespace premaintainProjects.Controllers
         [HttpGet]
         public async Task<IActionResult> GetProjectEquipments()
         {
-            var list = await _context.ProjectEquipments.ToListAsync();
+            var list = await _context.ProjectEquipments.Where(a=>a.Ifdel == false).ToListAsync();
+
             _logger.LogInformation("获取所有项目设备，数量：{Count}", list.Count);
             return new JsonResult(new { code = ResponseCode.成功, data = list, msg = "" });
         }
@@ -56,7 +57,7 @@ namespace premaintainProjects.Controllers
         public async Task<IActionResult> GetEquipmentsByProject(int projectid)
         {
             var equipments = await _context.ProjectEquipments
-                .Where(e => e.Projectid == projectid)
+                .Where(e => e.Projectid == projectid && e.Ifdel ==false)
                 .ToListAsync();
 
             _logger.LogInformation("按项目ID检索设备，ProjectId：{ProjectId}，数量：{Count}", projectid, equipments.Count);
@@ -158,7 +159,11 @@ namespace premaintainProjects.Controllers
 
                     if (oldTasks.Count > 0)
                     {
-                        _context.InspectionTasks.RemoveRange(oldTasks);
+                        foreach (var oldTask in oldTasks)
+                        {
+                            oldTask.Ifdel = true; // 逻辑删除
+                        }
+                        _context.InspectionTasks.UpdateRange(oldTasks);
                         await _context.SaveChangesAsync();
                     }
                 }
@@ -355,8 +360,8 @@ namespace premaintainProjects.Controllers
                 _logger.LogWarning("删除失败，项目设备不存在，ID：{Id}", id);
                 return new JsonResult(new { code = ResponseCode.记录不存在, data = (object)null, msg = "记录不存在" });
             }
-
-            _context.ProjectEquipments.Remove(item);
+            item.Ifdel = true; // 逻辑删除  
+            _context.ProjectEquipments.Update(item);
             await _context.SaveChangesAsync();
 
             _logger.LogInformation("删除项目设备成功，ID：{Id}", id);

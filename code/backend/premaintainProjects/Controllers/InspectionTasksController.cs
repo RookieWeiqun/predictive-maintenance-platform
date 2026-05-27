@@ -39,7 +39,7 @@ namespace premaintainProjects.Controllers
         [HttpGet]
         public async Task<IActionResult> GetInspectionTasks()
         {
-            var tasks = await _context.InspectionTasks.AsNoTracking().ToListAsync();
+            var tasks = await _context.InspectionTasks.Where(a=>a.Ifdel == false).AsNoTracking().ToListAsync();
             _logger.LogInformation("获取所有巡检任务，数量：{Count}", tasks.Count);
             return new JsonResult(new { code = ResponseCode.成功, data = tasks.Select(ToViewDto), msg = "" });
         }
@@ -70,7 +70,7 @@ namespace premaintainProjects.Controllers
             [FromQuery] int? templateid,
             [FromQuery] int? productid)
         {
-            var query = _context.InspectionTasks.AsQueryable();
+            var query = _context.InspectionTasks.Where(a => a.Ifdel == false).AsQueryable();
 
             if (projectid.HasValue)
                 query = query.Where(t => t.Projectid == projectid.Value);
@@ -143,7 +143,6 @@ namespace premaintainProjects.Controllers
                     _logger.LogWarning("整单更新失败，巡检任务不存在，ID：{Id}", dto.Task.Taskid);
                     return new JsonResult(new { code = ResponseCode.记录不存在, data = (object)null, msg = "记录不存在" });
                 }
-
 
                 // 更新 task 主表
                 existingTask.Projectid = dto.Task.Projectid;
@@ -341,6 +340,7 @@ namespace premaintainProjects.Controllers
                 Operationguide = item.Operationguide
             }).ToList();
 
+
             var data = new UpdateInspectionTaskDetailDto
             {
                 Task = task,
@@ -428,8 +428,8 @@ namespace premaintainProjects.Controllers
                 _logger.LogWarning("删除失败，巡检任务不存在，ID：{Id}", id);
                 return new JsonResult(new { code = ResponseCode.记录不存在, data = (object)null, msg = "记录不存在" });
             }
-
-            _context.InspectionTasks.Remove(task);
+            task.Ifdel = true; // 逻辑删除
+            _context.InspectionTasks.Update(task);
             await _context.SaveChangesAsync();
 
             _logger.LogInformation("删除巡检任务成功，ID：{Id}", id);

@@ -28,7 +28,7 @@ namespace premaintainProjects.Controllers
         [HttpGet]
         public async Task<IActionResult> GetProjects()
         {
-            var projects = await _context.Projects.ToListAsync();
+            var projects = await _context.Projects.Where(p => p.Ifdel != true).ToListAsync();
             _logger.LogInformation("获取所有项目，数量：{Count}", projects.Count);
             return new JsonResult(new { code = ResponseCode.成功, data = projects, msg = "" });
         }
@@ -52,7 +52,7 @@ namespace premaintainProjects.Controllers
             [FromQuery] int? companyid,
             [FromQuery] int? assigneduserid)
         {
-            var query = _context.Projects.AsQueryable();
+            var query = _context.Projects.Where(p => p.Ifdel != true).AsQueryable();
 
             if (companyid.HasValue)
                 query = query.Where(p => p.Companyid == companyid.Value);
