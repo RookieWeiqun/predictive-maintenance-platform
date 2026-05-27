@@ -159,36 +159,42 @@
           <article id="sec-devices" class="report-sheet" data-toc-anchor>
             <h2 class="sheet-h2">1 维护设备清单</h2>
 
-            <div v-if="!maintenanceDeviceRows.length" class="empty-block muted">
+            <div v-if="!maintenanceDeviceGroups.length" class="empty-block muted">
               当前项目暂无可展示的维护设备清单。
             </div>
-            <div v-else class="table-shell report-device-shell">
-              <div class="report-device-caption">{{ maintenanceDeviceCaption }}</div>
-              <div class="report-device-table-wrap">
-                <table class="report-device-table">
-                  <thead>
-                    <tr>
-                      <th>序号</th>
-                      <th>电气室</th>
-                      <th>设备名称</th>
-                      <th>设备型号</th>
-                      <th>序列号</th>
-                      <th>所属部门</th>
-                      <th>设备编号</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="(row, index) in maintenanceDeviceRows" :key="row.key">
-                      <td>{{ index + 1 }}</td>
-                      <td>{{ row.electricRoom }}</td>
-                      <td>{{ row.equipmentName }}</td>
-                      <td>{{ row.deviceModel }}</td>
-                      <td>{{ row.serialNumber }}</td>
-                      <td>{{ row.department }}</td>
-                      <td>{{ row.equipmentNumber }}</td>
-                    </tr>
-                  </tbody>
-                </table>
+            <div v-else class="report-device-group-list">
+              <div
+                v-for="group in maintenanceDeviceGroups"
+                :key="group.key"
+                class="table-shell report-device-shell"
+              >
+                <div class="report-device-caption">{{ group.caption }}</div>
+                <div class="report-device-table-wrap">
+                  <table class="report-device-table">
+                    <thead>
+                      <tr>
+                        <th>序号</th>
+                        <th>电气室</th>
+                        <th>设备名称</th>
+                        <th>设备型号</th>
+                        <th>序列号</th>
+                        <th>所属部门</th>
+                        <th>设备编号</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="(row, index) in group.rows" :key="row.key">
+                        <td>{{ index + 1 }}</td>
+                        <td>{{ row.electricRoom }}</td>
+                        <td>{{ row.equipmentName }}</td>
+                        <td>{{ row.deviceModel }}</td>
+                        <td>{{ row.serialNumber }}</td>
+                        <td>{{ row.department }}</td>
+                        <td>{{ row.equipmentNumber }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           </article>
@@ -266,13 +272,14 @@
             <h2 class="sheet-h2">3 报告总结</h2>
             <div class="editor-header">
               <div class="editor-title">人工维护区</div>
-              <div class="editor-subtitle">自动保存草稿</div>
+              <div class="editor-subtitle">{{ summarySaveStatusText }}</div>
             </div>
             <div class="summary-form">
               <label class="summary-field">
                 <span class="summary-field__label">维护总结说明</span>
                 <textarea
                   v-model="summary.maintenanceSummary"
+                  @blur="handleSummaryFieldBlur"
                   class="summary-field__control"
                   placeholder="请输入本次维护总结说明"
                 />
@@ -281,6 +288,7 @@
                 <span class="summary-field__label">备件建议</span>
                 <textarea
                   v-model="summary.sparePartsSuggestion"
+                  @blur="handleSummaryFieldBlur"
                   class="summary-field__control"
                   placeholder="请输入备件建议"
                 />
@@ -302,13 +310,12 @@
                 :key="`workshop-${workshopIndex}`"
                 class="appendix-workshop"
               >
-                <h3 class="sheet-h3">{{ workshop.name }}</h3>
                 <div
                   v-for="(device, deviceIndex) in workshop.devices ?? []"
                   :key="`device-${workshopIndex}-${deviceIndex}`"
                   class="appendix-device"
                 >
-                  <div class="appendix-device__title">{{ device.model || '任务设备' }}</div>
+                  <div class="appendix-device__title">{{ workshop.name }} > {{ device.model || '任务设备' }}</div>
                   <div
                     v-for="(group, groupIndex) in device.items ?? []"
                     :key="`group-${workshopIndex}-${deviceIndex}-${groupIndex}`"
@@ -351,7 +358,7 @@
                             <td>{{ entry.name || '-' }}</td>
                             <td>{{ entry.result || '-' }}</td>
                             <td>{{ entry.processData || '-' }}</td>
-                            <td>{{ entry.remark || '-' }}</td>
+                            <td>-</td>
                             <td>{{ entry.hazardNote || '-' }}</td>
                             <td>{{ entry.suggestion || '-' }}</td>
                           </tr>
@@ -405,7 +412,7 @@
               aria-label="关闭图片预览"
               @click.stop="closeAppendixImagePreview"
             >
-              <IxIcon :name="iconClose" size="20" />
+              <IxIcon :name="iconClose" size="24" />
             </button>
             <figure class="appendix-lightbox__figure" @click.stop>
               <img
@@ -438,7 +445,7 @@ import {
 
 import logoUrl from '../../../../image/siemens logo.svg';
 import { buildWordReportWebhookPayload, requestWordReportDownload } from '@/config/n8n';
-import { attachmentsApi, companiesApi, equipmentsApi, inspectionTasksApi, productsApi, projectEquipmentsApi, projectsApi } from '@/api';
+import { attachmentsApi, companiesApi, equipmentsApi, inspectionTasksApi, productsApi, projectEquipmentsApi, projectsApi, reportsApi } from '@/api';
 import { getReportByProjectId, type ReportData } from '@/mockdata/report';
 import type { CompanyDto } from '@/api/modules/companies';
 import type { EquipmentDto } from '@/api/modules/equipments';
@@ -455,6 +462,7 @@ import {
   getServiceBasicBlock,
 } from './reportViewUtils';
 import { useReportSummaryDraft } from './composables/useReportSummaryDraft';
+import type { ReportSummaryDraft } from './types';
 import { useReportTocSpy } from './composables/useReportTocSpy';
 
 type ReportProjectView = {
@@ -470,12 +478,19 @@ type ReportTaskDetailEntry = {
 
 type MaintenanceDeviceRow = {
   key: string;
+  workshop: string;
   electricRoom: string;
   equipmentName: string;
   deviceModel: string;
   serialNumber: string;
   department: string;
   equipmentNumber: string;
+};
+
+type MaintenanceDeviceGroup = {
+  key: string;
+  caption: string;
+  rows: MaintenanceDeviceRow[];
 };
 
 type ReportIssueEntry = {
@@ -507,6 +522,17 @@ const projectEquipmentList = ref<EquipmentDto[]>([]);
 const equipmentMapRef = ref(new Map<number, EquipmentDto>());
 const productMapRef = ref(new Map<number, ProductDto>());
 const productsByEquipmentRef = ref(new Map<number, ProductDto[]>());
+const projectDtoRef = ref<ProjectDto | null>(null);
+const reportRecord = ref<reportsApi.ReportDto | null>(null);
+const persistedSummary = ref<ReportSummaryDraft | null>(null);
+const summarySaveState = ref<'idle' | 'saving' | 'saved' | 'error'>('idle');
+const summarySaveErrorMessage = ref('');
+const isHydratingSummary = ref(false);
+
+let summarySaveTimer: ReturnType<typeof setTimeout> | null = null;
+let summarySaveQueued = false;
+let summarySaveInFlight = false;
+let lastSavedSummaryKey = '';
 
 const wordExporting = ref(false);
 
@@ -515,7 +541,17 @@ const mainScrollRef = ref<HTMLElement | null>(null);
 
 const serviceBasicBlock = computed(() => getServiceBasicBlock(report.value));
 const { activeAnchor, scrollToAnchor } = useReportTocSpy(report, mainScrollRef);
-const { summary } = useReportSummaryDraft(projectId, report);
+const { summary } = useReportSummaryDraft(projectId, report, persistedSummary);
+const summarySaveStatusText = computed(() => {
+  if (summarySaveState.value === 'saving') return '正在自动保存...';
+  if (summarySaveState.value === 'saved') return '已自动保存';
+  if (summarySaveState.value === 'error') {
+    return summarySaveErrorMessage.value
+      ? `保存失败，已保留本地草稿：${summarySaveErrorMessage.value}`
+      : '保存失败，已保留本地草稿';
+  }
+  return '自动保存草稿';
+});
 
 const presentation = computed(() => {
   const m = report.value?.reportDocument?.meta;
@@ -568,13 +604,10 @@ const shortReportType = computed(() => {
 
 const tocNodes = computed(() => buildTocNodes(report.value, project.value?.name ?? ''));
 const appendixWorkshops = computed(() => report.value?.appendixDetailedInspection?.workshops ?? []);
-const maintenanceDeviceCaption = computed(() => {
-  const companyName = report.value?.serviceBasicInfo?.companyName?.trim()
-    || projectCompany.value?.companyname?.trim()
-    || '客户';
-  const projectName = project.value?.name?.trim() || '项目';
-  return `${companyName} ${projectName} 维护设备清单`;
-});
+const maintenanceDeviceCompanyName = computed(() =>
+  report.value?.serviceBasicInfo?.companyName?.trim()
+  || projectCompany.value?.companyname?.trim()
+  || '客户');
 
 function normalizeText(value: unknown, fallback = '-'): string {
   const text = String(value ?? '').trim();
@@ -590,7 +623,7 @@ function resolveEquipmentNumber(product: ProductDto | null | undefined, equipmen
 }
 
 function resolveDepartment(product: ProductDto | null | undefined, equipment: EquipmentDto | null | undefined): string {
-  return normalizeText(product?.department, '');
+  return normalizeText(product?.department ?? equipment?.workshop, '');
 }
 
 function resolveElectricRoom(equipment: EquipmentDto | null | undefined): string {
@@ -689,6 +722,7 @@ const maintenanceDeviceRows = computed<MaintenanceDeviceRow[]>(() => {
     if (products.length === 0) {
       rows.push({
         key: `equip-${equipId || rows.length}`,
+        workshop: normalizeText(equipment.workshop, '未分配车间'),
         electricRoom: resolveElectricRoom(equipment),
         equipmentName: resolveEquipmentName(null, equipment),
         deviceModel: '',
@@ -702,6 +736,7 @@ const maintenanceDeviceRows = computed<MaintenanceDeviceRow[]>(() => {
     for (const product of products) {
       rows.push({
         key: `equip-${equipId}-product-${product.productid ?? rows.length}`,
+        workshop: normalizeText(equipment.workshop, '未分配车间'),
         electricRoom: resolveElectricRoom(equipment),
         equipmentName: resolveEquipmentName(product, equipment),
         deviceModel: normalizeText(product.mlfb, ''),
@@ -712,6 +747,25 @@ const maintenanceDeviceRows = computed<MaintenanceDeviceRow[]>(() => {
     }
   }
   return rows;
+});
+
+const maintenanceDeviceGroups = computed<MaintenanceDeviceGroup[]>(() => {
+  const groupMap = new Map<string, MaintenanceDeviceGroup>();
+  const companyName = maintenanceDeviceCompanyName.value;
+
+  for (const row of maintenanceDeviceRows.value) {
+    const workshop = row.workshop || '未分配车间';
+    const key = workshop;
+    const existing = groupMap.get(key) ?? {
+      key,
+      caption: `${companyName} ${workshop}`,
+      rows: [],
+    };
+    existing.rows.push(row);
+    groupMap.set(key, existing);
+  }
+
+  return Array.from(groupMap.values());
 });
 
 const reportIssueEntries = computed<ReportIssueEntry[]>(() => {
@@ -790,6 +844,148 @@ function handleAppendixPreviewKeydown(event: KeyboardEvent): void {
   }
 }
 
+function buildSummarySnapshot(): ReportSummaryDraft {
+  return {
+    maintenanceSummary: summary.value.maintenanceSummary,
+    sparePartsSuggestion: summary.value.sparePartsSuggestion,
+  };
+}
+
+function serializeSummaryDraft(value: ReportSummaryDraft): string {
+  return JSON.stringify([value.maintenanceSummary, value.sparePartsSuggestion]);
+}
+
+function buildPersistedSummary(record: reportsApi.ReportDto | null): ReportSummaryDraft | null {
+  if (!record) return null;
+  return {
+    maintenanceSummary: record.summarydescription ?? '',
+    sparePartsSuggestion: record.sparepartsrecommendation ?? '',
+  };
+}
+
+function clearScheduledSummarySave(): void {
+  if (summarySaveTimer != null) {
+    clearTimeout(summarySaveTimer);
+    summarySaveTimer = null;
+  }
+}
+
+async function ensureEditableReportRecord(pid: number): Promise<reportsApi.ReportDto> {
+  const cached = reportRecord.value;
+  if (cached && Number(cached.projectid) === pid && Number(cached.reportid ?? 0) > 0) {
+    return cached;
+  }
+
+  const existing = await reportsApi.getReportByProject(pid);
+  if (existing) {
+    reportRecord.value = existing;
+    return existing;
+  }
+
+  const projectDto = projectDtoRef.value ?? await projectsApi.getProject(pid);
+  projectDtoRef.value = projectDto;
+  const createdate = projectDto.createdate?.trim() || new Date().toISOString().slice(0, 10);
+  const reportid = await reportsApi.createReport({
+    reportid: 0,
+    path: '',
+    projectid: pid,
+    createdate,
+    ifdel: false,
+    summarydescription: '',
+    sparepartsrecommendation: '',
+  });
+  const created = await reportsApi.getReport(reportid).catch(() => ({
+    reportid,
+    path: '',
+    projectid: pid,
+    createdate,
+    ifdel: false,
+    summarydescription: '',
+    sparepartsrecommendation: '',
+  }));
+  reportRecord.value = created;
+  return created;
+}
+
+async function flushSummarySave(options?: { keepalive?: boolean; silent?: boolean }): Promise<void> {
+  const pid = Number(projectId.value);
+  if (!Number.isFinite(pid) || pid <= 0 || isHydratingSummary.value) return;
+
+  summarySaveQueued = true;
+  if (summarySaveInFlight) return;
+
+  summarySaveInFlight = true;
+  try {
+    while (summarySaveQueued) {
+      summarySaveQueued = false;
+      const snapshot = buildSummarySnapshot();
+      const snapshotKey = serializeSummaryDraft(snapshot);
+      if (snapshotKey === lastSavedSummaryKey) {
+        summarySaveState.value = 'saved';
+        continue;
+      }
+
+      summarySaveState.value = 'saving';
+      summarySaveErrorMessage.value = '';
+
+      try {
+        const currentRecord = await ensureEditableReportRecord(pid);
+        const payload: reportsApi.ReportDto = {
+          reportid: currentRecord.reportid ?? 0,
+          path: currentRecord.path ?? '',
+          projectid: pid,
+          createdate:
+            currentRecord.createdate?.trim()
+            || projectDtoRef.value?.createdate?.trim()
+            || new Date().toISOString().slice(0, 10),
+          ifdel: currentRecord.ifdel ?? false,
+          summarydescription: snapshot.maintenanceSummary,
+          sparepartsrecommendation: snapshot.sparePartsSuggestion,
+        };
+
+        await reportsApi.updateReport(payload, options?.keepalive ? { keepalive: true } : undefined);
+        reportRecord.value = payload;
+        persistedSummary.value = buildPersistedSummary(payload);
+        lastSavedSummaryKey = snapshotKey;
+        summarySaveState.value = 'saved';
+      } catch (error) {
+        summarySaveState.value = 'error';
+        summarySaveErrorMessage.value = error instanceof Error ? error.message : '自动保存失败';
+        if (!options?.silent) {
+          showToast({ message: `报告保存失败：${summarySaveErrorMessage.value}` });
+        }
+        break;
+      }
+    }
+  } finally {
+    summarySaveInFlight = false;
+  }
+}
+
+function scheduleSummarySave(): void {
+  clearScheduledSummarySave();
+  summarySaveTimer = setTimeout(() => {
+    summarySaveTimer = null;
+    void flushSummarySave();
+  }, 1200);
+}
+
+function handleSummaryFieldBlur(): void {
+  clearScheduledSummarySave();
+  void flushSummarySave();
+}
+
+function handleDocumentVisibilityChange(): void {
+  if (document.visibilityState !== 'hidden') return;
+  clearScheduledSummarySave();
+  void flushSummarySave({ keepalive: true, silent: true });
+}
+
+function handleWindowPageHide(): void {
+  clearScheduledSummarySave();
+  void flushSummarySave({ keepalive: true, silent: true });
+}
+
 async function loadReportData(): Promise<void> {
   const pid = Number(projectId.value);
   if (!Number.isFinite(pid) || pid <= 0) {
@@ -801,12 +997,18 @@ async function loadReportData(): Promise<void> {
     equipmentMapRef.value = new Map();
     productMapRef.value = new Map();
     productsByEquipmentRef.value = new Map();
+    projectDtoRef.value = null;
+    reportRecord.value = null;
+    persistedSummary.value = null;
+    lastSavedSummaryKey = '';
     return;
   }
 
   reportLoading.value = true;
   try {
     const projectDto = await projectsApi.getProject(pid);
+    projectDtoRef.value = projectDto;
+    const remoteReportRecordPromise = reportsApi.getReportByProject(pid).catch(() => null);
     const taskList = await inspectionTasksApi.searchInspectionTasks({ projectid: pid });
     const validTasks = taskList
       .filter((task) => task.taskid != null && task.taskid > 0)
@@ -946,6 +1148,12 @@ async function loadReportData(): Promise<void> {
       factory: factoryList.join(' / ') || undefined,
     };
 
+    reportRecord.value = await remoteReportRecordPromise;
+    persistedSummary.value = buildPersistedSummary(reportRecord.value);
+    lastSavedSummaryKey = persistedSummary.value ? serializeSummaryDraft(persistedSummary.value) : '';
+    summarySaveState.value = 'idle';
+    summarySaveErrorMessage.value = '';
+
     if (validTasks.length === 0) {
       report.value = getReportByProjectId(String(pid)) ?? null;
       return;
@@ -968,17 +1176,31 @@ async function loadReportData(): Promise<void> {
 }
 
 onMounted(() => {
+  document.addEventListener('visibilitychange', handleDocumentVisibilityChange);
+  window.addEventListener('pagehide', handleWindowPageHide);
   window.addEventListener('keydown', handleAppendixPreviewKeydown);
   void loadReportData();
 });
 
 onBeforeUnmount(() => {
+  clearScheduledSummarySave();
+  document.removeEventListener('visibilitychange', handleDocumentVisibilityChange);
+  window.removeEventListener('pagehide', handleWindowPageHide);
   window.removeEventListener('keydown', handleAppendixPreviewKeydown);
 });
 
 watch(projectId, () => {
   void loadReportData();
 });
+
+watch(
+  summary,
+  () => {
+    if (isHydratingSummary.value) return;
+    scheduleSummarySave();
+  },
+  { deep: true },
+);
 
 function goToDetail() {
   if (!projectId.value) return;
@@ -1022,6 +1244,12 @@ function downloadPdf() {
   border-radius: 0.75rem;
   background: var(--theme-color-surface, #fff);
   box-shadow: 0 4px 20px rgba(15, 23, 42, 0.05);
+}
+
+.report-device-group-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 
 .report-device-caption {

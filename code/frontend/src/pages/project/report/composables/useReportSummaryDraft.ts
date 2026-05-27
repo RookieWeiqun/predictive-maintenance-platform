@@ -2,7 +2,22 @@ import { computed, onMounted, ref, watch, type Ref } from 'vue';
 import type { ReportData } from '@/mockdata/report/index.ts';
 import type { ReportSummaryDraft } from '../types';
 
-export function useReportSummaryDraft(projectId: Ref<string>, report: Ref<ReportData | null>) {
+function normalizeDraft(value: Partial<ReportSummaryDraft> | null | undefined): ReportSummaryDraft {
+  return {
+    maintenanceSummary: value?.maintenanceSummary ?? '',
+    sparePartsSuggestion: value?.sparePartsSuggestion ?? '',
+  };
+}
+
+function hasDraftContent(value: Partial<ReportSummaryDraft> | null | undefined): boolean {
+  return Boolean(value?.maintenanceSummary?.trim() || value?.sparePartsSuggestion?.trim());
+}
+
+export function useReportSummaryDraft(
+  projectId: Ref<string>,
+  report: Ref<ReportData | null>,
+  persistedSummary: Ref<ReportSummaryDraft | null>,
+) {
   const summary = ref<ReportSummaryDraft>({
     maintenanceSummary: '',
     sparePartsSuggestion: '',
@@ -13,12 +28,14 @@ export function useReportSummaryDraft(projectId: Ref<string>, report: Ref<Report
   function loadDraft() {
     try {
       const raw = localStorage.getItem(draftKey.value);
-      if (raw) {
-        const parsed = JSON.parse(raw) as Partial<ReportSummaryDraft>;
-        summary.value = {
-          maintenanceSummary: parsed.maintenanceSummary ?? '',
-          sparePartsSuggestion: parsed.sparePartsSuggestion ?? '',
-        };
+      const localDraft = raw ? normalizeDraft(JSON.parse(raw) as Partial<ReportSummaryDraft>) : null;
+      const savedSummary = normalizeDraft(persistedSummary.value);
+      if (hasDraftContent(savedSummary)) {
+        summary.value = savedSummary;
+      } else if (hasDraftContent(localDraft)) {
+        summary.value = localDraft;
+      } else if (persistedSummary.value) {
+        summary.value = savedSummary;
       } else if (report.value?.summaryDefaults) {
         summary.value = {
           maintenanceSummary: report.value.summaryDefaults.maintenanceSummary ?? '',
@@ -34,7 +51,7 @@ export function useReportSummaryDraft(projectId: Ref<string>, report: Ref<Report
 
   onMounted(() => loadDraft());
 
-  watch(projectId, () => loadDraft());
+  watch([projectId, persistedSummary], () => loadDraft());
 
   watch(
     summary,
