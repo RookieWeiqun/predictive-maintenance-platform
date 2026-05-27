@@ -80,7 +80,6 @@ namespace premaintainProjects.Controllers
                 existingEquipment.Companyid = equipment.Companyid;
                 existingEquipment.Factory = equipment.Factory;
                 existingEquipment.Workshop = equipment.Workshop;
-                existingEquipment.Equipmentname = equipment.Equipmentname;
                 existingEquipment.Productcategory = equipment.Productcategory;
                 existingEquipment.Productgroup = equipment.Productgroup;
                 existingEquipment.Number = equipment.Number;
@@ -100,8 +99,7 @@ namespace premaintainProjects.Controllers
                         {
                             Equipid = existingEquipment.Equipid,
                             Mlfb = existingEquipment.Mlfb,
-                            Serialno = null,
-                            Equipmentname = existingEquipment.Equipmentname
+                            Serialno = null
                         });
                     }
 

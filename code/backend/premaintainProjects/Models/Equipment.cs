@@ -13,8 +13,6 @@ public partial class Equipment
 
     public string? Workshop { get; set; }
 
-    public string? Equipmentname { get; set; }
-
     public string? Productcategory { get; set; }
 
     public string? Productgroup { get; set; }
