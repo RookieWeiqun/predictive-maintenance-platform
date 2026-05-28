@@ -241,7 +241,7 @@ public class ReportService
             var mainPart = wordDoc.MainDocumentPart
                 ?? throw new InvalidOperationException("Word 模板缺少 MainDocumentPart");
 
-            var document = mainPart.Document;
+            var document = mainPart.Document ?? throw new InvalidOperationException("Word 模板缺少 Document");
 
             ReplacePlaceholder(document, "{$ProjectName}", projectName);
             ReplacePlaceholder(document, "{$companyname}", companyName);
@@ -327,7 +327,7 @@ public class ReportService
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Userid == userId.Value);
 
-        return user.Username;
+        return user?.Username;
     }
 
     private static string GetResolutionText(string? json)
