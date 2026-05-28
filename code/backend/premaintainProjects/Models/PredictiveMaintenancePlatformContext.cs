@@ -55,6 +55,8 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
 
             entity.ToTable("attachment");
 
+            entity.HasIndex(e => e.Taskitemid, "attachment_taskitemid_idx");
+
             entity.Property(e => e.Attaid)
                 .HasDefaultValueSql("gen_random_uuid()")
                 .HasColumnName("attaid");
@@ -364,7 +366,7 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
 
             entity.ToTable("taskitems");
 
-            entity.HasIndex(e => e.Taskid, "taskitems_taskid_idx");
+            entity.HasIndex(e => new { e.Taskid, e.Categorypath, e.Taskname }, "taskitems_taskid_idx");
 
             entity.Property(e => e.Itemid)
                 .HasDefaultValueSql("gen_random_uuid()")

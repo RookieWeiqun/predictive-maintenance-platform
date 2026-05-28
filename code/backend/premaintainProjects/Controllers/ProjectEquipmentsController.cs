@@ -69,6 +69,22 @@ namespace premaintainProjects.Controllers
         [HttpPut]
         public async Task<IActionResult> PutProjectEquipment(ProjectEquipment projectEquipment)
         {
+            var exists = await _context.ProjectEquipments.AnyAsync(x =>
+                x.Peid != projectEquipment.Peid &&
+                x.Projectid == projectEquipment.Projectid &&
+                x.Equipmentid == projectEquipment.Equipmentid &&
+                x.Ifdel == false);
+
+            if (exists)
+            {
+                return new JsonResult(new
+                {
+                    code = ResponseCode.参数无效,
+                    data = (object)null,
+                    msg = "同一项目下该设备已存在"
+                });
+            }
+
             using var transaction = await _context.Database.BeginTransactionAsync();
 
             try
@@ -212,6 +228,22 @@ namespace premaintainProjects.Controllers
         [HttpPost]
         public async Task<IActionResult> PostProjectEquipment(ProjectEquipment projectEquipment)
         {
+
+            var exists = await _context.ProjectEquipments.AnyAsync(x =>
+                    x.Projectid == projectEquipment.Projectid &&
+                    x.Equipmentid == projectEquipment.Equipmentid &&
+                    x.Ifdel == false);
+
+            if (exists)
+            {
+                return new JsonResult(new
+                {
+                    code = ResponseCode.参数无效,
+                    data = (object)null,
+                    msg = "同一项目下该设备已存在"
+                });
+            }
+
             using var transaction = await _context.Database.BeginTransactionAsync();
 
             try
