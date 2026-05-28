@@ -18,6 +18,7 @@ services:
       - "8765:8080"
     volumes:
       - ${BACKEND_ATTACH_HOST_DIR:-/opt/PredictiveMaintenancePlatform/images}:/app/Attach
+      - ${BACKEND_REPORTS_HOST_DIR:-/home/ezan/envapp/PredictiveMaintenancePlatform/code/backend/premaintainProjects/Reports}:/app/Reports
     networks:
       - predictive-maintenance-network
 
