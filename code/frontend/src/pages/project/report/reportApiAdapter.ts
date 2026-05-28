@@ -91,12 +91,6 @@ function getAttachmentImageRef(attachment: Record<string, unknown>, fallbackRef:
   return fallbackRef;
 }
 
-function getAppendixDeviceSerialText(entry: ProjectTaskDetailsReportSource['taskDetailsByTask'][number]): string {
-  const serial = entry.detail.task.serial_no?.trim() || String(entry.task.taskid ?? '-');
-  const assignedUserName = entry.detail.task.assigned_user_name?.trim() || '';
-  return [serial, assignedUserName].filter(Boolean).join(' ');
-}
-
 function getEntryProductId(entry: ProjectTaskDetailsReportSource['taskDetailsByTask'][number]): number | null {
   const rawId = entry.detail.task.product_id ?? entry.task.productid;
   const productId = Number(rawId);
@@ -126,17 +120,18 @@ function getAppendixDeviceTitle(
 ): string {
   const product = getEntryProduct(entry, productById);
   const equipment = getEntryEquipment(product, equipmentById);
-  const equipmentName = equipment?.equipmentname?.trim();
-  const mlfb = product?.mlfb?.trim();
-  const serialNumber = product?.serialno?.trim() || entry.detail.task.serial_no?.trim() || entry.task.serialno?.trim();
+  const equipmentName = product?.equipmentname?.trim() || equipment?.equipmentname?.trim();
+  const equipmentNumber = product?.equipmentnumber?.trim()
+    || (equipment?.number != null ? String(equipment.number) : '')
+    || product?.serialno?.trim()
+    || entry.detail.task.serial_no?.trim()
+    || entry.task.serialno?.trim();
 
   return [
     equipmentName || entry.detail.task.template_name?.trim() || '任务设备',
-    mlfb,
-    serialNumber || String(entry.task.taskid ?? '-'),
+    equipmentNumber || String(entry.task.taskid ?? '-'),
   ]
-    .filter(Boolean)
-    .join(' › ');
+    .join(' > ');
 }
 
 function isAbnormalTaskItem(item: InspectionTaskDetailDto['task_items'][number]): boolean {
@@ -307,7 +302,10 @@ export function buildReportFromProjectTaskDetailsSource(source: ProjectTaskDetai
           const product = getEntryProduct(entry, productById);
           const equipment = getEntryEquipment(product, equipmentById);
           const workshopName =
-            equipment?.workshop?.trim() || project.projectname?.trim() || '项目';
+            equipment?.electricroom?.trim()
+            || equipment?.workshop?.trim()
+            || project.projectname?.trim()
+            || '未分配电气室';
           const groups = Array.from(
             new Set(
               entry.detail.task_items
@@ -322,7 +320,7 @@ export function buildReportFromProjectTaskDetailsSource(source: ProjectTaskDetai
 
           workshop.devices.push({
             model: getAppendixDeviceTitle(entry, productById, equipmentById),
-            serialNumber: getAppendixDeviceSerialText(entry),
+            serialNumber: '',
             items: groups.map((group) => ({
               name: group,
               children: entry.detail.task_items

@@ -155,6 +155,7 @@ import {
   projectEquipmentsApi,
   projectsApi,
   productsApi,
+  reportsApi,
 } from '@/api';
 import type { InspectionTemplateDto } from '@/api/modules/inspectionTemplates';
 import type { ProjectDto } from '@/api/modules/projects';
@@ -1184,6 +1185,25 @@ const submitProject = async () => {
           createdate: baseCreatedate,
         });
 
+    let reportInitializationError: string | null = null;
+
+    if (!isEditMode.value) {
+      try {
+        await reportsApi.createReport({
+          reportid: 0,
+          path: '',
+          projectid: savedId,
+          createdate: baseCreatedate,
+          ifdel: false,
+          summarydescription: '',
+          sparepartsrecommendation: '',
+        });
+      } catch (reportError) {
+        reportInitializationError =
+          reportError instanceof Error ? reportError.message : '报告初始化失败';
+      }
+    }
+
     setSubmitProgress(35, '项目基础信息已保存，正在写入方案选择...');
 
     saveProjectSchemeSelection(savedId, buildSchemeSelectionForStorage());
@@ -1218,7 +1238,7 @@ const submitProject = async () => {
     const baseOk = isEditMode.value ? '项目更新成功' : '项目创建成功';
     setSubmitProgress(100, '全部保存成功');
     showToast({
-      message: baseOk,
+      message: reportInitializationError ? `${baseOk}，但报告初始化失败：${reportInitializationError}` : baseOk,
     });
     router.push('/project/list');
   } catch (e) {
