@@ -55,6 +55,8 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
 
             entity.ToTable("attachment");
 
+            entity.HasIndex(e => e.Taskitemid, "attachment_taskitemid_idx");
+
             entity.Property(e => e.Attaid)
                 .HasDefaultValueSql("gen_random_uuid()")
                 .HasColumnName("attaid");
@@ -354,17 +356,8 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
                 .HasMaxLength(200)
                 .HasColumnName("path");
             entity.Property(e => e.Projectid).HasColumnName("projectid");
-<<<<<<< HEAD
-            entity.Property(e => e.Sparepartsrecommendation)
-                .HasMaxLength(2000)
-                .HasColumnName("sparepartsrecommendation");
-            entity.Property(e => e.Summarydescription)
-                .HasMaxLength(2000)
-                .HasColumnName("summarydescription");
-=======
             entity.Property(e => e.Sparepartsrecommendation).HasColumnName("sparepartsrecommendation");
             entity.Property(e => e.Summarydescription).HasColumnName("summarydescription");
->>>>>>> 5256b863398d1f3d9b64c99f3e9e579762974ea3
         });
 
         modelBuilder.Entity<Taskitem>(entity =>
@@ -373,7 +366,7 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
 
             entity.ToTable("taskitems");
 
-            entity.HasIndex(e => e.Taskid, "taskitems_taskid_idx");
+            entity.HasIndex(e => new { e.Taskid, e.Categorypath, e.Taskname }, "taskitems_taskid_idx");
 
             entity.Property(e => e.Itemid)
                 .HasDefaultValueSql("gen_random_uuid()")
