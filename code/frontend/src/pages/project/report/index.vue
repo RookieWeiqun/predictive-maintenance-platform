@@ -444,7 +444,6 @@ import {
 } from '@siemens/ix-icons/icons';
 
 import logoUrl from '../../../../image/siemens logo.svg';
-import { buildWordReportWebhookPayload, requestWordReportDownload } from '@/config/n8n';
 import { attachmentsApi, companiesApi, equipmentsApi, inspectionTasksApi, productsApi, projectEquipmentsApi, projectsApi, reportsApi } from '@/api';
 import { getReportByProjectId, type ReportData } from '@/mockdata/report';
 import type { CompanyDto } from '@/api/modules/companies';
@@ -1208,19 +1207,20 @@ function goToDetail() {
 }
 
 async function exportWord() {
-  if (!project.value || !report.value) return;
+  const pid = Number(projectId.value);
+  if (!project.value || !report.value || !Number.isFinite(pid) || pid <= 0) return;
   wordExporting.value = true;
   try {
-    await requestWordReportDownload(
-      buildWordReportWebhookPayload({
-        report: report.value,
-        projectId: projectId.value,
-        summary: {
-          maintenanceSummary: summary.value.maintenanceSummary,
-          sparePartsSuggestion: summary.value.sparePartsSuggestion,
-        },
-      }),
-    );
+    const filePath = await reportsApi.generateProjectReport(pid);
+    const downloadUrl = reportsApi.resolveReportDownloadUrl(filePath);
+    console.log('[report export] downloadUrl:', downloadUrl, 'filePath:', filePath);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = filePath.split('/').pop() || `项目报告_${pid}.docx`;
+    link.rel = 'noopener';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
     showToast({ message: 'Word 报告已开始下载' });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Word 导出失败';

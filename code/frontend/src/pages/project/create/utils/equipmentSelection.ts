@@ -34,6 +34,7 @@ export type SelectableProjectDevice = {
   quantity: number;
   factoryName: string;
   workshopName: string;
+  electricRoom: string;
   serialNumbers: string[];
 };
 
@@ -56,6 +57,7 @@ export function mapEquipmentToSelectable(
     quantity: e.number ?? 0,
     factoryName: e.factory ?? '',
     workshopName: e.workshop ?? '',
+    electricRoom: e.electricroom ?? '',
     serialNumbers: [],
   };
 }

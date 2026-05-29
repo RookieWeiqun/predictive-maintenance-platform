@@ -110,7 +110,7 @@ function flattenScheme(items: SchemeItem[]): {
         inspectionItems.push({
           categoryTempId: parentTempId,
           name: node.name,
-          sortOrder: idx + 1,
+          sortOrder: node.sortOrder ?? idx + 1,
           required: node.required !== false,
                     priority: node.priority?.trim() || mapRequiredToPriority(node.required),
           valueType: validatedRule.valueType,

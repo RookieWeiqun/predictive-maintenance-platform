@@ -256,6 +256,7 @@ interface Device {
   assignedEngineerId?: string;
   factoryName?: string;
   workshopName?: string;
+  electricRoom?: string;
 }
 
 const deviceList = ref<Device[]>([]);
@@ -276,6 +277,7 @@ async function loadProjectDevicesForWizard(projectId: number, companyid: number)
         quantity: s.quantity,
         factoryName: s.factoryName,
         workshopName: s.workshopName,
+        electricRoom: s.electricRoom,
       };
     });
     const fac = deviceList.value.find((d) => (d.factoryName ?? '').trim())?.factoryName?.trim();

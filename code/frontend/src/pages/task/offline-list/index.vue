@@ -76,6 +76,7 @@
                   </th>
                   <th>任务编号</th>
                   <th>项目</th>
+                  <th>任务类型</th>
                   <th>设备型号</th>
                   <th>序列号</th>
                   <th>检查人员</th>
@@ -97,6 +98,7 @@
                   </td>
                   <td>{{ task.task_no || task.task_uuid }}</td>
                   <td>{{ task.project_name || task.project_id || '-' }}</td>
+                  <td>{{ getTaskTypeLabel(task.inspection_type) }}</td>
                   <td>{{ task.device_model || '-' }}</td>
                   <td>{{ task.serial_no || '-' }}</td>
                   <td>{{ task.assigned_user_name || '-' }}</td>
@@ -201,6 +203,10 @@ const pendingVisibleTaskIds = computed(() =>
 const allPendingVisibleSelected = computed(() =>
   pendingVisibleTaskIds.value.length > 0 && pendingVisibleTaskIds.value.every((taskUuid) => selectedTaskUuids.value.has(taskUuid)),
 );
+
+function getTaskTypeLabel(inspectionType: string | null | undefined): string {
+  return Number(inspectionType) === 1 ? '设备检测' : '外围检测';
+}
 
 function getOfflineLifecycleMeta(status: string): {
   key: 'pending' | 'in-progress' | 'uploaded';

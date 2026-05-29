@@ -37,6 +37,7 @@ interface Device {
   quantity: number;
   factoryName?: string;
   workshopName?: string;
+  electricRoom?: string;
 }
 
 interface Props {
@@ -87,6 +88,15 @@ onMounted(() => {
         filter: true,
         width: 150,
         valueGetter: (params: any) => params.data.workshopName || '-',
+      },
+      {
+        field: 'electricRoom',
+        headerName: '电气室',
+        resizable: true,
+        sortable: true,
+        filter: true,
+        width: 150,
+        valueGetter: (params: any) => params.data.electricRoom || '-',
       },
       {
         field: 'categoryName',

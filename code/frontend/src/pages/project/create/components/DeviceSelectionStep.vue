@@ -65,6 +65,7 @@ interface Device {
   quantity: number;
   factoryName?: string;
   workshopName?: string;
+  electricRoom?: string;
 }
 
 interface Props {
@@ -152,6 +153,14 @@ onMounted(() => {
       {
         field: 'workshopName',
         headerName: '车间',
+        resizable: true,
+        sortable: true,
+        filter: true,
+        width: 150,
+      },
+      {
+        field: 'electricRoom',
+        headerName: '电气室',
         resizable: true,
         sortable: true,
         filter: true,
@@ -278,6 +287,7 @@ const handleAddSelectedDevices = (deviceIds: string[]) => {
         quantity: device.quantity,
         factoryName: device.factoryName,
         workshopName: device.workshopName,
+        electricRoom: device.electricRoom,
       };
       return projectDevice;
     });

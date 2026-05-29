@@ -73,6 +73,7 @@ const updateGridData = () => {
     id: device.id,
     factoryName: device.factoryName,
     workshopName: device.workshopName,
+    electricRoom: device.electricRoom,
     categoryName: device.categoryName,
     subCategoryName: device.subCategoryName,
     model: device.model,
