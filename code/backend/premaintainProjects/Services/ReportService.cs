@@ -98,6 +98,8 @@ public class ReportService
 
         var reportEquipments = projectEquipments
             .Where(pe => equipments.ContainsKey(pe.Equipmentid))
+            .GroupBy(pe => pe.Equipmentid)
+            .Select(g => g.OrderBy(x => x.Peid).First())
             .Select(pe =>
             {
                 var equipment = equipments[pe.Equipmentid];
@@ -112,6 +114,8 @@ public class ReportService
                     Mlfb = equipment.Mlfb,
                     Products = products
                         .Where(p => p.Equipid.HasValue && p.Equipid.Value == pe.Equipmentid)
+                        .GroupBy(p => p.Productid)
+                        .Select(g => g.First())
                         .Select(p => new ReportProductDto
                         {
                             Productid = p.Productid,
@@ -119,44 +123,68 @@ public class ReportService
                             EquipmentName = p.Equipmentname,
                             Department = p.Department,
                             EquipmentNumber = p.Equipmentnumber
-                            
                         })
                         .ToList()
                 };
             })
             .ToList();
 
+
         var detailGroups = tasks
             .Where(t => productDict.ContainsKey(t.Productid))
             .SelectMany(task =>
             {
                 var product = productDict[task.Productid];
-
                 if (!product.Equipid.HasValue || !equipments.ContainsKey(product.Equipid.Value))
-                    return Enumerable.Empty<ReportDetailGroupDto>();
+                    return Enumerable.Empty<(string ElectricRoom, string? EquipmentName, string? EquipmentNumber, string? Factory, string CategoryPath, ReportDetailRowDto Row)>();
 
                 var equipment = equipments[product.Equipid.Value];
 
                 return taskitems
                     .Where(i => i.Taskid == task.Taskid)
-                    .GroupBy(i => i.Categorypath ?? string.Empty)
-                    .Select(g => new ReportDetailGroupDto
-                    {
-                        ElectricRoom = equipment.Electricroom,
-                        EquipmentName = product.Equipmentname,
-                        EquipmentNumber = product.Equipmentnumber,
-                        Factory = equipment.Factory,
-                        CategoryPath = g.Key,
-                        Rows = g.Select(item => new ReportDetailRowDto
+                    .Select(item => (
+                        ElectricRoom: equipment.Electricroom ?? string.Empty,
+                        EquipmentName: product.Equipmentname,
+                        EquipmentNumber: product.Equipmentnumber,
+                        Factory: equipment.Factory,
+                        CategoryPath: item.Categorypath ?? string.Empty,
+                        Row: new ReportDetailRowDto
                         {
                             TaskName = item.Taskname ?? string.Empty,
                             ResultState = GetJsonValue(item.Taskresult, "resultState"),
                             Value = GetJsonValue(item.Taskresult, "value"),
                             HiddenHazardContent = GetJsonValue(item.Taskresult, "hiddenhazardcontent", "hiddenHazardContent"),
                             MaintenanceInstructions = GetJsonValue(item.Taskresult, "maintenanceinstructions", "maintenanceInstructions"),
-                            Remarks = GetJsonValue(item.Taskresult, "remarks")
-                        }).ToList()
-                    });
+                            Remarks = GetJsonValue(item.Taskresult, "remarks"),
+                            HazardResolved = GetJsonValue(item.Taskresult, "hazardResolved")
+                        }));
+            })
+            .GroupBy(x => new
+            {
+                x.ElectricRoom,
+                x.EquipmentName,
+                x.EquipmentNumber,
+                x.Factory,
+                x.CategoryPath
+            })
+            .Select(g => new ReportDetailGroupDto
+            {
+                ElectricRoom = g.Key.ElectricRoom,
+                EquipmentName = g.Key.EquipmentName,
+                EquipmentNumber = g.Key.EquipmentNumber,
+                Factory = g.Key.Factory,
+                CategoryPath = g.Key.CategoryPath,
+                Rows = g.Select(x => x.Row)
+                    .DistinctBy(r => new
+                    {
+                        r.TaskName,
+                        r.ResultState,
+                        r.Value,
+                        r.HiddenHazardContent,
+                        r.MaintenanceInstructions,
+                        r.Remarks
+                    })
+                    .ToList()
             })
             .OrderBy(x => x.ElectricRoom)
             .ThenBy(x => x.EquipmentName)
@@ -169,7 +197,6 @@ public class ReportService
             .SelectMany(task =>
             {
                 var product = productDict[task.Productid];
-
                 if (!product.Equipid.HasValue || !equipments.ContainsKey(product.Equipid.Value))
                     return Enumerable.Empty<ReportFailResultDto>();
 
@@ -188,6 +215,7 @@ public class ReportService
                         var itemAttachments = attachments
                             .Where(a => a.Taskitemid == x.Item.Itemid)
                             .Select(a => ResolveAttachmentPath(a.Filepath))
+                            .Distinct()
                             .Take(4)
                             .ToList();
 
@@ -208,6 +236,9 @@ public class ReportService
                             TaskName = x.Item.Taskname ?? string.Empty,
                             Value = GetJsonValue(x.Item.Taskresult, "value"),
                             Resolution = GetResolutionText(x.Item.Taskresult),
+                            ActionTaken = GetJsonValue(x.Item.Taskresult, "actionTaken"),
+                            HazardResolved = GetJsonValue(x.Item.Taskresult, "hazardResolved"),
+                            RecommendationContent = GetJsonValue(x.Item.Taskresult, "recommendationContent"),
                             Photo1 = itemAttachments[0],
                             Photo2 = itemAttachments[1],
                             Photo3 = itemAttachments[2],
@@ -215,13 +246,28 @@ public class ReportService
                         };
                     });
             })
+            .DistinctBy(x => new
+            {
+                x.ElectricRoom,
+                x.EquipmentName,
+                x.Factory,
+                x.Mlfb,
+                x.EquipmentNumber,
+                x.Serialno,
+                x.CategoryPath,
+                x.TaskName,
+                x.Value,
+                x.Resolution,
+                x.HazardResolved,
+                x.RecommendationContent,
+                x.ActionTaken
+            })
             .ToList();
 
-        var productCount = products.Count;
-        var equipmentCount = projectEquipments.Count;
-        var taskCount = tasks.Count;
+        var reportsRoot = Path.Combine(_env.ContentRootPath, "Reports");
+        Directory.CreateDirectory(reportsRoot);
 
-        var templatePath = Path.Combine(_env.ContentRootPath, "Reports", "reportTemplate.docx");
+        var templatePath = Path.Combine(reportsRoot, "reportTemplate.docx");
         if (!File.Exists(templatePath))
             throw new FileNotFoundException("报告模板不存在", templatePath);
 
@@ -237,6 +283,20 @@ public class ReportService
         await fileStream.CopyToAsync(memoryStream);
         memoryStream.Position = 0;
 
+        var abnormalCount = taskitems.Count(x =>
+            string.Equals(
+                GetJsonValue(x.Taskresult, "resultState"),
+                "abnormal",
+                StringComparison.OrdinalIgnoreCase));
+
+        var normalCount = taskitems.Count(x =>
+            string.Equals(
+                GetJsonValue(x.Taskresult, "resultState"),
+                "normal",
+                StringComparison.OrdinalIgnoreCase));
+
+        var totalCount = abnormalCount + normalCount;
+
         using (var wordDoc = WordprocessingDocument.Open(memoryStream, true))
         {
             var mainPart = wordDoc.MainDocumentPart
@@ -244,16 +304,23 @@ public class ReportService
 
             var document = mainPart.Document ?? throw new InvalidOperationException("Word 模板缺少 Document");
 
-            ReplacePlaceholder(document, "{$ProjectName}", projectName);
-            ReplacePlaceholder(document, "{$companyname}", companyName);
+            ReplacePlaceholder(document, "{$projectname}", projectName ?? "");
+            ReplacePlaceholder(document, "{$city}", "");
+            ReplacePlaceholder(document, "{$companyname}", companyName ?? "");
             ReplacePlaceholder(document, "{$Createdate}", project.Createdate.ToString("yyyy-MM-dd"));
-          //  ReplacePlaceholder(document, "{$EquipmentCount}", equipmentCount.ToString());
-          //  ReplacePlaceholder(document, "{$ProductCount}", productCount.ToString());
-         //   ReplacePlaceholder(document, "{$TaskCount}", taskCount.ToString());
-         //   ReplacePlaceholder(document, "{$factory}", factory);
-            ReplacePlaceholder(document, "{$leadEngineer}", leadEngineer);
+            ReplacePlaceholder(document, "{$serviceId}", "");
+            ReplacePlaceholder(document, "{$customerContact}", "");
+            ReplacePlaceholder(document, "{$siemensContact}", "");
+            ReplacePlaceholder(document, "{$startDate}", "");
+            ReplacePlaceholder(document, "{$endDate}", "");
+            ReplacePlaceholder(document, "{$reportCreateDate}", "");
+            ReplacePlaceholder(document, "{$leadEngineer}", leadEngineer ?? "");
             ReplacePlaceholder(document, "{$SummaryDescription}", report.Summarydescription ?? string.Empty);
             ReplacePlaceholder(document, "{$SparePartsRecommendation}", report.Sparepartsrecommendation ?? string.Empty);
+
+            ReplacePlaceholder(document, "{$total}", totalCount.ToString());
+            ReplacePlaceholder(document, "{$abnormal}", abnormalCount.ToString());
+            ReplacePlaceholder(document, "{$normal}", normalCount.ToString());
 
             var maintainElements = new List<OpenXmlElement>();
             foreach (var eq in reportEquipments)
@@ -271,27 +338,34 @@ public class ReportService
             {
                 detailElements.Add(CreateEmptyParagraph());
                 detailElements.Add(CreateHeading2Paragraph(
-                    $"5.{detailIndex} {group.ElectricRoom}>>{group.EquipmentName}>>{group.EquipmentNumber}"));
+                    $"6.{detailIndex} {group.ElectricRoom}>>{group.EquipmentName}>>{group.EquipmentNumber}"));
                 detailElements.Add(CreateDetailTable(group));
                 detailIndex++;
             }
             ReplacePlaceholderWithElements(document, "{$detailList}", detailElements);
 
-            var failElements = new List<OpenXmlElement>();
+            var resolvedElements = new List<OpenXmlElement>();
+            var unResolvedElements = new List<OpenXmlElement>();
             foreach (var item in failResults)
             {
-                failElements.Add(CreateEmptyParagraph());
-                failElements.Add(CreateFailResultTable(item, item?.Factory??"", mainPart));
+                if (item.HazardResolved == "true")
+                {
+                    resolvedElements.Add(CreateResolvedFailResultTable(item, item?.Factory ?? "", mainPart));
+                }
+                else
+                {
+                    unResolvedElements.Add(CreateUnresolvedFailResultTable(item, item?.Factory ?? "", mainPart));
+                }
             }
-            ReplacePlaceholderWithElements(document, "{$failresults}", failElements);
+
+            ReplacePlaceholderWithElements(document, "{$resolvedProblems}", resolvedElements);
+            ReplacePlaceholderWithElements(document, "{$unresolvedProblems}", unResolvedElements);
 
             document.Save();
         }
 
         var fileName = $"项目报告_{projectId}_{DateTime.Now:yyyyMMddHHmmss}.docx";
-        var reportDirectory = Path.GetDirectoryName(templatePath)
-            ?? throw new InvalidOperationException("无法获取模板目录");
-        var outputPath = Path.Combine(reportDirectory, fileName);
+        var outputPath = Path.Combine(reportsRoot, fileName);
 
         await File.WriteAllBytesAsync(outputPath, memoryStream.ToArray());
 
@@ -341,7 +415,7 @@ public class ReportService
             : GetJsonValue(json, "recommendationContent");
     }
 
-    private static Table CreateFailResultTable(ReportFailResultDto item, string factory, MainDocumentPart mainPart)
+    private static Table CreateResolvedFailResultTable(ReportFailResultDto item, string factory, MainDocumentPart mainPart)
     {
         var table = CreateBaseTable(3);
 
@@ -362,16 +436,54 @@ public class ReportService
 
         table.Append(
         CreateFailRightSpanRowContinue(
-        "问题描述：",
-        item.CategoryPath,
-        $"{item.TaskName} : {item.Value}")
+        $"问题描述：{item.CategoryPath}",
+        $"{item.TaskName} : {item.Value}",string.Empty)
         );
 
         table.Append(
             CreateFailRightSpanRowContinue(
-                "解决措施或建议：",
-                item.Resolution,
+                "问题处理说明：",
+                item.ActionTaken,
                 string.Empty)
+        );
+
+        table.Append(CreateFailPhotoRow(mainPart, item.Photo1, item.Photo2));
+        table.Append(CreateFailPhotoRow(mainPart, item.Photo3, item.Photo4));
+
+        return table;
+    }
+
+
+    private static Table CreateUnresolvedFailResultTable(ReportFailResultDto item, string factory, MainDocumentPart mainPart)
+    {
+        var table = CreateBaseTable(3);
+
+        table.Append(CreateSpanRow($"{factory}车间隐患以及解决措施", 3, true));
+
+        table.Append(
+            CreateFailThreeColumnRowStart(
+                item.ElectricRoom,
+                $"设备名称:{item.EquipmentName}",
+                $"设备型号:{item.Mlfb}")
+        );
+
+        table.Append(
+            CreateFailThreeColumnRowContinue(
+                $"设备编号:{item.EquipmentNumber}",
+                $"序列号:{item.Serialno}")
+        );
+
+        table.Append(
+        CreateFailRightSpanRowContinue(
+        $"检测项目：{item.CategoryPath}",
+        $"问题描述：{item.TaskName} : {item.Value}",
+        string.Empty)
+        );
+
+        table.Append(
+            CreateFailRightSpanRowContinue(
+                $"隐患说明及建议：{item.RecommendationContent}",
+                string.Empty,string.Empty)
         );
 
         table.Append(CreateFailPhotoRow(mainPart, item.Photo1, item.Photo2));
@@ -580,9 +692,9 @@ public class ReportService
     }
 
     private static void ReplacePlaceholderWithElements(
-        Document document,
-        string placeholder,
-        IEnumerable<OpenXmlElement> elements)
+     Document document,
+     string placeholder,
+     IEnumerable<OpenXmlElement> elements)
     {
         var paragraph = document
             .Descendants<Paragraph>()
@@ -595,7 +707,16 @@ public class ReportService
         if (parent == null)
             return;
 
-        foreach (var element in elements)
+        var elementList = elements?.ToList() ?? new List<OpenXmlElement>();
+
+        if (elementList.Count == 0)
+        {
+            parent.InsertBefore(CreateEmptyParagraph(), paragraph);
+            paragraph.Remove();
+            return;
+        }
+
+        foreach (var element in elementList)
         {
             parent.InsertBefore(element.CloneNode(true), paragraph);
         }
@@ -1042,6 +1163,7 @@ public class ReportDetailRowDto
     public string? HiddenHazardContent { get; set; }
     public string? MaintenanceInstructions { get; set; }
     public string? Remarks { get; set; }
+    public string? HazardResolved { get; set; } = null;
 }
 
 public class ReportEquipmentDto
@@ -1077,7 +1199,13 @@ public class ReportFailResultDto
     public string? CategoryPath { get; set; }
     public string? TaskName { get; set; }
     public string? Value { get; set; }
-    public string? Resolution { get; set; }
+    public string? Resolution { get; set; }   
+
+    public string? HazardResolved { get; set; }
+
+    public string? RecommendationContent { get; set; }
+
+    public string? ActionTaken { get; set; }
     public string? Photo1 { get; set; }
     public string? Photo2 { get; set; }
     public string? Photo3 { get; set; }
