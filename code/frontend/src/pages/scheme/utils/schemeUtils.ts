@@ -5,6 +5,7 @@
 export interface SchemeItem {
   id: string;
   name: string;
+  sortOrder?: number;
   // 模板标准字段
   dataType?: string;
   priority?: string;

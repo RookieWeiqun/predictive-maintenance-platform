@@ -674,12 +674,14 @@ async function setupFromOfflineTask(taskUuid: string): Promise<boolean> {
     return false;
   }
 
+  const { taskType, taskTypeLabel } = taskTypeFromInspectionType(offlineTask.inspection_type);
+
   taskInfo.value = {
     id: offlineTask.task_no || taskUuid,
     schemeName: offlineTask.scheme_name || '-',
     schemeId: offlineTask.scheme_id,
-    taskType: 'equipment',
-    taskTypeLabel: '离线任务',
+    taskType,
+    taskTypeLabel,
     deviceModel: offlineTask.device_model || '-',
     projectId: offlineTask.project_id || '',
     projectNo: '',
@@ -913,6 +915,16 @@ function buildTaskItemUuid(taskItemId: string): string {
   return `${routeTaskId.value}:${taskItemId}`;
 }
 
+function taskTypeFromInspectionType(inspectionType: string | number | null | undefined): {
+  taskType: string;
+  taskTypeLabel: string;
+} {
+  if (Number(inspectionType) === 1) {
+    return { taskType: 'equipment', taskTypeLabel: '设备检测' };
+  }
+  return { taskType: 'peripheral', taskTypeLabel: '外围检测' };
+}
+
 function getTaskPhotos(taskId: string): TaskPhotoView[] {
   return taskPhotoMap.value[taskId] ?? [];
 }
@@ -1020,9 +1032,22 @@ function getPrimaryTaskFieldValue(task: any): string | null {
   return primaryField ? serializeTaskValue(primaryField.value) : null;
 }
 
+function buildOfflineDataFields(task: any): Record<string, string> {
+  const fields = Array.isArray(task.dataFields) ? task.dataFields : [];
+  return fields.reduce((acc: Record<string, string>, field: any) => {
+    const serialized = serializeTaskValue(field?.value);
+    if (serialized != null) {
+      acc[String(field.id)] = serialized;
+    }
+    return acc;
+  }, {});
+}
+
 function buildOfflineResult(task: any): string {
+  const dataFields = buildOfflineDataFields(task);
   return JSON.stringify({
     value: getPrimaryTaskFieldValue(task),
+    dataFields,
     remarks: task.remarks || '',
     resultState: task.result || '',
     hazardResolved:
@@ -1082,12 +1107,17 @@ async function loadOfflineTaskItems(): Promise<void> {
       ? record.task_item_uuid.slice(routeTaskId.value.length + 1)
       : record.task_item_uuid;
     const payload = parseOfflineResult(record.result);
+    const existingTaskData = taskDataMap.value[itemId] ?? {};
+    const resolvedDataFields =
+      payload.dataFields && Object.keys(payload.dataFields).length > 0
+        ? payload.dataFields
+        : existingTaskData.dataFields ?? {};
     taskDataMap.value[itemId] = {
-      ...(taskDataMap.value[itemId] ?? {}),
+      ...existingTaskData,
       value: payload.value ?? '',
       result: payload.resultState ?? payload.result ?? '',
       remarks: payload.remarks ?? '',
-      dataFields: payload.dataFields ?? {},
+      dataFields: resolvedDataFields,
       displayCondition: record.display_condition ?? '',
       operationGuide: record.operation_guide ?? '',
       suggestionRule: record.recommended_rules ?? '',

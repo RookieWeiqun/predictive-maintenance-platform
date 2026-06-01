@@ -11,6 +11,10 @@ export type ReportDto = {
   sparepartsrecommendation?: string | null;
 };
 
+type GenerateReportResponse = {
+  filePath?: string | null;
+};
+
 function unwrap<T>(res: ApiEnvelope<T>): T {
   if (res.code !== 0) {
     throw new ApiError(res.msg || `业务错误 code=${res.code}`, res.code);
@@ -89,4 +93,36 @@ export async function updateReport(payload: ReportDto, init?: RequestInit): Prom
     body: JSON.stringify(buildPayload(payload)),
   });
   return unwrap(res);
+}
+
+export async function generateProjectReport(projectid: number): Promise<string> {
+  const res = await requestJson<ApiEnvelope<GenerateReportResponse>>(`/api/Reports/Generate/${projectid}`);
+  const data = unwrap(res);
+  const filePath = String(data?.filePath ?? '').trim();
+  if (!filePath) {
+    throw new ApiError('报告导出成功，但后端未返回文件路径');
+  }
+  return filePath;
+}
+
+export function resolveReportDownloadUrl(filePath: string): string {
+  const normalized = String(filePath ?? '').trim().replace(/\\/g, '/');
+  if (!normalized) {
+    throw new ApiError('报告下载路径为空');
+  }
+  if (/^https?:\/\//i.test(normalized)) return normalized;
+
+  const publicPath = normalized.startsWith('/app/Reports/')
+    ? normalized.replace(/^\/app/, '')
+    : normalized.startsWith('/Reports/')
+      ? normalized
+      : null;
+
+  if (!publicPath) {
+    throw new ApiError(`不支持的报告下载路径：${normalized}`);
+  }
+
+  const rawBase = String(import.meta.env.VITE_API_BASE_URL ?? '').trim().replace(/\/+$/, '');
+  if (!rawBase) return publicPath;
+  return `${rawBase}${publicPath}`;
 }

@@ -244,6 +244,7 @@ export function importInspectionItemsFromExcel(file: File): Promise<SchemeItem[]
           const detectionItem: SchemeItem = {
             id: `import-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}`,
             name: itemName,
+            sortOrder: index + 1,
             dataType: validatedRule.valueType,
             operationGuide: getString(getFirstValue(row, OPERATION_GUIDE_KEYS)) || undefined,
             displayCondition: getString(getFirstValue(row, DISPLAY_CONDITION_KEYS)) || undefined,

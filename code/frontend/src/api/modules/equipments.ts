@@ -88,15 +88,15 @@ export async function listEquipmentsByProject(projectid: number): Promise<Equipm
 }
 
 export async function listEquipments(): Promise<EquipmentDto[]> {
-  const res = await requestJson<ApiEnvelope<EquipmentDto[]>>('/api/Equipments');
-  return unwrap(res);
+  const res = await requestJson<ApiEnvelope<unknown[]>>('/api/Equipments');
+  return unwrap(res).map(mapEquipmentRow);
 }
 
 export async function listEquipmentsByCompany(companyid: number): Promise<EquipmentDto[]> {
-  const res = await requestJson<ApiEnvelope<EquipmentDto[]>>(
+  const res = await requestJson<ApiEnvelope<unknown[]>>(
     `/api/Equipments/ByCompany/${companyid}`,
   );
-  return unwrap(res);
+  return unwrap(res).map(mapEquipmentRow);
 }
 
 export async function createEquipment(payload: EquipmentDto): Promise<EquipmentDto> {
