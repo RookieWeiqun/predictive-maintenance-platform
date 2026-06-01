@@ -124,23 +124,61 @@ namespace premaintainProjects.Controllers
             return new JsonResult(new { code = ResponseCode.成功, data = inspectionTemplate.Templateid, msg = "" });
         }
 
+
         // DELETE: api/InspectionTemplates/5
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteInspectionTemplate(int id)
         {
-            var template = await _context.InspectionTemplates.FindAsync(id);
-            if (template == null)
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+
+            try
             {
-                _logger.LogWarning("删除失败，巡检模板不存在，ID：{Id}", id);
-                return new JsonResult(new { code = ResponseCode.记录不存在, data = (object)null, msg = "记录不存在" });
+                var template = await _context.InspectionTemplates.FindAsync(id);
+                if (template == null)
+                {
+                    _logger.LogWarning("删除失败，巡检模板不存在，ID：{Id}", id);
+                    return new JsonResult(new { code = ResponseCode.记录不存在, data = (object)null, msg = "记录不存在" });
+                }
+
+                var inspectionItems = await _context.InspectionItems
+                    .Where(x => x.Templateid == id)
+                    .ToListAsync();
+
+                if (inspectionItems.Count > 0)
+                {
+                    _context.InspectionItems.RemoveRange(inspectionItems);
+                }
+
+                var categories = await _context.InspectionCategories
+                    .Where(x => x.Templateid == id)
+                    .ToListAsync();
+
+                if (categories.Count > 0)
+                {
+                    _context.InspectionCategories.RemoveRange(categories);
+                }
+
+                _context.InspectionTemplates.Remove(template);
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                _logger.LogInformation("删除巡检模板及分类/检查项成功，ID：{Id}", id);
+                return new JsonResult(new { code = ResponseCode.成功, data = id, msg = "" });
             }
-
-            _context.InspectionTemplates.Remove(template);
-            await _context.SaveChangesAsync();
-
-            _logger.LogInformation("删除巡检模板成功，ID：{Id}", id);
-            return new JsonResult(new { code = ResponseCode.成功, data = id, msg = "" });
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                _logger.LogError(ex, "删除巡检模板失败，ID：{Id}", id);
+                return new JsonResult(new
+                {
+                    code = ResponseCode.操作失败,
+                    data = (object)null,
+                    msg = ex.InnerException?.Message ?? ex.Message
+                });
+            }
         }
+
 
         private bool InspectionTemplateExists(int id)
         {

@@ -28,7 +28,7 @@ namespace premaintainProjects.Controllers
         [HttpGet]
         public async Task<IActionResult> GetProjects()
         {
-            var projects = await _context.Projects.Where(p => p.Ifdel != true).ToListAsync();
+            var projects = await _context.Projects.Where(p => p.Ifdel ==false).ToListAsync();
             _logger.LogInformation("获取所有项目，数量：{Count}", projects.Count);
             return new JsonResult(new { code = ResponseCode.成功, data = projects, msg = "" });
         }
@@ -113,39 +113,101 @@ namespace premaintainProjects.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteProject(int id)
         {
-            using var transaction = await _context.Database.BeginTransactionAsync();
+            await using var transaction = await _context.Database.BeginTransactionAsync();
 
-            var project = await _context.Projects.FindAsync(id);
-            if (project == null)
+            try
             {
-                _logger.LogWarning("删除失败，项目不存在，ID：{Id}", id);
-                return new JsonResult(new { code = ResponseCode.记录不存在, data = (object)null, msg = "记录不存在" });
+                // 任务逻辑删除
+                var inspectionTasks = await _context.InspectionTasks
+                    .Where(x => x.Projectid == id)
+                    .ToListAsync();
+
+                // inspectionTasks.ForEach(x => x.Ifdel = true);
+                if(inspectionTasks.Count>0)
+                _context.InspectionTasks.RemoveRange(inspectionTasks);
+
+                var taskIds = inspectionTasks
+                    .Select(x => x.Taskid)
+                    .ToList();
+
+                // 删除任务项
+                var taskitems = taskIds.Count == 0
+                    ? new List<Taskitem>()
+                    : await _context.Taskitems
+                        .Where(x => x.Taskid.HasValue && taskIds.Contains(x.Taskid.Value))
+                        .ToListAsync();
+
+                var taskitemIds = taskitems
+                    .Select(x => x.Itemid)
+                    .ToList();
+
+                // 删除附件
+                var attachments = (taskIds.Count == 0 && taskitemIds.Count == 0)
+                    ? new List<Attachment>()
+                    : await _context.Attachments
+                        .Where(x =>
+                            (x.Taskid.HasValue && taskIds.Contains(x.Taskid.Value)) ||
+                            taskitemIds.Contains(x.Taskitemid))
+                        .ToListAsync();
+
+                if (attachments.Count > 0)
+                {
+                    _context.Attachments.RemoveRange(attachments);
+                }
+
+                if (taskitems.Count > 0)
+                {
+                    _context.Taskitems.RemoveRange(taskitems);
+                }
+
+                // 项目设备逻辑删除
+                var projectEquipments = await _context.ProjectEquipments
+                    .Where(x => x.Projectid == id)
+                    .ToListAsync();
+
+             //   projectEquipments.ForEach(x => x.Ifdel = true);
+                if(projectEquipments.Count > 0)
+                    _context.ProjectEquipments.RemoveRange(projectEquipments);
+
+                // 报告逻辑删除
+                var reports = await _context.Reports
+                    .Where(x => x.Projectid == id)
+                    .ToListAsync();
+
+                //  reports.ForEach(x => x.Ifdel = true);
+                if(reports.Count>0)
+                _context.Reports.RemoveRange(reports);
+
+                var project = await _context.Projects.FindAsync(id);
+                /*
+                if (project == null)
+                {
+                    _logger.LogWarning("删除失败，项目不存在，ID：{Id}", id);
+                    return new JsonResult(new { code = ResponseCode.记录不存在, data = (object)null, msg = "记录不存在" });
+                }
+                */
+                // 项目逻辑删除
+                //  project.Ifdel = true;
+                if (project != null)
+                    _context.Projects.Remove(project);
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                _logger.LogInformation("删除项目成功，ID：{Id}", id);
+                return new JsonResult(new { code = ResponseCode.成功, data = id, msg = "" });
             }
-
-            // 项目逻辑删除
-            project.Ifdel = true;
-
-            // 下面这些表需要先确认模型里都有 Ifdel 字段
-            var inspectionTasks = await _context.InspectionTasks
-                .Where(x => x.Projectid == id)
-                .ToListAsync();
-            inspectionTasks.ForEach(x => x.Ifdel = true);
-
-            var projectEquipments = await _context.ProjectEquipments
-                .Where(x => x.Projectid == id)
-                .ToListAsync();
-            projectEquipments.ForEach(x => x.Ifdel = true);
-
-            var reports = await _context.Reports
-                .Where(x => x.Projectid == id)
-                .ToListAsync();
-            reports.ForEach(x => x.Ifdel = true);
-
-            await _context.SaveChangesAsync();
-            await transaction.CommitAsync();
-
-            _logger.LogInformation("删除项目成功，ID：{Id}", id);
-            return new JsonResult(new { code = ResponseCode.成功, data = id, msg = "" });
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                _logger.LogError(ex, "删除项目失败，ID：{Id}", id);
+                return new JsonResult(new
+                {
+                    code = ResponseCode.操作失败,
+                    data = (object)null,
+                    msg = ex.InnerException?.Message ?? ex.Message
+                });
+            }
         }
 
         private bool ProjectExists(int id)
