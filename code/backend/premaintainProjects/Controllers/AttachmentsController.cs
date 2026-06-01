@@ -214,7 +214,8 @@ namespace premaintainProjects.Controllers
                     Attaid = attaid,
                     Taskitemid = dto.Itemid,
                     Filepath = relativePath,
-                    Taskid = dto.Taskid
+                    Taskid = dto.Taskid,
+                    Filename = dto.filename
                 };
 
                 _context.Attachments.Add(attachment);

@@ -30,4 +30,11 @@
     <Folder Include="Attach\" />
   </ItemGroup>
 
+	<ItemGroup>
+		<Content Include="Reports\reportTemplate.docx">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+			<CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+		</Content>
+	</ItemGroup>
+
 </Project>

@@ -268,8 +268,9 @@ public class ReportService
         Directory.CreateDirectory(reportsRoot);
 
         var templatePath = Path.Combine(reportsRoot, "reportTemplate.docx");
+
         if (!File.Exists(templatePath))
-            throw new FileNotFoundException("报告模板不存在", templatePath);
+            throw new FileNotFoundException($"报告模板不存在：{templatePath}", templatePath);
 
         var projectName = project.Projectname ?? string.Empty;
         var companyName = company?.Companyname ?? string.Empty;

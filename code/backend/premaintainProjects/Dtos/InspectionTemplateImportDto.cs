@@ -158,6 +158,8 @@ public class InspectionItemImportDto
     {
         public Guid Itemid { get; set; }
         public int? Taskid { get; set; }
+
+        public string? filename { get; set; }
         public List<IFormFile> Files { get; set; } = new();
     }
 }
