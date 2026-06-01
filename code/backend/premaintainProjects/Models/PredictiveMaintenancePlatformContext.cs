@@ -60,6 +60,9 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
             entity.Property(e => e.Attaid)
                 .HasDefaultValueSql("gen_random_uuid()")
                 .HasColumnName("attaid");
+            entity.Property(e => e.Filename)
+                .HasMaxLength(50)
+                .HasColumnName("filename");
             entity.Property(e => e.Filepath)
                 .HasColumnType("character varying")
                 .HasColumnName("filepath");

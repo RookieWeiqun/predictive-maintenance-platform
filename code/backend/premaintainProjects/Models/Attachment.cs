@@ -12,4 +12,6 @@ public partial class Attachment
     public string Filepath { get; set; } = null!;
 
     public int? Taskid { get; set; }
+
+    public string? Filename { get; set; }
 }
