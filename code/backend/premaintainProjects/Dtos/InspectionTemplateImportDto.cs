@@ -139,6 +139,8 @@ public class InspectionItemImportDto
         public string? Operationguide { get; set; }
 
         public List<Attachment> Attachments { get; set; } = new();
+
+        public int SortOrder { get; set; }
     }
     public class InspectionTaskDetailDto
     {

@@ -100,40 +100,41 @@ namespace premaintainProjects.Controllers
                 return new JsonResult(new { code = ResponseCode.记录不存在, data = (object)null, msg = "记录不存在" });
             }
 
-            existingTask.Projectid = inspectionTask.Projectid;
-            existingTask.Templateid = inspectionTask.Templateid;
-            existingTask.Productid = inspectionTask.Productid;
-            existingTask.Status = inspectionTask.Status;
-            existingTask.TaskNo = inspectionTask.TaskNo;
-            existingTask.Assigneduserid = inspectionTask.Assigneduserid;
-            existingTask.Inspectiontype = inspectionTask.Inspectiontype;
-            existingTask.Ifdel = inspectionTask.Ifdel;
-            existingTask.Version = inspectionTask.Version;
-            existingTask.Assignedusername = inspectionTask.Assignedusername;
-            existingTask.DownloadedAt = _serviceTools.NormalizeChinaTime(inspectionTask.DownloadedAt);
-            existingTask.LocalUpdatedAt = _serviceTools.NormalizeChinaTime(inspectionTask.LocalUpdatedAt);         
-            existingTask.DownloadDeviceName = inspectionTask.DownloadDeviceName;
+            _context.Entry(existingTask).CurrentValues.SetValues(inspectionTask);
 
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                _logger.LogError("更新巡检任务时发生并发异常，ID：{Id}", inspectionTask.Taskid);
-                throw;
-            }
+            existingTask.DownloadedAt = _serviceTools.NormalizeChinaTime(inspectionTask.DownloadedAt);
+            existingTask.LocalUpdatedAt = _serviceTools.NormalizeChinaTime(inspectionTask.LocalUpdatedAt);
+
+            await _context.SaveChangesAsync();
 
             _logger.LogInformation("更新巡检任务成功，ID：{Id}，版本：{Version}", inspectionTask.Taskid, inspectionTask.Version);
             return new JsonResult(new { code = ResponseCode.成功, data = inspectionTask.Taskid, msg = "" });
-        }       
-
+        }
 
         [HttpPut("{id}/detail")]
-        public async Task<IActionResult> PutInspectionTaskDetail([FromBody] UpdateInspectionTaskDetailDto dto)
+        public async Task<IActionResult> PutInspectionTaskDetail(int id, [FromBody] UpdateInspectionTaskDetailDto dto)
         {
+            if (dto == null || dto.Task == null)
+            {
+                return new JsonResult(new
+                {
+                    code = ResponseCode.操作失败,
+                    data = (object)null,
+                    msg = "请求数据不能为空"
+                });
+            }
 
-            using var transaction = await _context.Database.BeginTransactionAsync();
+            if (id != dto.Task.Taskid)
+            {
+                return new JsonResult(new
+                {
+                    code = ResponseCode.操作失败,
+                    data = (object)null,
+                    msg = "路由ID与任务ID不一致"
+                });
+            }
+
+            await using var transaction = await _context.Database.BeginTransactionAsync();
 
             try
             {
@@ -145,19 +146,9 @@ namespace premaintainProjects.Controllers
                 }
 
                 // 更新 task 主表
-                existingTask.Projectid = dto.Task.Projectid;
-                existingTask.Templateid = dto.Task.Templateid;
-                existingTask.Productid = dto.Task.Productid;
-                existingTask.Status = dto.Task.Status;
-                existingTask.TaskNo = dto.Task.TaskNo;
-                existingTask.Assigneduserid = dto.Task.Assigneduserid;
-                existingTask.Inspectiontype = dto.Task.Inspectiontype;
-                existingTask.Ifdel = dto.Task.Ifdel;
-                existingTask.Version = dto.Task.Version;
-                existingTask.Assignedusername = dto.Task.Assignedusername;
+                _context.Entry(existingTask).CurrentValues.SetValues(dto.Task);
                 existingTask.DownloadedAt = _serviceTools.NormalizeChinaTime(dto.Task.DownloadedAt);
                 existingTask.LocalUpdatedAt = _serviceTools.NormalizeChinaTime(dto.Task.LocalUpdatedAt);
-                existingTask.DownloadDeviceName = dto.Task.DownloadDeviceName;
 
                 // 取现有 items
                 var existingItems = await _context.Taskitems
@@ -176,7 +167,6 @@ namespace premaintainProjects.Controllers
                 var inspectionItemMap = await _context.InspectionItems
                     .Where(x => inspectionItemIds.Contains(x.Itemid))
                     .ToDictionaryAsync(x => x.Itemid);
-                // 传入中已有ID
 
                 var inputIds = inputItems
                     .Where(x => x.Itemid != Guid.Empty)
@@ -207,10 +197,10 @@ namespace premaintainProjects.Controllers
                 // 新增 / 更新 items
                 foreach (var input in inputItems)
                 {
+                    inspectionItemMap.TryGetValue(input.Inspectionitemid ?? 0, out var sourceInspectionItem);
+
                     if (input.Itemid != Guid.Empty && existingItemMap.TryGetValue(input.Itemid, out var existingItem))
                     {
-                        inspectionItemMap.TryGetValue(input.Inspectionitemid ?? 0, out var sourceInspectionItem);
-
                         existingItem.Inspectionitemid = input.Inspectionitemid;
                         existingItem.Taskname = input.Taskname;
                         existingItem.Categorypath = input.Categorypath;
@@ -220,19 +210,18 @@ namespace premaintainProjects.Controllers
                         existingItem.ExecutionStatus = input.ExecutionStatus;
                         existingItem.Updatetime = _serviceTools.NowInChina();
                         existingItem.SourceType = input.SourceType;
-                        existingItem.Taskid = input.Taskid;
+                        existingItem.Taskid = dto.Task.Taskid;
+                        existingItem.SortOrder = input.SortOrder;
+
                         existingItem.Operationguide = sourceInspectionItem?.Operationguide;
                         existingItem.Displaycondition = sourceInspectionItem?.Displaycondition;
                         existingItem.Hiddenhazardcontent = sourceInspectionItem?.Hiddenhazardcontent;
                         existingItem.Maintenanceinstructions = sourceInspectionItem?.Maintenanceinstructions;
                         existingItem.Recommendationcontent = sourceInspectionItem?.Recommendationcontent;
                         existingItem.Recommendedrules = sourceInspectionItem?.Recommendedrules;
-
                     }
                     else
                     {
-                        inspectionItemMap.TryGetValue(input.Inspectionitemid ?? 0, out var sourceInspectionItem);
-
                         var newItem = new Taskitem
                         {
                             Itemid = Guid.NewGuid(),
@@ -247,6 +236,7 @@ namespace premaintainProjects.Controllers
                             ExecutionStatus = input.ExecutionStatus,
                             Updatetime = _serviceTools.NowInChina(),
                             SourceType = input.SourceType,
+                            SortOrder = input.SortOrder,
                             Operationguide = sourceInspectionItem?.Operationguide,
                             Displaycondition = sourceInspectionItem?.Displaycondition,
                             Hiddenhazardcontent = sourceInspectionItem?.Hiddenhazardcontent,
@@ -254,6 +244,7 @@ namespace premaintainProjects.Controllers
                             Recommendationcontent = sourceInspectionItem?.Recommendationcontent,
                             Recommendedrules = sourceInspectionItem?.Recommendedrules
                         };
+
                         _context.Taskitems.Add(newItem);
                     }
                 }
@@ -337,6 +328,7 @@ namespace premaintainProjects.Controllers
                 Maintenanceinstructions = item.Maintenanceinstructions,
                 Recommendationcontent = item.Recommendationcontent,
                 Recommendedrules = item.Recommendedrules,
+                SortOrder = item.SortOrder,
                 Operationguide = item.Operationguide
             }).ToList();
 
@@ -397,6 +389,7 @@ namespace premaintainProjects.Controllers
                 Recommendationcontent = item.Recommendationcontent,
                 Recommendedrules = item.Recommendedrules,
                 Operationguide = item.Operationguide,
+                SortOrder = item.SortOrder,
                 
                 Attachments = attachments
                     .Where(a => a.Taskitemid == item.Itemid)

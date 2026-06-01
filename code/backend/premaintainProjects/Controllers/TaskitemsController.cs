@@ -87,24 +87,12 @@ namespace premaintainProjects.Controllers
             var existing = await _context.Taskitems.FindAsync(taskitem.Itemid);
             if (existing == null)
             {
-                _logger.LogWarning("更新失败，任务项不存在，ID：{Id}", taskitem.Itemid);
                 return new JsonResult(new { code = ResponseCode.记录不存在, data = (object)null, msg = "记录不存在" });
             }
 
-            existing.Taskid = taskitem.Taskid;
-            existing.Taskname = taskitem.Taskname;
-            existing.Categorypath = taskitem.Categorypath;
-            existing.Taskresult = taskitem.Taskresult;
-            existing.Isnormal = taskitem.Isnormal;
-            existing.Isrecheck = taskitem.Isrecheck;
-            existing.ExecutionStatus = taskitem.ExecutionStatus;
-            existing.SourceType = taskitem.SourceType;
-            existing.Inspectionitemid = taskitem.Inspectionitemid;
+            _context.Entry(existing).CurrentValues.SetValues(taskitem);
             existing.Updatetime = _serviceTools.NowInChina();
             existing.Createtime = _serviceTools.NormalizeChinaTime(taskitem.Createtime);
-            existing.Itemid = taskitem.Itemid;            
-
-            //  await _serviceTools.RefreshRenderSchemaAsync(existing);
 
             await _context.SaveChangesAsync();
 

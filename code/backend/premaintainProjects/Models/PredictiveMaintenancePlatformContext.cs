@@ -408,6 +408,9 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
             entity.Property(e => e.RenderSchemaJson)
                 .HasColumnType("jsonb")
                 .HasColumnName("render_schema_json");
+            entity.Property(e => e.SortOrder)
+                .HasDefaultValue(1)
+                .HasColumnName("sort_order");
             entity.Property(e => e.SourceType)
                 .HasDefaultValue((short)1)
                 .HasComment("1. system_generated\r\n2.manual_added")

@@ -108,6 +108,7 @@ public class ReportService
                     Equipmentid = pe.Equipmentid,
                     Factory = equipment.Factory,
                     ElectricRoom = equipment.Electricroom,
+                    Workshop = equipment.Workshop,
                     Mlfb = equipment.Mlfb,
                     Products = products
                         .Where(p => p.Equipid.HasValue && p.Equipid.Value == pe.Equipmentid)
@@ -258,7 +259,7 @@ public class ReportService
             foreach (var eq in reportEquipments)
             {
                 maintainElements.Add(CreateEmptyParagraph());
-                maintainElements.Add(CreateTextParagraph($"{companyName}公司{eq.Factory}车间西门子驱动装置维护清单", true));
+                maintainElements.Add(CreateTextParagraph($"{companyName}公司{eq.Factory}{eq.Workshop}西门子驱动装置维护清单", true));
                 maintainElements.Add(CreateEquipmentTable(eq));
             }
             maintainElements.Add(CreatePageBreakParagraph());
@@ -360,13 +361,17 @@ public class ReportService
         );
 
         table.Append(
-            CreateFailRightSpanRowContinue(
-                $"问题描述：{Environment.NewLine}{item.CategoryPath}{Environment.NewLine}{item.TaskName} : {item.Value}")
+        CreateFailRightSpanRowContinue(
+        "问题描述：",
+        item.CategoryPath,
+        $"{item.TaskName} : {item.Value}")
         );
 
         table.Append(
             CreateFailRightSpanRowContinue(
-                $"解决措施或建议：{item.Resolution}")
+                "解决措施或建议：",
+                item.Resolution,
+                string.Empty)
         );
 
         table.Append(CreateFailPhotoRow(mainPart, item.Photo1, item.Photo2));
@@ -393,7 +398,7 @@ public class ReportService
         );
     }
 
-    private static TableRow CreateFailRightSpanRowContinue(string? text)
+    private static TableRow CreateFailRightSpanRowContinue(string? title, string? line1, string? line2)
     {
         return new TableRow(
             CreateMergedLeftCell(null, false),
@@ -402,12 +407,11 @@ public class ReportService
                     new GridSpan { Val = 2 }
                 ),
                 new Paragraph(
-                    new Run(
-                        new Text(SanitizeOpenXmlText(text))
-                        {
-                            Space = SpaceProcessingModeValues.Preserve
-                        }
-                    )
+                    new Run(new Text(SanitizeOpenXmlText(title ?? string.Empty))),
+                    new Run(new Break()),
+                    new Run(new Text(SanitizeOpenXmlText(line1 ?? string.Empty))),
+                    new Run(new Break()),
+                    new Run(new Text(SanitizeOpenXmlText(line2 ?? string.Empty)))
                 )
             )
         );
@@ -415,25 +419,21 @@ public class ReportService
 
     private static TableRow CreateFailPhotoRow(MainDocumentPart mainPart, string? photo1Path, string? photo2Path)
     {
+        const string photoCellWidth = "3600";
+
         return new TableRow(
             CreateMergedLeftCell(null, false),
-            CreateImageCell("照片1：", photo1Path, mainPart),
-            CreateImageCell("照片2：", photo2Path, mainPart)
+            CreateImageCell(photo1Path, mainPart, photoCellWidth),
+            CreateImageCell(photo2Path, mainPart, photoCellWidth)
         );
     }
 
-    private static TableCell CreateImageCell(string title, string? imagePath, MainDocumentPart mainPart)
+    private static TableCell CreateImageCell(string? imagePath, MainDocumentPart mainPart, string cellWidth)
     {
-        var cell = new TableCell();
-
-        cell.Append(
-            new Paragraph(
-                new Run(
-                    new Text(SanitizeOpenXmlText(title))
-                    {
-                        Space = SpaceProcessingModeValues.Preserve
-                    }
-                )
+        var cell = new TableCell(
+            new TableCellProperties(
+                new TableCellWidth { Type = TableWidthUnitValues.Dxa, Width = cellWidth },
+                new TableCellVerticalAlignment { Val = TableVerticalAlignmentValues.Center }
             )
         );
 
@@ -441,17 +441,24 @@ public class ReportService
         {
             cell.Append(
                 new Paragraph(
+                    new ParagraphProperties(
+                        new Justification { Val = JustificationValues.Center }
+                    ),
                     new Run(
-                        CreateImageDrawing(mainPart, imagePath)
+                        CreateImageDrawing(mainPart, imagePath, 2100000L, 1575000L)
                     )
                 )
             );
+        }
+        else
+        {
+            cell.Append(new Paragraph(new Run(new Text(string.Empty))));
         }
 
         return cell;
     }
 
-    private static Drawing CreateImageDrawing(MainDocumentPart mainPart, string imagePath)
+    private static Drawing CreateImageDrawing(MainDocumentPart mainPart, string imagePath, long widthEmus, long heightEmus)
     {
         var imagePartType = GetImagePartType(imagePath);
         var imagePart = mainPart.AddImagePart(imagePartType);
@@ -463,9 +470,6 @@ public class ReportService
 
         var relationshipId = mainPart.GetIdOfPart(imagePart);
         var elementId = (UInt32Value)(uint)Math.Abs(Guid.NewGuid().GetHashCode());
-
-        const long widthEmus = 2200000L;
-        const long heightEmus = 1650000L;
 
         return new Drawing(
             new DW.Inline(
@@ -666,8 +670,6 @@ public class ReportService
             )
         );
     }
-
-
 
     private static Table CreateDetailTable(ReportDetailGroupDto group)
     {
@@ -1046,6 +1048,8 @@ public class ReportEquipmentDto
 {
     public int Peid { get; set; }
     public int Equipmentid { get; set; }
+
+    public string? Workshop { get; set; }
     public string? ElectricRoom { get; set; }
     public string? Factory { get; set; }
     public string? Mlfb { get; set; }
