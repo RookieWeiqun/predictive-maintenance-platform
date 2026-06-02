@@ -139,6 +139,8 @@ public class InspectionItemImportDto
         public string? Operationguide { get; set; }
 
         public List<Attachment> Attachments { get; set; } = new();
+
+        public int SortOrder { get; set; }
     }
     public class InspectionTaskDetailDto
     {
@@ -156,6 +158,8 @@ public class InspectionItemImportDto
     {
         public Guid Itemid { get; set; }
         public int? Taskid { get; set; }
+
+        public List<string> Filenames { get; set; } = new();
         public List<IFormFile> Files { get; set; } = new();
     }
 }

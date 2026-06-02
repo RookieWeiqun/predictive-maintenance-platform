@@ -126,6 +126,7 @@ namespace premaintainProjects.Controllers
             return _context.Reports.Any(e => e.Reportid == id);
         }
 
+        /*
         [HttpGet("Generate/{projectId:int}")]
         public async Task<IActionResult> GenerateProjectReport(int projectId)
         {
@@ -139,6 +140,33 @@ namespace premaintainProjects.Controllers
                 },
                 msg = ""
             });
+        }
+        */
+
+        [HttpGet("Generate/{projectId}")]
+        public async Task<IActionResult> Generate(int projectId)
+        {
+            try
+            {
+                var path = await _reportService.GenerateProjectReportAsync(projectId);
+                return new JsonResult(new
+                {
+                    code = ResponseCode.成功,
+                    data = path,
+                    msg = ""
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "生成报告失败，ProjectId：{ProjectId}", projectId);
+
+                return StatusCode(500, new
+                {
+                    code = ResponseCode.操作失败,
+                    data = (object?)null,
+                    msg = ex.InnerException?.Message ?? ex.Message
+                });
+            }
         }
     }
 }

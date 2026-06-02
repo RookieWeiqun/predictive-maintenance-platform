@@ -312,7 +312,7 @@ namespace premaintainProjects.Controllers
                         Assigneduserid = null,
                         TaskNo = await _serviceTools.GenerateTaskNoAsync(),
                         Inspectiontype = template.Inspectiontype,
-                        Ifdel = false,
+                        Ifdel = false,                        
                         Assignedusername = null,
                         Version = 1,
                         DownloadedAt = null,
@@ -360,12 +360,11 @@ namespace premaintainProjects.Controllers
                             Recommendedrules = inspectionItem.Recommendedrules,
                             Recommendationcontent = inspectionItem.Recommendationcontent,
                             Hiddenhazardcontent = inspectionItem.Hiddenhazardcontent,
-                            Maintenanceinstructions = inspectionItem.Maintenanceinstructions
+                            Maintenanceinstructions = inspectionItem.Maintenanceinstructions,
+                            SortOrder = inspectionItem.SortOrder
                         });
                     }
                 }
-
-
 
                 _context.Taskitems.AddRange(taskitems);
                 await _context.SaveChangesAsync();

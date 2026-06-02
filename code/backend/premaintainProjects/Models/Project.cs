@@ -25,4 +25,12 @@ public partial class Project
     public DateOnly Createdate { get; set; }
 
     public bool Ifdel { get; set; }
+
+    public string? Serviceid { get; set; }
+
+    public string? City { get; set; }
+
+    public string? Customercontact { get; set; }
+
+    public DateOnly? Enddate { get; set; }
 }

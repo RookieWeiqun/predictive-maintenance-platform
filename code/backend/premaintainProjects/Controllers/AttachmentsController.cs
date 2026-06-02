@@ -173,6 +173,11 @@ namespace premaintainProjects.Controllers
                 return new JsonResult(new { code = ResponseCode.参数无效, data = (object)null, msg = "文件不能为空" });
             }
 
+            if (dto.Filenames == null || dto.Filenames.Count != dto.Files.Count)
+            {
+                return new JsonResult(new { code = ResponseCode.参数无效, data = (object)null, msg = "filenames必须与files一一对应" });
+            }
+
             const long maxFileSize = 20 * 1024 * 1024;
             var attachDir = Path.Combine(_env.ContentRootPath, "Attach");
             if (!Directory.Exists(attachDir))
@@ -182,39 +187,45 @@ namespace premaintainProjects.Controllers
 
             var result = new List<object>();
 
-            foreach (var file in dto.Files)
+            for (int i = 0; i < dto.Files.Count; i++)
             {
+                var file = dto.Files[i];
+                var inputFileName = dto.Filenames[i];
+
                 if (file == null || file.Length == 0)
                     continue;
 
-                if (file.Length > maxFileSize)
+                var originalFileName = Path.GetFileName(inputFileName);
+                var extension = Path.GetExtension(originalFileName);
+
+                if (string.IsNullOrWhiteSpace(extension))
                 {
-                    return new JsonResult(new { code = ResponseCode.参数无效, data = (object)null, msg = $"文件 {file.FileName} 超过20MB" });
+                    extension = Path.GetExtension(file.FileName);
                 }
 
-                var extension = Path.GetExtension(file.FileName);
                 if (string.IsNullOrWhiteSpace(extension))
                 {
                     extension = ".bin";
                 }
 
                 var attaid = Guid.NewGuid();
-                var fileName = $"{attaid}{extension}";
-                var fullPath = Path.Combine(attachDir, fileName);
+                var saveFileName = $"{attaid}{extension}";
+                var fullPath = Path.Combine(attachDir, saveFileName);
 
                 await using (var stream = new FileStream(fullPath, FileMode.Create))
                 {
                     await file.CopyToAsync(stream);
                 }
 
-                var relativePath = Path.Combine("Attach", fileName).Replace("\\", "/");
+                var relativePath = Path.Combine("Attach", saveFileName).Replace("\\", "/");
 
                 var attachment = new Attachment
                 {
                     Attaid = attaid,
                     Taskitemid = dto.Itemid,
                     Filepath = relativePath,
-                    Taskid = dto.Taskid
+                    Taskid = dto.Taskid,
+                    Filename = originalFileName
                 };
 
                 _context.Attachments.Add(attachment);
@@ -222,7 +233,8 @@ namespace premaintainProjects.Controllers
                 result.Add(new
                 {
                     attaid = attachment.Attaid,
-                    filepath = attachment.Filepath
+                    filepath = attachment.Filepath,
+                    filename = attachment.Filename
                 });
             }
 

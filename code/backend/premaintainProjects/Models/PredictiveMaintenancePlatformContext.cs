@@ -60,6 +60,9 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
             entity.Property(e => e.Attaid)
                 .HasDefaultValueSql("gen_random_uuid()")
                 .HasColumnName("attaid");
+            entity.Property(e => e.Filename)
+                .HasMaxLength(50)
+                .HasColumnName("filename");
             entity.Property(e => e.Filepath)
                 .HasColumnType("character varying")
                 .HasColumnName("filepath");
@@ -309,10 +312,17 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
 
             entity.Property(e => e.Projectid).HasColumnName("projectid");
             entity.Property(e => e.Assigneduserid).HasColumnName("assigneduserid");
+            entity.Property(e => e.City)
+                .HasMaxLength(50)
+                .HasColumnName("city");
             entity.Property(e => e.Companyid).HasColumnName("companyid");
             entity.Property(e => e.Createdate)
                 .HasDefaultValueSql("CURRENT_DATE")
                 .HasColumnName("createdate");
+            entity.Property(e => e.Customercontact)
+                .HasMaxLength(50)
+                .HasColumnName("customercontact");
+            entity.Property(e => e.Enddate).HasColumnName("enddate");
             entity.Property(e => e.Ifdel).HasColumnName("ifdel");
             entity.Property(e => e.Managerid).HasColumnName("managerid");
             entity.Property(e => e.Projectname)
@@ -322,6 +332,9 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
                 .HasDefaultValue(1)
                 .HasComment("1. 进行中\r\n2. 已完成\r\n3. 已关闭")
                 .HasColumnName("projectstatus");
+            entity.Property(e => e.Serviceid)
+                .HasMaxLength(50)
+                .HasColumnName("serviceid");
         });
 
         modelBuilder.Entity<ProjectEquipment>(entity =>
@@ -408,6 +421,9 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
             entity.Property(e => e.RenderSchemaJson)
                 .HasColumnType("jsonb")
                 .HasColumnName("render_schema_json");
+            entity.Property(e => e.SortOrder)
+                .HasDefaultValue(1)
+                .HasColumnName("sort_order");
             entity.Property(e => e.SourceType)
                 .HasDefaultValue((short)1)
                 .HasComment("1. system_generated\r\n2.manual_added")

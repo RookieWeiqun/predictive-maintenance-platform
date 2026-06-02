@@ -56,4 +56,6 @@ public partial class Taskitem
     public string? Displaycondition { get; set; }
 
     public string? Operationguide { get; set; }
+
+    public int SortOrder { get; set; }
 }

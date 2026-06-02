@@ -14,33 +14,38 @@ public class ReportService
 {
     private readonly PredictiveMaintenancePlatformContext _context;
     private readonly IWebHostEnvironment _env;
+    private readonly ServiceTools _serviceTools;
+    private const string FullTableWidth = "5000";
 
-    public ReportService(PredictiveMaintenancePlatformContext context, IWebHostEnvironment env)
+    public ReportService(PredictiveMaintenancePlatformContext context, IWebHostEnvironment env, ServiceTools serviceTools)
     {
         _context = context;
         _env = env;
+        _serviceTools = serviceTools;
     }
 
     public async Task<string> GenerateProjectReportAsync(int projectId)
     {
-        Report report = await _context.Reports
-            .FirstOrDefaultAsync(r => r.Projectid == projectId)
-            ?? new Report
-            {
-                Projectid = projectId
-            };
-
-        if (report.Reportid == 0)
-        {
-            _context.Reports.Add(report);
-        }
-
         var project = await _context.Projects
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Projectid == projectId);
 
         if (project == null)
             throw new InvalidOperationException("项目不存在");
+
+
+        Report report = await _context.Reports
+            .FirstOrDefaultAsync(r => r.Projectid == projectId)
+            ?? new Report
+            {
+                Projectid = projectId,
+                Createdate = DateOnly.FromDateTime(DateTime.Now)
+            };
+
+        if (report.Reportid == 0)
+        {
+            _context.Reports.Add(report);
+        }
 
         var company = await _context.Companies
             .AsNoTracking()
@@ -98,6 +103,8 @@ public class ReportService
 
         var reportEquipments = projectEquipments
             .Where(pe => equipments.ContainsKey(pe.Equipmentid))
+            .GroupBy(pe => pe.Equipmentid)
+            .Select(g => g.OrderBy(x => x.Peid).First())
             .Select(pe =>
             {
                 var equipment = equipments[pe.Equipmentid];
@@ -108,9 +115,12 @@ public class ReportService
                     Equipmentid = pe.Equipmentid,
                     Factory = equipment.Factory,
                     ElectricRoom = equipment.Electricroom,
+                    Workshop = equipment.Workshop,
                     Mlfb = equipment.Mlfb,
                     Products = products
                         .Where(p => p.Equipid.HasValue && p.Equipid.Value == pe.Equipmentid)
+                        .GroupBy(p => p.Productid)
+                        .Select(g => g.First())
                         .Select(p => new ReportProductDto
                         {
                             Productid = p.Productid,
@@ -118,44 +128,68 @@ public class ReportService
                             EquipmentName = p.Equipmentname,
                             Department = p.Department,
                             EquipmentNumber = p.Equipmentnumber
-                            
                         })
                         .ToList()
                 };
             })
             .ToList();
 
+
         var detailGroups = tasks
             .Where(t => productDict.ContainsKey(t.Productid))
             .SelectMany(task =>
             {
                 var product = productDict[task.Productid];
-
                 if (!product.Equipid.HasValue || !equipments.ContainsKey(product.Equipid.Value))
-                    return Enumerable.Empty<ReportDetailGroupDto>();
+                    return Enumerable.Empty<(string ElectricRoom, string? EquipmentName, string? EquipmentNumber, string? Factory, string CategoryPath, ReportDetailRowDto Row)>();
 
                 var equipment = equipments[product.Equipid.Value];
 
                 return taskitems
                     .Where(i => i.Taskid == task.Taskid)
-                    .GroupBy(i => i.Categorypath ?? string.Empty)
-                    .Select(g => new ReportDetailGroupDto
-                    {
-                        ElectricRoom = equipment.Electricroom,
-                        EquipmentName = product.Equipmentname,
-                        EquipmentNumber = product.Equipmentnumber,
-                        Factory = equipment.Factory,
-                        CategoryPath = g.Key,
-                        Rows = g.Select(item => new ReportDetailRowDto
+                    .Select(item => (
+                        ElectricRoom: equipment.Electricroom ?? string.Empty,
+                        EquipmentName: product.Equipmentname,
+                        EquipmentNumber: product.Equipmentnumber,
+                        Factory: equipment.Factory,
+                        CategoryPath: item.Categorypath ?? string.Empty,
+                        Row: new ReportDetailRowDto
                         {
                             TaskName = item.Taskname ?? string.Empty,
                             ResultState = GetJsonValue(item.Taskresult, "resultState"),
                             Value = GetJsonValue(item.Taskresult, "value"),
                             HiddenHazardContent = GetJsonValue(item.Taskresult, "hiddenhazardcontent", "hiddenHazardContent"),
                             MaintenanceInstructions = GetJsonValue(item.Taskresult, "maintenanceinstructions", "maintenanceInstructions"),
-                            Remarks = GetJsonValue(item.Taskresult, "remarks")
-                        }).ToList()
-                    });
+                            Remarks = GetJsonValue(item.Taskresult, "remarks"),
+                            HazardResolved = GetJsonValue(item.Taskresult, "hazardResolved")
+                        }));
+            })
+            .GroupBy(x => new
+            {
+                x.ElectricRoom,
+                x.EquipmentName,
+                x.EquipmentNumber,
+                x.Factory,
+                x.CategoryPath
+            })
+            .Select(g => new ReportDetailGroupDto
+            {
+                ElectricRoom = g.Key.ElectricRoom,
+                EquipmentName = g.Key.EquipmentName,
+                EquipmentNumber = g.Key.EquipmentNumber,
+                Factory = g.Key.Factory,
+                CategoryPath = g.Key.CategoryPath,
+                Rows = g.Select(x => x.Row)
+                    .DistinctBy(r => new
+                    {
+                        r.TaskName,
+                        r.ResultState,
+                        r.Value,
+                        r.HiddenHazardContent,
+                        r.MaintenanceInstructions,
+                        r.Remarks
+                    })
+                    .ToList()
             })
             .OrderBy(x => x.ElectricRoom)
             .ThenBy(x => x.EquipmentName)
@@ -168,7 +202,6 @@ public class ReportService
             .SelectMany(task =>
             {
                 var product = productDict[task.Productid];
-
                 if (!product.Equipid.HasValue || !equipments.ContainsKey(product.Equipid.Value))
                     return Enumerable.Empty<ReportFailResultDto>();
 
@@ -186,13 +219,23 @@ public class ReportService
                     {
                         var itemAttachments = attachments
                             .Where(a => a.Taskitemid == x.Item.Itemid)
-                            .Select(a => ResolveAttachmentPath(a.Filepath))
+                            .Select(a => new
+                            {
+                                Path = ResolveAttachmentPath(a.Filepath),
+                                FileName = a.Filename
+                            })
+                            .Where(a => !string.IsNullOrWhiteSpace(a.Path))
+                            .DistinctBy(a => a.Path)
                             .Take(4)
                             .ToList();
 
                         while (itemAttachments.Count < 4)
                         {
-                            itemAttachments.Add(string.Empty);
+                            itemAttachments.Add(new
+                            {
+                                Path = string.Empty,
+                                FileName = string.Empty
+                            });
                         }
 
                         return new ReportFailResultDto
@@ -207,34 +250,70 @@ public class ReportService
                             TaskName = x.Item.Taskname ?? string.Empty,
                             Value = GetJsonValue(x.Item.Taskresult, "value"),
                             Resolution = GetResolutionText(x.Item.Taskresult),
-                            Photo1 = itemAttachments[0],
-                            Photo2 = itemAttachments[1],
-                            Photo3 = itemAttachments[2],
-                            Photo4 = itemAttachments[3]
+                            ActionTaken = GetJsonValue(x.Item.Taskresult, "actionTaken"),
+                            HazardResolved = GetJsonValue(x.Item.Taskresult, "hazardResolved"),
+                            RecommendationContent = GetJsonValue(x.Item.Taskresult, "recommendationContent"),
+                            Photo1 = itemAttachments[0].Path,
+                            Photo2 = itemAttachments[1].Path,
+                            Photo3 = itemAttachments[2].Path,
+                            Photo4 = itemAttachments[3].Path,
+                            Photo1Name = itemAttachments[0].FileName,
+                            Photo2Name = itemAttachments[1].FileName,
+                            Photo3Name = itemAttachments[2].FileName,
+                            Photo4Name = itemAttachments[3].FileName
                         };
                     });
             })
+            .DistinctBy(x => new
+            {
+                x.ElectricRoom,
+                x.EquipmentName,
+                x.Factory,
+                x.Mlfb,
+                x.EquipmentNumber,
+                x.Serialno,
+                x.CategoryPath,
+                x.TaskName,
+                x.Value,
+                x.Resolution,
+                x.HazardResolved,
+                x.RecommendationContent,
+                x.ActionTaken
+            })
             .ToList();
 
-        var productCount = products.Count;
-        var equipmentCount = projectEquipments.Count;
-        var taskCount = tasks.Count;
+        var reportsRoot = Path.Combine(_env.ContentRootPath, "Reports");
+        Directory.CreateDirectory(reportsRoot);
 
-        var templatePath = Path.Combine(_env.ContentRootPath, "Reports", "reportTemplate.docx");
+        var templatePath = Path.Combine(reportsRoot, "reportTemplate.docx");
+
         if (!File.Exists(templatePath))
-            throw new FileNotFoundException("报告模板不存在", templatePath);
+            throw new FileNotFoundException($"报告模板不存在：{templatePath}", templatePath);
 
         var projectName = project.Projectname ?? string.Empty;
         var companyName = company?.Companyname ?? string.Empty;
 
-        var leadEngineer = await GetUserNameByIdAsync(project.Managerid)
-            ?? await GetUserNameByIdAsync(project.Assigneduserid)
-            ?? string.Empty;
+        var leadEngineer = await GetUserNameByIdAsync(project.Assigneduserid) ?? string.Empty;
+        var siemensContact = await GetUserNameByIdAsync(project.Managerid) ?? string.Empty;
 
         await using var fileStream = new FileStream(templatePath, FileMode.Open, FileAccess.Read, FileShare.Read);
         using var memoryStream = new MemoryStream();
         await fileStream.CopyToAsync(memoryStream);
         memoryStream.Position = 0;
+
+        var abnormalCount = taskitems.Count(x =>
+            string.Equals(
+                GetJsonValue(x.Taskresult, "resultState"),
+                "abnormal",
+                StringComparison.OrdinalIgnoreCase));
+
+        var normalCount = taskitems.Count(x =>
+            string.Equals(
+                GetJsonValue(x.Taskresult, "resultState"),
+                "normal",
+                StringComparison.OrdinalIgnoreCase));
+
+        var totalCount = abnormalCount + normalCount;
 
         using (var wordDoc = WordprocessingDocument.Open(memoryStream, true))
         {
@@ -243,25 +322,33 @@ public class ReportService
 
             var document = mainPart.Document ?? throw new InvalidOperationException("Word 模板缺少 Document");
 
-            ReplacePlaceholder(document, "{$ProjectName}", projectName);
-            ReplacePlaceholder(document, "{$companyname}", companyName);
+            ReplacePlaceholder(document, "{$projectname}", projectName ?? "");
+            ReplacePlaceholder(document, "{$city}", project.City ?? "");
+            ReplacePlaceholder(document, "{$companyname}", companyName ?? "");
             ReplacePlaceholder(document, "{$Createdate}", project.Createdate.ToString("yyyy-MM-dd"));
-          //  ReplacePlaceholder(document, "{$EquipmentCount}", equipmentCount.ToString());
-          //  ReplacePlaceholder(document, "{$ProductCount}", productCount.ToString());
-         //   ReplacePlaceholder(document, "{$TaskCount}", taskCount.ToString());
-         //   ReplacePlaceholder(document, "{$factory}", factory);
+            ReplacePlaceholder(document, "{$serviceId}", project.Serviceid?.ToString()??"");
+            ReplacePlaceholder(document, "{$customerContact}", project.Customercontact?.ToString()??"");
+            ReplacePlaceholder(document, "{$siemensContact}", siemensContact);
+            ReplacePlaceholder(document, "{$startDate}", project.Createdate.ToString("yyyy-MM-dd"));
+            ReplacePlaceholder(document, "{$endDate}", project.Enddate?.ToString("yyyy-MM-dd") ??"");
+            ReplacePlaceholder(document, "{$reportCreateDate}", report.Createdate.ToString("yyyy-MM-dd"));
             ReplacePlaceholder(document, "{$leadEngineer}", leadEngineer);
             ReplacePlaceholder(document, "{$SummaryDescription}", report.Summarydescription ?? string.Empty);
             ReplacePlaceholder(document, "{$SparePartsRecommendation}", report.Sparepartsrecommendation ?? string.Empty);
+
+            ReplacePlaceholder(document, "{$total}", totalCount.ToString());
+            ReplacePlaceholder(document, "{$abnormal}", abnormalCount.ToString());
+            ReplacePlaceholder(document, "{$normal}", normalCount.ToString());
 
             var maintainElements = new List<OpenXmlElement>();
             foreach (var eq in reportEquipments)
             {
                 maintainElements.Add(CreateEmptyParagraph());
-                maintainElements.Add(CreateTextParagraph($"{companyName}公司{eq.Factory}车间西门子驱动装置维护清单", true));
+                maintainElements.Add(CreateTextParagraph($"{companyName}公司{eq.Factory}{eq.Workshop}西门子驱动装置维护清单", true));
                 maintainElements.Add(CreateEquipmentTable(eq));
             }
             maintainElements.Add(CreatePageBreakParagraph());
+          
             ReplacePlaceholderWithElements(document, "{$maintainList}", maintainElements);
 
             var detailElements = new List<OpenXmlElement>();
@@ -270,27 +357,34 @@ public class ReportService
             {
                 detailElements.Add(CreateEmptyParagraph());
                 detailElements.Add(CreateHeading2Paragraph(
-                    $"5.{detailIndex} {group.ElectricRoom}>>{group.EquipmentName}>>{group.EquipmentNumber}"));
+                    $"6.{detailIndex} {group.ElectricRoom}>>{group.EquipmentName}>>{group.EquipmentNumber}"));
                 detailElements.Add(CreateDetailTable(group));
                 detailIndex++;
             }
             ReplacePlaceholderWithElements(document, "{$detailList}", detailElements);
 
-            var failElements = new List<OpenXmlElement>();
+            var resolvedElements = new List<OpenXmlElement>();
+            var unResolvedElements = new List<OpenXmlElement>();
             foreach (var item in failResults)
             {
-                failElements.Add(CreateEmptyParagraph());
-                failElements.Add(CreateFailResultTable(item, item?.Factory??"", mainPart));
+                if (item.HazardResolved == "true")
+                {
+                    resolvedElements.Add(CreateResolvedFailResultTable(item, item?.Factory ?? "", mainPart));
+                }
+                else
+                {
+                    unResolvedElements.Add(CreateUnresolvedFailResultTable(item, item?.Factory ?? "", mainPart));
+                }
             }
-            ReplacePlaceholderWithElements(document, "{$failresults}", failElements);
+
+            ReplacePlaceholderWithElements(document, "{$resolvedProblems}", resolvedElements);
+            ReplacePlaceholderWithElements(document, "{$unresolvedProblems}", unResolvedElements);
 
             document.Save();
         }
 
         var fileName = $"项目报告_{projectId}_{DateTime.Now:yyyyMMddHHmmss}.docx";
-        var reportDirectory = Path.GetDirectoryName(templatePath)
-            ?? throw new InvalidOperationException("无法获取模板目录");
-        var outputPath = Path.Combine(reportDirectory, fileName);
+        var outputPath = Path.Combine(reportsRoot, fileName);
 
         await File.WriteAllBytesAsync(outputPath, memoryStream.ToArray());
 
@@ -340,7 +434,7 @@ public class ReportService
             : GetJsonValue(json, "recommendationContent");
     }
 
-    private static Table CreateFailResultTable(ReportFailResultDto item, string factory, MainDocumentPart mainPart)
+    private static Table CreateResolvedFailResultTable(ReportFailResultDto item, string factory, MainDocumentPart mainPart)
     {
         var table = CreateBaseTable(3);
 
@@ -360,17 +454,60 @@ public class ReportService
         );
 
         table.Append(
-            CreateFailRightSpanRowContinue(
-                $"问题描述：{Environment.NewLine}{item.CategoryPath}{Environment.NewLine}{item.TaskName} : {item.Value}")
+        CreateFailRightSpanRowContinue(
+        $"检测项目：{item.CategoryPath}",
+        $"问题描述：{item.TaskName} : {item.Value}",
+        string.Empty)
         );
 
         table.Append(
             CreateFailRightSpanRowContinue(
-                $"解决措施或建议：{item.Resolution}")
+                "问题处理说明：",
+                item.ActionTaken,
+                string.Empty)
         );
 
-        table.Append(CreateFailPhotoRow(mainPart, item.Photo1, item.Photo2));
-        table.Append(CreateFailPhotoRow(mainPart, item.Photo3, item.Photo4));
+        table.Append(CreateFailPhotoRow(mainPart, item.Photo1, item.Photo1Name, item.Photo2, item.Photo2Name));
+        table.Append(CreateFailPhotoRow(mainPart, item.Photo3, item.Photo3Name, item.Photo4, item.Photo4Name));
+
+        return table;
+    }
+
+
+    private static Table CreateUnresolvedFailResultTable(ReportFailResultDto item, string factory, MainDocumentPart mainPart)
+    {
+        var table = CreateBaseTable(3);
+
+        table.Append(CreateSpanRow($"{factory}车间隐患以及解决措施", 3, true));
+
+        table.Append(
+            CreateFailThreeColumnRowStart(
+                item.ElectricRoom,
+                $"设备名称:{item.EquipmentName}",
+                $"设备型号:{item.Mlfb}")
+        );
+
+        table.Append(
+            CreateFailThreeColumnRowContinue(
+                $"设备编号:{item.EquipmentNumber}",
+                $"序列号:{item.Serialno}")
+        );
+
+        table.Append(
+        CreateFailRightSpanRowContinue(
+        $"检测项目：{item.CategoryPath}",
+        $"问题描述：{item.TaskName} : {item.Value}",
+        string.Empty)
+        );
+
+        table.Append(
+            CreateFailRightSpanRowContinue(
+                $"隐患说明及建议：{item.RecommendationContent}",
+                string.Empty,string.Empty)
+        );
+
+        table.Append(CreateFailPhotoRow(mainPart, item.Photo1, item.Photo1Name, item.Photo2, item.Photo2Name));
+        table.Append(CreateFailPhotoRow(mainPart, item.Photo3, item.Photo3Name, item.Photo4, item.Photo4Name));
 
         return table;
     }
@@ -393,7 +530,7 @@ public class ReportService
         );
     }
 
-    private static TableRow CreateFailRightSpanRowContinue(string? text)
+    private static TableRow CreateFailRightSpanRowContinue(string? title, string? line1, string? line2)
     {
         return new TableRow(
             CreateMergedLeftCell(null, false),
@@ -402,56 +539,82 @@ public class ReportService
                     new GridSpan { Val = 2 }
                 ),
                 new Paragraph(
-                    new Run(
-                        new Text(SanitizeOpenXmlText(text))
-                        {
-                            Space = SpaceProcessingModeValues.Preserve
-                        }
-                    )
+                    new Run(new Text(SanitizeOpenXmlText(title ?? string.Empty))),
+                    new Run(new Break()),
+                    new Run(new Text(SanitizeOpenXmlText(line1 ?? string.Empty))),
+                    new Run(new Break()),
+                    new Run(new Text(SanitizeOpenXmlText(line2 ?? string.Empty)))
                 )
             )
         );
     }
 
-    private static TableRow CreateFailPhotoRow(MainDocumentPart mainPart, string? photo1Path, string? photo2Path)
+    private static TableRow CreateFailPhotoRow(
+        MainDocumentPart mainPart,
+        string? photo1Path,
+        string? photo1Name,
+        string? photo2Path,
+        string? photo2Name)
     {
+        const string photoCellWidth = "3600";
+
         return new TableRow(
             CreateMergedLeftCell(null, false),
-            CreateImageCell("照片1：", photo1Path, mainPart),
-            CreateImageCell("照片2：", photo2Path, mainPart)
+            CreateImageCell(photo1Path, photo1Name, mainPart, photoCellWidth),
+            CreateImageCell(photo2Path, photo2Name, mainPart, photoCellWidth)
         );
     }
 
-    private static TableCell CreateImageCell(string title, string? imagePath, MainDocumentPart mainPart)
+    private static TableCell CreateImageCell(
+    string? imagePath,
+    string? fileName,
+    MainDocumentPart mainPart,
+    string cellWidth)
     {
-        var cell = new TableCell();
+        var cell = new TableCell(
+            new TableCellProperties(
+                new TableCellWidth { Type = TableWidthUnitValues.Dxa, Width = cellWidth },
+                new TableCellVerticalAlignment { Val = TableVerticalAlignmentValues.Center }
+            )
+        );
 
-        cell.Append(
-            new Paragraph(
-                new Run(
-                    new Text(SanitizeOpenXmlText(title))
-                    {
-                        Space = SpaceProcessingModeValues.Preserve
-                    }
-                )
+        var paragraph = new Paragraph(
+            new ParagraphProperties(
+                new Justification { Val = JustificationValues.Center }
             )
         );
 
         if (!string.IsNullOrWhiteSpace(imagePath) && File.Exists(imagePath))
         {
-            cell.Append(
-                new Paragraph(
-                    new Run(
-                        CreateImageDrawing(mainPart, imagePath)
-                    )
+            paragraph.Append(
+                new Run(
+                    CreateImageDrawing(mainPart, imagePath, 2100000L, 1575000L)
                 )
             );
+
+            if (!string.IsNullOrWhiteSpace(fileName))
+            {
+                paragraph.Append(new Run(new Break()));
+                paragraph.Append(
+                    new Run(
+                        new Text(SanitizeOpenXmlText(fileName))
+                        {
+                            Space = SpaceProcessingModeValues.Preserve
+                        }
+                    )
+                );
+            }
+        }
+        else
+        {
+            paragraph.Append(new Run(new Text(string.Empty)));
         }
 
+        cell.Append(paragraph);
         return cell;
     }
 
-    private static Drawing CreateImageDrawing(MainDocumentPart mainPart, string imagePath)
+    private static Drawing CreateImageDrawing(MainDocumentPart mainPart, string imagePath, long widthEmus, long heightEmus)
     {
         var imagePartType = GetImagePartType(imagePath);
         var imagePart = mainPart.AddImagePart(imagePartType);
@@ -463,9 +626,6 @@ public class ReportService
 
         var relationshipId = mainPart.GetIdOfPart(imagePart);
         var elementId = (UInt32Value)(uint)Math.Abs(Guid.NewGuid().GetHashCode());
-
-        const long widthEmus = 2200000L;
-        const long heightEmus = 1650000L;
 
         return new Drawing(
             new DW.Inline(
@@ -576,9 +736,9 @@ public class ReportService
     }
 
     private static void ReplacePlaceholderWithElements(
-        Document document,
-        string placeholder,
-        IEnumerable<OpenXmlElement> elements)
+     Document document,
+     string placeholder,
+     IEnumerable<OpenXmlElement> elements)
     {
         var paragraph = document
             .Descendants<Paragraph>()
@@ -591,7 +751,16 @@ public class ReportService
         if (parent == null)
             return;
 
-        foreach (var element in elements)
+        var elementList = elements?.ToList() ?? new List<OpenXmlElement>();
+
+        if (elementList.Count == 0)
+        {
+            parent.InsertBefore(CreateEmptyParagraph(), paragraph);
+            paragraph.Remove();
+            return;
+        }
+
+        foreach (var element in elementList)
         {
             parent.InsertBefore(element.CloneNode(true), paragraph);
         }
@@ -666,8 +835,6 @@ public class ReportService
             )
         );
     }
-
-
 
     private static Table CreateDetailTable(ReportDetailGroupDto group)
     {
@@ -837,7 +1004,7 @@ public class ReportService
                 new TableWidth
                 {
                     Type = TableWidthUnitValues.Pct,
-                    Width = "4750"
+                    Width = FullTableWidth
                 },
                 new TableLayout
                 {
@@ -879,7 +1046,7 @@ public class ReportService
                 new TableWidth
                 {
                     Type = TableWidthUnitValues.Pct,
-                    Width = "4750"
+                    Width = FullTableWidth
                 },
                 new TableLayout
                 {
@@ -1040,12 +1207,15 @@ public class ReportDetailRowDto
     public string? HiddenHazardContent { get; set; }
     public string? MaintenanceInstructions { get; set; }
     public string? Remarks { get; set; }
+    public string? HazardResolved { get; set; } = null;
 }
 
 public class ReportEquipmentDto
 {
     public int Peid { get; set; }
     public int Equipmentid { get; set; }
+
+    public string? Workshop { get; set; }
     public string? ElectricRoom { get; set; }
     public string? Factory { get; set; }
     public string? Mlfb { get; set; }
@@ -1073,9 +1243,19 @@ public class ReportFailResultDto
     public string? CategoryPath { get; set; }
     public string? TaskName { get; set; }
     public string? Value { get; set; }
-    public string? Resolution { get; set; }
+    public string? Resolution { get; set; }   
+
+    public string? HazardResolved { get; set; }
+
+    public string? RecommendationContent { get; set; }
+
+    public string? ActionTaken { get; set; }
     public string? Photo1 { get; set; }
     public string? Photo2 { get; set; }
     public string? Photo3 { get; set; }
     public string? Photo4 { get; set; }
+    public string? Photo1Name { get; set; }
+    public string? Photo2Name { get; set; }
+    public string? Photo3Name { get; set; }
+    public string? Photo4Name { get; set; }
 }
