@@ -449,6 +449,7 @@ import {
   productsApi,
   taskitemsApi,
 } from '@/api';
+import type { InspectionTaskDetailDto } from '@/api/modules/inspectionTasks';
 import { loadTemplateItemsByTemplateId } from '@/pages/scheme/utils/loadTemplateItems';
 import { isDetectionItem, type SchemeItem } from '@/pages/scheme/utils/schemeUtils';
 import { buildDynamicFieldConfig, evaluateFieldValueAgainstRule } from '@/pages/scheme/utils/templateRuleSchema';
@@ -466,6 +467,7 @@ type SidebarModuleNode = {
   total: number;
   completed: number;
   moduleData: any;
+  minSortOrder: number;
 };
 
 type SidebarCategoryNode = {
@@ -474,6 +476,7 @@ type SidebarCategoryNode = {
   children: SidebarModuleNode[];
   total: number;
   completed: number;
+  minSortOrder: number;
 };
 
 function getTaskSchemeStorageKey(taskUuid: string, schemeId: string): string {
@@ -491,6 +494,27 @@ function readCachedTaskScheme(taskUuid: string, schemeId: string): { items?: any
     console.error('读取离线任务模板缓存失败:', error);
     return null;
   }
+}
+
+function readTaskSchemeSnapshot(raw: string | null | undefined): { items?: any[] } | null {
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    console.error('读取 SQLite 离线任务模板快照失败:', error);
+    return null;
+  }
+}
+
+function resolveOfflineTaskScheme(
+  taskUuid: string,
+  schemeId: string,
+  schemeSnapshotJson: string | null | undefined,
+): { items?: any[] } | null {
+  return readTaskSchemeSnapshot(schemeSnapshotJson) ?? readCachedTaskScheme(taskUuid, schemeId);
 }
 
 // 任务信息
@@ -573,6 +597,128 @@ function apiTemplateRootsToCollectSchemeItems(roots: SchemeItem[]): SchemeItem[]
     children: [subWrapper],
   };
   return [catWrapper];
+}
+
+function applyTaskDetailSortOrder(roots: SchemeItem[], detail: InspectionTaskDetailDto): void {
+  const sortOrderByInspectionItemId = new Map<number, number>();
+
+  for (const item of detail.task_items ?? []) {
+    const inspectionItemId = Number(item.source_inspection_item_id ?? 0);
+    const sortOrder = Number(item.sort_order ?? item.render_schema_json?.sort_order ?? 0);
+    if (!Number.isFinite(inspectionItemId) || inspectionItemId <= 0) {
+      continue;
+    }
+    if (!Number.isFinite(sortOrder)) {
+      continue;
+    }
+    sortOrderByInspectionItemId.set(inspectionItemId, sortOrder);
+  }
+
+  function walk(nodes: SchemeItem[]) {
+    for (const node of nodes || []) {
+      if (isDetectionItem(node)) {
+        const inspectionItemId = Number(String(node.id).replace(/^item-/, ''));
+        const mappedSortOrder = sortOrderByInspectionItemId.get(inspectionItemId);
+        if (mappedSortOrder != null) {
+          node.sortOrder = mappedSortOrder;
+        }
+        continue;
+      }
+      if (node.children?.length) {
+        walk(node.children);
+      }
+    }
+  }
+
+  walk(roots);
+}
+
+function buildOfflineSortOrderMap(
+  records: Array<{ task_item_uuid: string; server_item_id: string | null; sort_order: number | null }>,
+): Map<string, number> {
+  const map = new Map<string, number>();
+
+  for (const record of records) {
+    const sortOrder = Number(record.sort_order ?? NaN);
+    if (!Number.isFinite(sortOrder)) {
+      continue;
+    }
+
+    const taskItemId = record.task_item_uuid.includes(':')
+      ? record.task_item_uuid.slice(record.task_item_uuid.indexOf(':') + 1)
+      : record.task_item_uuid;
+    if (taskItemId) {
+      map.set(taskItemId, sortOrder);
+    }
+
+    const serverItemId = String(record.server_item_id ?? '').trim();
+    if (serverItemId) {
+      map.set(serverItemId, sortOrder);
+    }
+  }
+
+  return map;
+}
+
+function applyOfflineSortOrderToScheme(items: SchemeItem[], sortOrderMap: Map<string, number>): void {
+  for (const item of items || []) {
+    if (isDetectionItem(item)) {
+      const mappedSortOrder = sortOrderMap.get(item.id);
+      if (mappedSortOrder != null) {
+        item.sortOrder = mappedSortOrder;
+      }
+      continue;
+    }
+
+    if (item.children?.length) {
+      applyOfflineSortOrderToScheme(item.children, sortOrderMap);
+    }
+  }
+}
+
+async function backfillOfflineSortOrdersFromDetail(
+  taskUuid: string,
+  serverTaskId: number,
+  cachedSchemeItems: SchemeItem[],
+): Promise<void> {
+  const detail = await inspectionTasksApi.getInspectionTaskDetail(serverTaskId);
+  const sortOrderMap = new Map<string, number>();
+
+  for (const taskItem of detail.task_items ?? []) {
+    const sortOrder = Number(taskItem.sort_order ?? taskItem.render_schema_json?.sort_order ?? NaN);
+    if (!Number.isFinite(sortOrder)) {
+      continue;
+    }
+
+    const itemId = String(taskItem.item_id ?? '').trim();
+    if (itemId) {
+      sortOrderMap.set(itemId, sortOrder);
+    }
+  }
+
+  if (sortOrderMap.size === 0) {
+    return;
+  }
+
+  applyOfflineSortOrderToScheme(cachedSchemeItems, sortOrderMap);
+
+  const records = await offlineTaskItemRepository.listByTaskUuid(taskUuid);
+  await Promise.all(
+    records.map(async (record) => {
+      const taskItemId = record.task_item_uuid.includes(':')
+        ? record.task_item_uuid.slice(record.task_item_uuid.indexOf(':') + 1)
+        : record.task_item_uuid;
+      const mappedSortOrder = sortOrderMap.get(taskItemId);
+      if (mappedSortOrder == null || record.sort_order === mappedSortOrder) {
+        return;
+      }
+
+      await offlineTaskItemRepository.upsert({
+        ...record,
+        sort_order: mappedSortOrder,
+      });
+    }),
+  );
 }
 
 function detectionItemIdToNamePath(roots: SchemeItem[]): Map<string, { name: string; categorypath: string }> {
@@ -669,7 +815,7 @@ async function setupFromOfflineTask(taskUuid: string): Promise<boolean> {
     return false;
   }
 
-  const cachedScheme = readCachedTaskScheme(taskUuid, offlineTask.scheme_id);
+  const cachedScheme = resolveOfflineTaskScheme(taskUuid, offlineTask.scheme_id, offlineTask.scheme_snapshot_json);
   if (cachedScheme?.items == null) {
     return false;
   }
@@ -696,10 +842,13 @@ async function setupFromOfflineTask(taskUuid: string): Promise<boolean> {
   department.value = offlineTask.department || '';
 
   currentTaskId.value = taskUuid;
+  const offlineTaskItems = await offlineTaskItemRepository.listByTaskUuid(taskUuid);
+  applyOfflineSortOrderToScheme(cachedScheme.items, buildOfflineSortOrderMap(offlineTaskItems));
 
   const serverTaskId = Number.parseInt(String(offlineTask.server_task_id ?? ''), 10);
   const missingTaskNo = !String(offlineTask.task_no ?? '').trim();
   const missingDeviceModel = !String(offlineTask.device_model ?? '').trim() || offlineTask.device_model === '-';
+  const missingSortOrder = offlineTaskItems.some((item) => item.sort_order == null);
 
   if (Number.isFinite(serverTaskId) && serverTaskId > 0) {
     try {
@@ -755,6 +904,10 @@ async function setupFromOfflineTask(taskUuid: string): Promise<boolean> {
           device_model: resolvedDeviceModel || offlineTask.device_model,
         });
       }
+
+      if (missingSortOrder) {
+        await backfillOfflineSortOrdersFromDetail(taskUuid, serverTaskId, cachedScheme.items);
+      }
     } catch (error) {
       console.warn('回填离线任务展示信息失败:', error);
     }
@@ -768,10 +921,15 @@ async function setupFromOfflineTask(taskUuid: string): Promise<boolean> {
 
 async function setupFromApiTask(numericId: number): Promise<void> {
   const dto = await inspectionTasksApi.getInspectionTask(numericId);
-  const [roots, templateMeta] = await Promise.all([
+  const [roots, templateMeta, detail] = await Promise.all([
     loadTemplateItemsByTemplateId(dto.templateid),
     inspectionTemplatesApi.getInspectionTemplate(dto.templateid).catch(() => null),
+    inspectionTasksApi.getInspectionTaskDetail(numericId).catch(() => null),
   ]);
+
+  if (detail) {
+    applyTaskDetailSortOrder(roots, detail);
+  }
 
   const product = await loadProductMeta(dto.productid);
   const mlfb = (product?.mlfb ?? '-').trim() || '-';
@@ -1073,6 +1231,10 @@ async function persistTaskRecord(task: any): Promise<void> {
     task_uuid: routeTaskId.value,
     source_type: existing?.source_type ?? 'system_generated',
     item_name: task.name,
+    sort_order:
+      typeof task.sortOrder === 'number'
+        ? task.sortOrder
+        : existing?.sort_order ?? null,
     category_path: existing?.category_path ?? `${currentCategoryPath.value} / ${currentSubCategoryName.value}`,
     result: buildOfflineResult(task),
     display_condition: task.displayCondition ?? existing?.display_condition ?? null,
@@ -1114,6 +1276,7 @@ async function loadOfflineTaskItems(): Promise<void> {
         : existingTaskData.dataFields ?? {};
     taskDataMap.value[itemId] = {
       ...existingTaskData,
+      sortOrder: record.sort_order ?? existingTaskData.sortOrder ?? null,
       value: payload.value ?? '',
       result: payload.resultState ?? payload.result ?? '',
       remarks: payload.remarks ?? '',
@@ -1358,12 +1521,14 @@ function collectLeafModules(nodes: any[], prefix: string[] = []): SidebarModuleN
     const hasDetectionChild = children.some((child: any) => child?.type && child?.required !== undefined);
     if (hasDetectionChild) {
       const total = countTasks(children);
+      const minSortOrder = getMinSortOrder(children);
       if (total > 0) {
         modules.push({
           id: String(node.id || nextPrefix.join('/')),
           name: currentName || '未命名模块',
           total,
           completed: 0,
+          minSortOrder,
           moduleData: {
             ...node,
             children,
@@ -1379,6 +1544,39 @@ function collectLeafModules(nodes: any[], prefix: string[] = []): SidebarModuleN
   return modules;
 }
 
+function getMinSortOrder(items: any[]): number {
+  let minSortOrder = Number.POSITIVE_INFINITY;
+
+  const walk = (nodes: any[]) => {
+    for (const node of nodes || []) {
+      if (isDetectionItem(node)) {
+        if (typeof node.sortOrder === 'number') {
+          minSortOrder = Math.min(minSortOrder, node.sortOrder);
+        }
+        if (Array.isArray(node.children) && node.children.length > 0) {
+          walk(node.children);
+        }
+        continue;
+      }
+
+      if (Array.isArray(node.children) && node.children.length > 0) {
+        walk(node.children);
+      }
+    }
+  };
+
+  walk(items);
+  return minSortOrder;
+}
+
+function compareByMinSortOrder(left: { minSortOrder: number; name: string }, right: { minSortOrder: number; name: string }): number {
+  if (left.minSortOrder !== right.minSortOrder) {
+    return left.minSortOrder - right.minSortOrder;
+  }
+
+  return String(left.name ?? '').localeCompare(String(right.name ?? ''), 'zh-CN');
+}
+
 const buildCategoryList = (items: any[]) => {
   const categories: SidebarCategoryNode[] = [];
 
@@ -1388,14 +1586,24 @@ const buildCategoryList = (items: any[]) => {
       return;
     }
 
+    modules.sort(compareByMinSortOrder);
+
+    const minSortOrder = modules.reduce(
+      (min, module) => Math.min(min, module.minSortOrder),
+      Number.POSITIVE_INFINITY,
+    );
+
     categories.push({
       id: item.id,
       name: item.name,
       children: modules,
       total: modules.reduce((sum, module) => sum + module.total, 0),
       completed: 0,
+      minSortOrder,
     });
   });
+
+  categories.sort(compareByMinSortOrder);
 
   expandedCategories.value = categories.length > 0 ? [categories[0].id] : [];
   categoryList.value = categories;
@@ -1468,6 +1676,12 @@ const createTaskItem = (item: any, existingData: any) => {
   
   return {
     id: item.id,
+    sortOrder:
+      typeof item.sortOrder === 'number'
+        ? item.sortOrder
+        : typeof existingData.sortOrder === 'number'
+          ? existingData.sortOrder
+          : null,
     name: item.name,
     description: getTaskDescription(item),
     dataFields,
@@ -1497,14 +1711,32 @@ const buildTaskList = (subCategory: SidebarModuleNode) => {
   subCategory.moduleData.children.forEach((item: any) => {
     if (!(item.type && item.required !== undefined)) return;
     
-    const itemsToProcess = item.children?.length > 0 
+    const itemsToProcess = item.children?.length > 0
       ? item.children.filter((child: any) => child.type)
       : [item];
+
+    itemsToProcess.sort((left: any, right: any) => {
+      const leftSortOrder = typeof left?.sortOrder === 'number' ? left.sortOrder : Number.POSITIVE_INFINITY;
+      const rightSortOrder = typeof right?.sortOrder === 'number' ? right.sortOrder : Number.POSITIVE_INFINITY;
+      if (leftSortOrder !== rightSortOrder) {
+        return leftSortOrder - rightSortOrder;
+      }
+      return String(left?.name ?? '').localeCompare(String(right?.name ?? ''), 'zh-CN');
+    });
     
     itemsToProcess.forEach((processItem: any) => {
       const existingData = taskDataMap.value[processItem.id] || {};
       tasks.push(createTaskItem(processItem, existingData));
     });
+  });
+
+  tasks.sort((left, right) => {
+    const leftSortOrder = typeof left?.sortOrder === 'number' ? left.sortOrder : Number.POSITIVE_INFINITY;
+    const rightSortOrder = typeof right?.sortOrder === 'number' ? right.sortOrder : Number.POSITIVE_INFINITY;
+    if (leftSortOrder !== rightSortOrder) {
+      return leftSortOrder - rightSortOrder;
+    }
+    return String(left?.name ?? '').localeCompare(String(right?.name ?? ''), 'zh-CN');
   });
   
   currentTaskList.value = tasks;

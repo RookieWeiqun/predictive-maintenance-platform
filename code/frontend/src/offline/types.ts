@@ -26,6 +26,7 @@ export interface OfflineTaskItemRecord {
   task_uuid: string;
   source_type: TaskItemSourceType;
   item_name: string;
+  sort_order: number | null;
   category_path: string | null;
   result: string | null;
   display_condition: string | null;
@@ -64,6 +65,7 @@ export interface OfflineTaskRecord {
   inspection_type: string | null;
   version: number | null;
   device_model: string | null;
+  scheme_snapshot_json: string | null;
   status: string;
   downloaded_at: string;
   local_updated_at: string;

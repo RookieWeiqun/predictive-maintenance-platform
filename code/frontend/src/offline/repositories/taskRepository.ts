@@ -32,6 +32,7 @@ export class OfflineTaskRepository {
           inspection_type,
           version,
           device_model,
+          scheme_snapshot_json,
           status,
           downloaded_at,
           local_updated_at,
@@ -65,6 +66,7 @@ export class OfflineTaskRepository {
           inspection_type,
           version,
           device_model,
+          scheme_snapshot_json,
           status,
           downloaded_at,
           local_updated_at,
@@ -105,11 +107,12 @@ export class OfflineTaskRepository {
           inspection_type,
           version,
           device_model,
+          scheme_snapshot_json,
           status,
           downloaded_at,
           local_updated_at,
           sync_status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(task_uuid) DO UPDATE SET
           server_task_id = excluded.server_task_id,
           task_no = excluded.task_no,
@@ -128,6 +131,7 @@ export class OfflineTaskRepository {
           inspection_type = excluded.inspection_type,
           version = excluded.version,
           device_model = excluded.device_model,
+          scheme_snapshot_json = excluded.scheme_snapshot_json,
           status = excluded.status,
           local_updated_at = excluded.local_updated_at,
           sync_status = excluded.sync_status
@@ -151,6 +155,7 @@ export class OfflineTaskRepository {
         record.inspection_type,
         record.version,
         record.device_model,
+        record.scheme_snapshot_json ?? null,
         record.status,
         downloadedAt,
         localUpdatedAt,

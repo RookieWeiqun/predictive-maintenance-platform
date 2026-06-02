@@ -90,18 +90,46 @@
               placeholder="请输入适用型号（可选）"
               style="flex: 1;"
             />
-            <IxInput
+            <IxSelect
+              v-if="isEditMode"
               v-model="schemeForm.series"
               label="系列"
-              :readonly="!isEditMode"
-              placeholder="请输入 series"
+              placeholder="请选择系列"
+              style="flex: 1;"
+            >
+              <IxSelectItem
+                v-for="option in seriesOptions"
+                :key="option"
+                :label="option"
+                :value="option"
+              />
+            </IxSelect>
+            <IxInput
+              v-else
+              :model-value="schemeForm.series"
+              label="系列"
+              readonly
               style="flex: 1;"
             />
-            <IxInput
+            <IxSelect
+              v-if="isEditMode"
               v-model="schemeForm.size"
               label="尺寸"
-              :readonly="!isEditMode"
-              placeholder="请输入 size"
+              placeholder="请选择尺寸"
+              style="flex: 1;"
+            >
+              <IxSelectItem
+                v-for="option in sizeOptions"
+                :key="option"
+                :label="option"
+                :value="option"
+              />
+            </IxSelect>
+            <IxInput
+              v-else
+              :model-value="schemeForm.size"
+              label="尺寸"
+              readonly
               style="flex: 1;"
             />
           </template>
@@ -171,7 +199,9 @@ import {
 } from 'ag-grid-community';
 import { getSchemeById, saveScheme } from '@/mockdata/scheme/index.ts';
 import productCategoriesData from '@/mockdata/common/productCategories.json';
-import { inspectionTemplatesApi } from '@/api';
+import { inspectionTemplatesApi, templatemappingsApi } from '@/api';
+import type { TemplateMappingDto } from '@/api/modules/templatemappings';
+import { dedupeTemplateMappingField } from '@/util/templateMappings';
 import {
   isTemplateApiId,
   templateDtoToFormAndAtomic,
@@ -200,6 +230,7 @@ const returnPath = route.query.returnPath as string | undefined;
 const loadedTemplateCreatedate = ref<string | null>(null);
 const excelInputRef = ref<HTMLInputElement | null>(null);
 const syncProgress = ref({ visible: false, percent: 0, message: '' });
+const templateMappings = ref<TemplateMappingDto[]>([]);
 
 // 编辑模式
 const isEditMode = ref(false);
@@ -256,6 +287,30 @@ const productCategoryLabel = computed(() =>
 const productSeriesLabel = computed(() =>
   schemeForm.value.atomicType === 'peripheral' ? '产品系列' : '子分类',
 );
+
+function withCurrentOption(options: string[], currentValue: string): string[] {
+  const value = currentValue.trim();
+  if (!value || options.includes(value)) {
+    return options;
+  }
+  return [value, ...options];
+}
+
+const seriesOptions = computed(() =>
+  withCurrentOption(dedupeTemplateMappingField(templateMappings.value, 'series'), schemeForm.value.series),
+);
+
+const sizeOptions = computed(() =>
+  withCurrentOption(dedupeTemplateMappingField(templateMappings.value, 'size'), schemeForm.value.size),
+);
+
+async function loadTemplateMappings(): Promise<void> {
+  try {
+    templateMappings.value = await templatemappingsApi.listTemplateMappings();
+  } catch (error) {
+    showToast({ message: error instanceof Error ? error.message : '型号尺寸匹配表加载失败' });
+  }
+}
 
 // 分类名称
 const categoryName = computed(() => {
@@ -598,6 +653,7 @@ async function bootstrapView() {
 }
 
 onMounted(() => {
+  void loadTemplateMappings();
   void bootstrapView();
 });
 

@@ -44,6 +44,7 @@ export type InspectionTaskDetailDto = {
     item_id: string;
     source_type?: 'system_generated' | 'manual_added';
     source_inspection_item_id?: number | string | null;
+    sort_order?: number | null;
     item_name: string;
     category_path?: string | null;
     execution_status?: string | null;
@@ -353,6 +354,10 @@ function mapInspectionTaskDetailRaw(raw: unknown): InspectionTaskDetailDto {
           | string
           | null
           | undefined,
+        sort_order:
+          toOptionalNumber(gv(item, 'sort_order', 'sortOrder'))
+          ?? toOptionalNumber(parseRenderSchemaJson(gv(item, 'render_schema_json', 'renderSchemaJson'))?.sort_order)
+          ?? null,
         item_name: String(gv(item, 'item_name', 'taskname') ?? ''),
         category_path: toOptionalString(gv(item, 'category_path', 'categorypath')) ?? null,
         execution_status: (() => {

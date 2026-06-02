@@ -84,12 +84,12 @@
             placeholder="正整数"
           />
 
-          <IxFieldLabel htmlFor="deviceSerials">序列号</IxFieldLabel>
+          <!-- <IxFieldLabel htmlFor="deviceSerials">序列号</IxFieldLabel>
           <IxInput
             id="deviceSerials"
             v-model="form.serialNumbersText"
             placeholder="可选，逗号或换行分隔；留空则按数量自动生成占位序列号"
-          />
+          /> -->
         </IxLayoutAuto>
       </IxModalContent>
       <IxModalFooter>

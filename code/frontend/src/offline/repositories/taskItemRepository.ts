@@ -13,6 +13,7 @@ interface OfflineTaskItemRow {
   task_uuid: string;
   source_type: OfflineTaskItemRecord['source_type'];
   item_name: string;
+  sort_order: number | null;
   category_path: string | null;
   result: string | null;
   display_condition: string | null;
@@ -51,6 +52,7 @@ export class OfflineTaskItemRepository {
           task_uuid,
           source_type,
           item_name,
+          sort_order,
           category_path,
           result,
           display_condition,
@@ -65,7 +67,7 @@ export class OfflineTaskItemRepository {
           local_updated_at,
           sync_status
         FROM offline_task_item
-        ORDER BY local_updated_at DESC
+        ORDER BY CASE WHEN sort_order IS NULL THEN 1 ELSE 0 END, sort_order DESC, local_updated_at DESC
       `,
     );
 
@@ -82,6 +84,7 @@ export class OfflineTaskItemRepository {
           task_uuid,
           source_type,
           item_name,
+          sort_order,
           category_path,
           result,
           display_condition,
@@ -97,7 +100,7 @@ export class OfflineTaskItemRepository {
           sync_status
         FROM offline_task_item
         WHERE task_uuid = ?
-        ORDER BY local_updated_at DESC
+        ORDER BY CASE WHEN sort_order IS NULL THEN 1 ELSE 0 END, sort_order DESC, local_updated_at DESC
       `,
       [taskUuid],
     );
@@ -115,6 +118,7 @@ export class OfflineTaskItemRepository {
           task_uuid,
           source_type,
           item_name,
+          sort_order,
           category_path,
           result,
           display_condition,
@@ -150,6 +154,7 @@ export class OfflineTaskItemRepository {
           task_uuid,
           source_type,
           item_name,
+          sort_order,
           category_path,
           result,
           display_condition,
@@ -163,12 +168,13 @@ export class OfflineTaskItemRepository {
           is_recheck,
           local_updated_at,
           sync_status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(task_item_uuid) DO UPDATE SET
           server_item_id = excluded.server_item_id,
           task_uuid = excluded.task_uuid,
           source_type = excluded.source_type,
           item_name = excluded.item_name,
+          sort_order = excluded.sort_order,
           category_path = excluded.category_path,
           result = excluded.result,
           display_condition = excluded.display_condition,
@@ -189,6 +195,7 @@ export class OfflineTaskItemRepository {
         record.task_uuid,
         record.source_type,
         record.item_name,
+        record.sort_order ?? null,
         record.category_path,
         record.result,
         record.display_condition,

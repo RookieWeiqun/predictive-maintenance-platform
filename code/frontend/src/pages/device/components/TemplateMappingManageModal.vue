@@ -7,7 +7,7 @@
           <IxInput v-model="searchKeyword" placeholder="按产品型号搜索" />
           <IxButton variant="secondary" @click="handleSearch">搜索</IxButton>
           <IxButton variant="secondary" @click="handleReset">重置</IxButton>
-          <IxButton variant="primary" @click="startCreate">新增</IxButton>
+          <!-- <IxButton variant="primary" @click="startCreate">新增</IxButton> -->
         </div>
 
         <div class="mapping-form">
