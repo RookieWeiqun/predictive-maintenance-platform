@@ -80,8 +80,8 @@ namespace premaintainProjects.Services
         }
 
         private static readonly TimeZoneInfo ChinaTimeZone =
-    TimeZoneInfo.FindSystemTimeZoneById(
-        OperatingSystem.IsWindows() ? "China Standard Time" : "Asia/Shanghai");
+                TimeZoneInfo.FindSystemTimeZoneById(
+                    OperatingSystem.IsWindows() ? "China Standard Time" : "Asia/Shanghai");
 
         public DateTime NormalizeChinaTime(DateTime value) =>
             value.Kind switch

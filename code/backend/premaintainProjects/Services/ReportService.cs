@@ -14,33 +14,38 @@ public class ReportService
 {
     private readonly PredictiveMaintenancePlatformContext _context;
     private readonly IWebHostEnvironment _env;
+    private readonly ServiceTools _serviceTools;
+    private const string FullTableWidth = "5000";
 
-    public ReportService(PredictiveMaintenancePlatformContext context, IWebHostEnvironment env)
+    public ReportService(PredictiveMaintenancePlatformContext context, IWebHostEnvironment env, ServiceTools serviceTools)
     {
         _context = context;
         _env = env;
+        _serviceTools = serviceTools;
     }
 
     public async Task<string> GenerateProjectReportAsync(int projectId)
     {
-        Report report = await _context.Reports
-            .FirstOrDefaultAsync(r => r.Projectid == projectId)
-            ?? new Report
-            {
-                Projectid = projectId
-            };
-
-        if (report.Reportid == 0)
-        {
-            _context.Reports.Add(report);
-        }
-
         var project = await _context.Projects
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Projectid == projectId);
 
         if (project == null)
             throw new InvalidOperationException("项目不存在");
+
+
+        Report report = await _context.Reports
+            .FirstOrDefaultAsync(r => r.Projectid == projectId)
+            ?? new Report
+            {
+                Projectid = projectId,
+                Createdate = DateOnly.FromDateTime(DateTime.Now)
+            };
+
+        if (report.Reportid == 0)
+        {
+            _context.Reports.Add(report);
+        }
 
         var company = await _context.Companies
             .AsNoTracking()
@@ -214,14 +219,23 @@ public class ReportService
                     {
                         var itemAttachments = attachments
                             .Where(a => a.Taskitemid == x.Item.Itemid)
-                            .Select(a => ResolveAttachmentPath(a.Filepath))
-                            .Distinct()
+                            .Select(a => new
+                            {
+                                Path = ResolveAttachmentPath(a.Filepath),
+                                FileName = a.Filename
+                            })
+                            .Where(a => !string.IsNullOrWhiteSpace(a.Path))
+                            .DistinctBy(a => a.Path)
                             .Take(4)
                             .ToList();
 
                         while (itemAttachments.Count < 4)
                         {
-                            itemAttachments.Add(string.Empty);
+                            itemAttachments.Add(new
+                            {
+                                Path = string.Empty,
+                                FileName = string.Empty
+                            });
                         }
 
                         return new ReportFailResultDto
@@ -239,10 +253,14 @@ public class ReportService
                             ActionTaken = GetJsonValue(x.Item.Taskresult, "actionTaken"),
                             HazardResolved = GetJsonValue(x.Item.Taskresult, "hazardResolved"),
                             RecommendationContent = GetJsonValue(x.Item.Taskresult, "recommendationContent"),
-                            Photo1 = itemAttachments[0],
-                            Photo2 = itemAttachments[1],
-                            Photo3 = itemAttachments[2],
-                            Photo4 = itemAttachments[3]
+                            Photo1 = itemAttachments[0].Path,
+                            Photo2 = itemAttachments[1].Path,
+                            Photo3 = itemAttachments[2].Path,
+                            Photo4 = itemAttachments[3].Path,
+                            Photo1Name = itemAttachments[0].FileName,
+                            Photo2Name = itemAttachments[1].FileName,
+                            Photo3Name = itemAttachments[2].FileName,
+                            Photo4Name = itemAttachments[3].FileName
                         };
                     });
             })
@@ -275,9 +293,8 @@ public class ReportService
         var projectName = project.Projectname ?? string.Empty;
         var companyName = company?.Companyname ?? string.Empty;
 
-        var leadEngineer = await GetUserNameByIdAsync(project.Managerid)
-            ?? await GetUserNameByIdAsync(project.Assigneduserid)
-            ?? string.Empty;
+        var leadEngineer = await GetUserNameByIdAsync(project.Assigneduserid) ?? string.Empty;
+        var siemensContact = await GetUserNameByIdAsync(project.Managerid) ?? string.Empty;
 
         await using var fileStream = new FileStream(templatePath, FileMode.Open, FileAccess.Read, FileShare.Read);
         using var memoryStream = new MemoryStream();
@@ -306,16 +323,16 @@ public class ReportService
             var document = mainPart.Document ?? throw new InvalidOperationException("Word 模板缺少 Document");
 
             ReplacePlaceholder(document, "{$projectname}", projectName ?? "");
-            ReplacePlaceholder(document, "{$city}", "");
+            ReplacePlaceholder(document, "{$city}", project.City ?? "");
             ReplacePlaceholder(document, "{$companyname}", companyName ?? "");
             ReplacePlaceholder(document, "{$Createdate}", project.Createdate.ToString("yyyy-MM-dd"));
-            ReplacePlaceholder(document, "{$serviceId}", "");
-            ReplacePlaceholder(document, "{$customerContact}", "");
-            ReplacePlaceholder(document, "{$siemensContact}", "");
-            ReplacePlaceholder(document, "{$startDate}", "");
-            ReplacePlaceholder(document, "{$endDate}", "");
-            ReplacePlaceholder(document, "{$reportCreateDate}", "");
-            ReplacePlaceholder(document, "{$leadEngineer}", leadEngineer ?? "");
+            ReplacePlaceholder(document, "{$serviceId}", project.Serviceid?.ToString()??"");
+            ReplacePlaceholder(document, "{$customerContact}", project.Customercontact?.ToString()??"");
+            ReplacePlaceholder(document, "{$siemensContact}", siemensContact);
+            ReplacePlaceholder(document, "{$startDate}", project.Createdate.ToString("yyyy-MM-dd"));
+            ReplacePlaceholder(document, "{$endDate}", project.Enddate?.ToString("yyyy-MM-dd") ??"");
+            ReplacePlaceholder(document, "{$reportCreateDate}", report.Createdate.ToString("yyyy-MM-dd"));
+            ReplacePlaceholder(document, "{$leadEngineer}", leadEngineer);
             ReplacePlaceholder(document, "{$SummaryDescription}", report.Summarydescription ?? string.Empty);
             ReplacePlaceholder(document, "{$SparePartsRecommendation}", report.Sparepartsrecommendation ?? string.Empty);
 
@@ -331,6 +348,7 @@ public class ReportService
                 maintainElements.Add(CreateEquipmentTable(eq));
             }
             maintainElements.Add(CreatePageBreakParagraph());
+          
             ReplacePlaceholderWithElements(document, "{$maintainList}", maintainElements);
 
             var detailElements = new List<OpenXmlElement>();
@@ -437,8 +455,9 @@ public class ReportService
 
         table.Append(
         CreateFailRightSpanRowContinue(
-        $"问题描述：{item.CategoryPath}",
-        $"{item.TaskName} : {item.Value}",string.Empty)
+        $"检测项目：{item.CategoryPath}",
+        $"问题描述：{item.TaskName} : {item.Value}",
+        string.Empty)
         );
 
         table.Append(
@@ -448,8 +467,8 @@ public class ReportService
                 string.Empty)
         );
 
-        table.Append(CreateFailPhotoRow(mainPart, item.Photo1, item.Photo2));
-        table.Append(CreateFailPhotoRow(mainPart, item.Photo3, item.Photo4));
+        table.Append(CreateFailPhotoRow(mainPart, item.Photo1, item.Photo1Name, item.Photo2, item.Photo2Name));
+        table.Append(CreateFailPhotoRow(mainPart, item.Photo3, item.Photo3Name, item.Photo4, item.Photo4Name));
 
         return table;
     }
@@ -487,8 +506,8 @@ public class ReportService
                 string.Empty,string.Empty)
         );
 
-        table.Append(CreateFailPhotoRow(mainPart, item.Photo1, item.Photo2));
-        table.Append(CreateFailPhotoRow(mainPart, item.Photo3, item.Photo4));
+        table.Append(CreateFailPhotoRow(mainPart, item.Photo1, item.Photo1Name, item.Photo2, item.Photo2Name));
+        table.Append(CreateFailPhotoRow(mainPart, item.Photo3, item.Photo3Name, item.Photo4, item.Photo4Name));
 
         return table;
     }
@@ -530,18 +549,27 @@ public class ReportService
         );
     }
 
-    private static TableRow CreateFailPhotoRow(MainDocumentPart mainPart, string? photo1Path, string? photo2Path)
+    private static TableRow CreateFailPhotoRow(
+        MainDocumentPart mainPart,
+        string? photo1Path,
+        string? photo1Name,
+        string? photo2Path,
+        string? photo2Name)
     {
         const string photoCellWidth = "3600";
 
         return new TableRow(
             CreateMergedLeftCell(null, false),
-            CreateImageCell(photo1Path, mainPart, photoCellWidth),
-            CreateImageCell(photo2Path, mainPart, photoCellWidth)
+            CreateImageCell(photo1Path, photo1Name, mainPart, photoCellWidth),
+            CreateImageCell(photo2Path, photo2Name, mainPart, photoCellWidth)
         );
     }
 
-    private static TableCell CreateImageCell(string? imagePath, MainDocumentPart mainPart, string cellWidth)
+    private static TableCell CreateImageCell(
+    string? imagePath,
+    string? fileName,
+    MainDocumentPart mainPart,
+    string cellWidth)
     {
         var cell = new TableCell(
             new TableCellProperties(
@@ -550,24 +578,39 @@ public class ReportService
             )
         );
 
+        var paragraph = new Paragraph(
+            new ParagraphProperties(
+                new Justification { Val = JustificationValues.Center }
+            )
+        );
+
         if (!string.IsNullOrWhiteSpace(imagePath) && File.Exists(imagePath))
         {
-            cell.Append(
-                new Paragraph(
-                    new ParagraphProperties(
-                        new Justification { Val = JustificationValues.Center }
-                    ),
-                    new Run(
-                        CreateImageDrawing(mainPart, imagePath, 2100000L, 1575000L)
-                    )
+            paragraph.Append(
+                new Run(
+                    CreateImageDrawing(mainPart, imagePath, 2100000L, 1575000L)
                 )
             );
+
+            if (!string.IsNullOrWhiteSpace(fileName))
+            {
+                paragraph.Append(new Run(new Break()));
+                paragraph.Append(
+                    new Run(
+                        new Text(SanitizeOpenXmlText(fileName))
+                        {
+                            Space = SpaceProcessingModeValues.Preserve
+                        }
+                    )
+                );
+            }
         }
         else
         {
-            cell.Append(new Paragraph(new Run(new Text(string.Empty))));
+            paragraph.Append(new Run(new Text(string.Empty)));
         }
 
+        cell.Append(paragraph);
         return cell;
     }
 
@@ -961,7 +1004,7 @@ public class ReportService
                 new TableWidth
                 {
                     Type = TableWidthUnitValues.Pct,
-                    Width = "4750"
+                    Width = FullTableWidth
                 },
                 new TableLayout
                 {
@@ -1003,7 +1046,7 @@ public class ReportService
                 new TableWidth
                 {
                     Type = TableWidthUnitValues.Pct,
-                    Width = "4750"
+                    Width = FullTableWidth
                 },
                 new TableLayout
                 {
@@ -1211,4 +1254,8 @@ public class ReportFailResultDto
     public string? Photo2 { get; set; }
     public string? Photo3 { get; set; }
     public string? Photo4 { get; set; }
+    public string? Photo1Name { get; set; }
+    public string? Photo2Name { get; set; }
+    public string? Photo3Name { get; set; }
+    public string? Photo4Name { get; set; }
 }
