@@ -13,7 +13,20 @@ export type ReportDto = {
 
 type GenerateReportResponse = {
   filePath?: string | null;
+  path?: string | null;
 };
+
+function extractReportFilePath(data: GenerateReportResponse | string | null | undefined): string {
+  if (typeof data === 'string') {
+    return data.trim();
+  }
+
+  if (!data || typeof data !== 'object') {
+    return '';
+  }
+
+  return String(data.filePath ?? data.path ?? '').trim();
+}
 
 function unwrap<T>(res: ApiEnvelope<T>): T {
   if (res.code !== 0) {
@@ -96,13 +109,26 @@ export async function updateReport(payload: ReportDto, init?: RequestInit): Prom
 }
 
 export async function generateProjectReport(projectid: number): Promise<string> {
-  const res = await requestJson<ApiEnvelope<GenerateReportResponse>>(`/api/Reports/Generate/${projectid}`);
+  const res = await requestJson<ApiEnvelope<GenerateReportResponse | string>>(`/api/Reports/Generate/${projectid}`);
   const data = unwrap(res);
-  const filePath = String(data?.filePath ?? '').trim();
+  const filePath = extractReportFilePath(data);
   if (!filePath) {
     throw new ApiError('报告导出成功，但后端未返回文件路径');
   }
   return filePath;
+}
+
+function getReportDownloadBaseUrl(): string {
+  const explicitBase = String(import.meta.env.VITE_REPORT_DOWNLOAD_BASE_URL ?? '').trim().replace(/\/+$/, '');
+  if (explicitBase) {
+    return explicitBase;
+  }
+
+  if (typeof window !== 'undefined' && String(window.location?.origin ?? '').trim()) {
+    return String(window.location.origin).replace(/\/+$/, '');
+  }
+
+  return '';
 }
 
 export function resolveReportDownloadUrl(filePath: string): string {
@@ -122,7 +148,7 @@ export function resolveReportDownloadUrl(filePath: string): string {
     throw new ApiError(`不支持的报告下载路径：${normalized}`);
   }
 
-  const rawBase = String(import.meta.env.VITE_API_BASE_URL ?? '').trim().replace(/\/+$/, '');
+  const rawBase = getReportDownloadBaseUrl();
   if (!rawBase) return publicPath;
   return `${rawBase}${publicPath}`;
 }

@@ -9,7 +9,7 @@ function quoteList(values: readonly string[]): string {
   return values.map((value) => `'${value}'`).join(', ');
 }
 
-export const OFFLINE_DB_VERSION = 7;
+export const OFFLINE_DB_VERSION = 9;
 
 export const OFFLINE_TASK_TABLE = 'offline_task';
 export const OFFLINE_TASK_ITEM_TABLE = 'offline_task_item';
@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS ${OFFLINE_TASK_TABLE} (
   inspection_type TEXT,
   version INTEGER,
   device_model TEXT,
+  scheme_snapshot_json TEXT,
   status TEXT NOT NULL,
   downloaded_at TEXT NOT NULL,
   local_updated_at TEXT NOT NULL,
@@ -127,6 +128,7 @@ CREATE TABLE IF NOT EXISTS ${OFFLINE_TASK_ITEM_TABLE} (
   task_uuid TEXT NOT NULL,
   source_type TEXT NOT NULL CHECK (source_type IN (${quoteList(TASK_ITEM_SOURCE_TYPES)})),
   item_name TEXT NOT NULL,
+  sort_order INTEGER,
   category_path TEXT,
   result TEXT,
   display_condition TEXT,
@@ -150,6 +152,14 @@ export const OFFLINE_DB_MIGRATION_V7_SQL = [
   `ALTER TABLE ${OFFLINE_TASK_ITEM_TABLE} ADD COLUMN recommendation_content TEXT;`,
   `ALTER TABLE ${OFFLINE_TASK_ITEM_TABLE} ADD COLUMN hidden_hazard_content TEXT;`,
   `ALTER TABLE ${OFFLINE_TASK_ITEM_TABLE} ADD COLUMN maintenance_instructions TEXT;`,
+];
+
+export const OFFLINE_DB_MIGRATION_V8_SQL = [
+  `ALTER TABLE ${OFFLINE_TASK_ITEM_TABLE} ADD COLUMN sort_order INTEGER;`,
+];
+
+export const OFFLINE_DB_MIGRATION_V9_SQL = [
+  `ALTER TABLE ${OFFLINE_TASK_TABLE} ADD COLUMN scheme_snapshot_json TEXT;`,
 ];
 
 export const CREATE_OFFLINE_ATTACHMENT_TABLE_SQL = `

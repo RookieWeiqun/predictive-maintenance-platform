@@ -69,28 +69,49 @@ type TaskPackageResultDto = {
 
 type TaskPackageItemDto = {
   item_id: string;
+  itemId?: string;
   source_type?: 'system_generated' | 'manual_added';
+  sourceType?: 'system_generated' | 'manual_added' | number | string;
   source_inspection_item_id?: number | string | null;
+  sourceInspectionItemId?: number | string | null;
   item_name: string;
+  taskname?: string;
   category_path?: string | null;
+  categorypath?: string | null;
+  sort_order?: number | null;
+  sortOrder?: number | null;
   execution_status?: string | null;
+  executionStatus?: string | number | null;
   is_normal?: boolean | null;
+  isnormal?: boolean | number | null;
   is_recheck?: boolean | null;
+  isrecheck?: boolean | number | null;
   version?: number | null;
   updated_at?: string | null;
+  updatetime?: string | null;
   render_schema_json?: {
     value_type?: string | null;
+    valueType?: string | null;
     rule_type?: string | null;
+    ruleType?: string | null;
     threshold?: Record<string, unknown> | null;
     sort_order?: number | null;
+    sortOrder?: number | null;
     priority?: string | null;
     display_condition?: string | null;
+    displayCondition?: string | null;
     operation_guide?: string | null;
+    operationGuide?: string | null;
     suggestion_rule?: string | null;
+    suggestionRule?: string | null;
     suggestion_content?: string | null;
+    suggestionContent?: string | null;
     hazard_content?: string | null;
+    hazardContent?: string | null;
     maintenance_description?: string | null;
+    maintenanceDescription?: string | null;
   } | null;
+  renderSchemaJson?: TaskPackageItemDto['render_schema_json'];
   task_result?: TaskPackageResultDto | null;
   taskresult?: TaskPackageResultDto | null;
 };
@@ -128,6 +149,14 @@ function writeTaskSchemeCache(taskUuid: string, schemeId: string, items: SchemeI
   }
 }
 
+function serializeTaskSchemeSnapshot(items: SchemeItem[]): string {
+  return JSON.stringify({
+    items,
+    offlineSource: 'sqlite-snapshot',
+    cachedAt: nowIso(),
+  });
+}
+
 function nowIso(): string {
   return nowChinaDateTime();
 }
@@ -156,6 +185,69 @@ function mapValueTypeToSchemeType(valueType: string | null | undefined): string 
     return 'functional';
   }
   return 'visual';
+}
+
+function toOptionalNumber(value: unknown): number | null {
+  if (value == null || value === '') {
+    return null;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function getTaskPackageItemId(item: TaskPackageItemDto): string {
+  return String(item.item_id ?? item.itemId ?? '').trim();
+}
+
+function getTaskPackageItemName(item: TaskPackageItemDto): string {
+  return String(item.item_name ?? item.taskname ?? '').trim();
+}
+
+function getTaskPackageCategoryPath(item: TaskPackageItemDto): string | null {
+  const value = item.category_path ?? item.categorypath ?? null;
+  if (value == null) {
+    return null;
+  }
+  const text = String(value).trim();
+  return text ? text : null;
+}
+
+function getTaskPackageRenderSchema(item: TaskPackageItemDto): NonNullable<TaskPackageItemDto['render_schema_json']> | null {
+  return item.render_schema_json ?? item.renderSchemaJson ?? null;
+}
+
+function getTaskPackageSortOrder(item: TaskPackageItemDto): number | null {
+  const renderSchema = getTaskPackageRenderSchema(item);
+  return (
+    toOptionalNumber(item.sort_order)
+    ?? toOptionalNumber(item.sortOrder)
+    ?? toOptionalNumber(renderSchema?.sort_order)
+    ?? toOptionalNumber(renderSchema?.sortOrder)
+  );
+}
+
+function toOptionalBoolean(value: unknown): boolean | null {
+  if (value == null || value === '') {
+    return null;
+  }
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'number') {
+    return value !== 0;
+  }
+  const normalized = String(value).trim().toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+  if (normalized === 'true' || normalized === '1') {
+    return true;
+  }
+  if (normalized === 'false' || normalized === '0') {
+    return false;
+  }
+  return null;
 }
 
 function mapBackendResultToUi(raw: string | null | undefined): '' | 'normal' | 'warning' | 'abnormal' {
@@ -240,7 +332,7 @@ function createSchemeCacheFromPackageItems(taskItems: TaskPackageItemDto[]): Sch
   const roots = new Map<string, SchemeItem>();
 
   for (const item of taskItems) {
-    const pathParts = String(item.category_path ?? '离线任务 / 默认分组')
+    const pathParts = String(getTaskPackageCategoryPath(item) ?? '离线任务 / 默认分组')
       .split('/')
       .map((part) => part.trim())
       .filter(Boolean);
@@ -276,21 +368,23 @@ function createSchemeCacheFromPackageItems(taskItems: TaskPackageItemDto[]): Sch
       created.children = [];
     }
 
-    const threshold = item.render_schema_json?.threshold;
+    const renderSchema = getTaskPackageRenderSchema(item);
+    const threshold = renderSchema?.threshold;
     const leaf: SchemeItem = {
-      id: item.item_id,
-      name: item.item_name,
-      type: mapValueTypeToSchemeType(item.render_schema_json?.value_type),
-      dataType: item.render_schema_json?.value_type ?? undefined,
+      id: getTaskPackageItemId(item),
+      name: getTaskPackageItemName(item),
+      sortOrder: getTaskPackageSortOrder(item) ?? undefined,
+      type: mapValueTypeToSchemeType(renderSchema?.value_type ?? renderSchema?.valueType),
+      dataType: renderSchema?.value_type ?? renderSchema?.valueType ?? undefined,
       required: true,
-      ruleType: item.render_schema_json?.rule_type ?? undefined,
-      priority: item.render_schema_json?.priority ?? undefined,
-      displayCondition: decodeDisplayCondition(item.render_schema_json?.display_condition) || undefined,
-      operationGuide: item.render_schema_json?.operation_guide ?? undefined,
-      suggestionRule: item.render_schema_json?.suggestion_rule ?? undefined,
-      suggestionContent: item.render_schema_json?.suggestion_content ?? undefined,
-      hazardContent: item.render_schema_json?.hazard_content ?? undefined,
-      maintenanceDescription: item.render_schema_json?.maintenance_description ?? undefined,
+      ruleType: renderSchema?.rule_type ?? renderSchema?.ruleType ?? undefined,
+      priority: renderSchema?.priority ?? undefined,
+      displayCondition: decodeDisplayCondition(renderSchema?.display_condition ?? renderSchema?.displayCondition) || undefined,
+      operationGuide: renderSchema?.operation_guide ?? renderSchema?.operationGuide ?? undefined,
+      suggestionRule: renderSchema?.suggestion_rule ?? renderSchema?.suggestionRule ?? undefined,
+      suggestionContent: renderSchema?.suggestion_content ?? renderSchema?.suggestionContent ?? undefined,
+      hazardContent: renderSchema?.hazard_content ?? renderSchema?.hazardContent ?? undefined,
+      maintenanceDescription: renderSchema?.maintenance_description ?? renderSchema?.maintenanceDescription ?? undefined,
       thresholdRaw: threshold ? JSON.stringify(threshold) : undefined,
       minThreshold: typeof threshold?.min === 'number' ? threshold.min : undefined,
       maxThreshold: typeof threshold?.max === 'number' ? threshold.max : undefined,
@@ -460,6 +554,7 @@ async function downloadTaskPackageFromResponse(
     inspection_type: task.inspection_type != null ? String(task.inspection_type) : null,
     version: buildDownloadedTaskVersion(task.version),
     device_model: options?.deviceModel || '-',
+    scheme_snapshot_json: serializeTaskSchemeSnapshot(schemeCache),
     status: 'downloaded',
     downloaded_at: normalizeChinaDateTime(task.downloaded_at) ?? nowIso(),
     local_updated_at: normalizeChinaDateTime(task.local_updated_at) ?? normalizeChinaDateTime(task.downloaded_at) ?? nowIso(),
@@ -467,24 +562,27 @@ async function downloadTaskPackageFromResponse(
   });
 
   const offlineItems = taskItems.map<OfflineTaskItemUpsert>((item) => ({
-    task_item_uuid: `${taskUuid}:${item.item_id}`,
-    server_item_id: item.item_id,
+    task_item_uuid: `${taskUuid}:${getTaskPackageItemId(item)}`,
+    server_item_id: getTaskPackageItemId(item),
     task_uuid: taskUuid,
-    source_type: item.source_type ?? 'system_generated',
-    item_name: item.item_name,
-    category_path: item.category_path ?? null,
+    source_type:
+      item.source_type
+      ?? (item.sourceType === 2 || item.sourceType === '2' ? 'manual_added' : 'system_generated'),
+    item_name: getTaskPackageItemName(item),
+    sort_order: getTaskPackageSortOrder(item),
+    category_path: getTaskPackageCategoryPath(item),
     result: buildOfflineResultPayloadFromTaskResult(item.task_result ?? item.taskresult),
-    display_condition: item.render_schema_json?.display_condition ?? null,
-    operation_guide: item.render_schema_json?.operation_guide ?? null,
-    recommended_rules: item.render_schema_json?.suggestion_rule ?? null,
-    recommendation_content: item.render_schema_json?.suggestion_content ?? null,
-    hidden_hazard_content: item.render_schema_json?.hazard_content ?? null,
-    maintenance_instructions: item.render_schema_json?.maintenance_description ?? null,
-    execution_status: mapTaskItemExecutionStatusToOfflineStatus(item.execution_status),
-    is_normal: Boolean(item.is_normal),
-    is_recheck: Boolean(item.is_recheck),
+    display_condition: getTaskPackageRenderSchema(item)?.display_condition ?? getTaskPackageRenderSchema(item)?.displayCondition ?? null,
+    operation_guide: getTaskPackageRenderSchema(item)?.operation_guide ?? getTaskPackageRenderSchema(item)?.operationGuide ?? null,
+    recommended_rules: getTaskPackageRenderSchema(item)?.suggestion_rule ?? getTaskPackageRenderSchema(item)?.suggestionRule ?? null,
+    recommendation_content: getTaskPackageRenderSchema(item)?.suggestion_content ?? getTaskPackageRenderSchema(item)?.suggestionContent ?? null,
+    hidden_hazard_content: getTaskPackageRenderSchema(item)?.hazard_content ?? getTaskPackageRenderSchema(item)?.hazardContent ?? null,
+    maintenance_instructions: getTaskPackageRenderSchema(item)?.maintenance_description ?? getTaskPackageRenderSchema(item)?.maintenanceDescription ?? null,
+    execution_status: mapTaskItemExecutionStatusToOfflineStatus(String(item.execution_status ?? item.executionStatus ?? '')),
+    is_normal: toOptionalBoolean(item.is_normal ?? item.isnormal) ?? false,
+    is_recheck: toOptionalBoolean(item.is_recheck ?? item.isrecheck) ?? false,
     sync_status: 'synced',
-    local_updated_at: normalizeChinaDateTime(item.updated_at) ?? nowIso(),
+    local_updated_at: normalizeChinaDateTime(item.updated_at ?? item.updatetime) ?? nowIso(),
   }));
 
   for (const item of offlineItems) {
@@ -628,7 +726,7 @@ function flattenSchemeItems(taskUuid: string, items: any[], path: string[] = [])
   return result;
 }
 
-function buildOfflineTask(task: MockTask): OfflineTaskUpsert {
+function buildOfflineTask(task: MockTask, schemeItems?: SchemeItem[]): OfflineTaskUpsert {
   const timestamp = nowIso();
   return {
     task_uuid: task.id,
@@ -649,6 +747,7 @@ function buildOfflineTask(task: MockTask): OfflineTaskUpsert {
     inspection_type: null,
     version: null,
     device_model: task.deviceModel,
+    scheme_snapshot_json: schemeItems ? serializeTaskSchemeSnapshot(schemeItems) : null,
     status: task.status,
     downloaded_at: timestamp,
     local_updated_at: timestamp,
@@ -704,7 +803,7 @@ export async function downloadTaskPackage(
 
   writeTaskSchemeCache(task.id, task.schemeId, scheme.items);
 
-  await offlineTaskRepository.upsert(buildOfflineTask(task));
+  await offlineTaskRepository.upsert(buildOfflineTask(task, scheme.items));
   const taskItems = flattenSchemeItems(task.id, scheme.items);
   for (const item of taskItems) {
     const existing = await offlineTaskItemRepository.getByTaskItemUuid(item.task_item_uuid);

@@ -17,202 +17,113 @@
     </IxContentHeader>
     <section class="page-section">
       <div class="page-content">
-        <!-- 方案基本信息 -->
         <div class="scheme-basic-info">
-          <!-- 方案类型选择（仅新建时显示） -->
-          <IxSelect 
-            v-if="isNew"
-            v-model="schemeForm.atomicType" 
-            label="方案类型"
-            placeholder="请选择方案类型"
+          <IxInput
+            v-model="schemeForm.name"
+            label="方案名称"
+            placeholder="请输入方案名称"
             style="flex: 1;"
-          >
-            <IxSelectItem label="系统外围检测方案" value="peripheral" />
-            <IxSelectItem label="设备检测方案" value="equipment" />
-          </IxSelect>
-          
+          />
+          <IxInput
+            v-model="schemeForm.description"
+            label="方案描述"
+            placeholder="请输入方案描述（可选）"
+            style="flex: 1;"
+          />
+
           <template v-if="schemeForm.atomicType">
-            <IxInput 
-              v-model="schemeForm.name" 
-              label="方案名称" 
-              placeholder="请输入方案名称"
+            <IxSelect
+              v-model="schemeForm.categoryId"
+              :label="productCategoryLabel"
               style="flex: 1;"
-            />
-            <IxInput 
-              v-model="schemeForm.description" 
-              label="方案描述" 
-              placeholder="请输入方案描述（可选）"
+            >
+              <IxSelectItem
+                v-for="category in categories"
+                :key="category.id"
+                :label="category.name"
+                :value="category.id"
+              />
+            </IxSelect>
+            <IxSelect
+              v-model="schemeForm.subCategoryId"
+              :label="productSeriesLabel"
               style="flex: 1;"
-            />
-            
-            <!-- 外围/设备方案都需要明确产品类别和产品系列 -->
-            <template v-if="schemeForm.atomicType">
-              <IxSelect 
-                v-model="schemeForm.categoryId" 
-                :label="productCategoryLabel"
-                style="flex: 1;"
-              >
-                <IxSelectItem 
-                  v-for="category in categories" 
-                  :key="category.id" 
-                  :label="category.name" 
-                  :value="category.id" 
-                />
-              </IxSelect>
-              <IxSelect 
-                v-model="schemeForm.subCategoryId" 
-                :label="productSeriesLabel"
-                style="flex: 1;"
-              >
-                <IxSelectItem 
-                  v-for="subCategory in subCategories" 
-                  :key="subCategory.id" 
-                  :label="subCategory.name" 
-                  :value="subCategory.id" 
-                />
-              </IxSelect>
-              <IxSelect
-                v-model="schemeForm.series"
-                label="系列"
-                placeholder="请选择系列"
-                style="flex: 1;"
-              >
-                <IxSelectItem
-                  v-for="option in seriesOptions"
-                  :key="option"
-                  :label="option"
-                  :value="option"
-                />
-              </IxSelect>
-              <IxSelect
-                v-model="schemeForm.size"
-                label="尺寸"
-                placeholder="请选择尺寸"
-                style="flex: 1;"
-              >
-                <IxSelectItem
-                  v-for="option in sizeOptions"
-                  :key="option"
-                  :label="option"
-                  :value="option"
-                />
-              </IxSelect>
-            </template>
+            >
+              <IxSelectItem
+                v-for="subCategory in subCategories"
+                :key="subCategory.id"
+                :label="subCategory.name"
+                :value="subCategory.id"
+              />
+            </IxSelect>
+            <IxSelect
+              v-model="schemeForm.series"
+              label="系列"
+              placeholder="请选择系列"
+              style="flex: 1;"
+            >
+              <IxSelectItem
+                v-for="option in seriesOptions"
+                :key="option"
+                :label="option"
+                :value="option"
+              />
+            </IxSelect>
+            <IxSelect
+              v-model="schemeForm.size"
+              label="尺寸"
+              placeholder="请选择尺寸"
+              style="flex: 1;"
+            >
+              <IxSelectItem
+                v-for="option in sizeOptions"
+                :key="option"
+                :label="option"
+                :value="option"
+              />
+            </IxSelect>
           </template>
         </div>
 
-        <!-- 检测项目编辑（左树右表布局） -->
-        <div v-if="schemeForm.atomicType && currentAtomicScheme" class="scheme-edit-container">
-          <SchemeTree 
-            :items="currentAtomicScheme.items"
-            :selected-item-id="selectedItemId"
-            @item-selected="handleItemSelected"
-          >
-            <template #actions>
-                <input
-                  ref="excelInputRef"
-                  type="file"
-                  accept=".xlsx,.xls"
-                  style="display: none;"
-                  @change="handleExcelSelected"
-                />
-                <IxButton variant="tertiary" size="sm" @click="triggerExcelImport">导入Excel</IxButton>
-                <IxButton variant="tertiary" size="sm" @click="handleAddItem">添加根项目</IxButton>
-                <IxButton 
-                  v-if="selectedItemId" 
-                  variant="tertiary" 
-                  size="sm" 
-                  @click="handleAddChildItem"
-                >
-                  添加子项目
-                </IxButton>
-            </template>
-          </SchemeTree>
-
-          <!-- 右侧：项目详情编辑表单 -->
-          <div class="scheme-detail-panel">
-            <div class="detail-header">
-              <h3 v-if="selectedItem">{{ selectedItem.name }}</h3>
-              <h3 v-else class="empty-title">请从左侧选择一个检测项目进行编辑</h3>
+        <div v-if="schemeForm.atomicType && currentAtomicScheme && gridOptions" class="scheme-table-container">
+          <div class="table-actions">
+            <div class="table-actions-left">
+              <IxButton variant="tertiary" size="sm" @click="handleExpandAll">全部展开</IxButton>
+              <IxButton variant="tertiary" size="sm" @click="handleCollapseAll">全部收缩</IxButton>
             </div>
-            <div class="detail-form" v-if="selectedItem">
-              <div class="form-section">
-                <IxInput 
-                  v-model="itemForm.name" 
-                  label="项目名称" 
-                  placeholder="请输入项目名称"
-                />
-                <div class="form-checkbox">
-                  <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                    <input 
-                      type="checkbox" 
-                      v-model="itemForm.required"
-                      style="cursor: pointer;"
-                    />
-                    <span>必填项</span>
-                  </label>
-                </div>
-              </div>
-
-              <div v-if="selectedItemIsDetection" class="form-section">
-                <h4>规则设置</h4>
-                <IxSelect 
-                  v-model="itemForm.dataType" 
-                  label="数据类型"
-                  @update:modelValue="handleDataTypeChange"
-                >
-                  <IxSelectItem label="number" value="number" />
-                  <IxSelectItem label="boolean" value="boolean" />
-                  <IxSelectItem label="enum" value="enum" />
-                  <IxSelectItem label="text" value="text" />
-                </IxSelect>
-                <IxSelect 
-                  v-model="itemForm.ruleType" 
-                  label="规则类型"
-                >
-                  <IxSelectItem :label="itemForm.ruleType" :value="itemForm.ruleType" />
-                </IxSelect>
-                <IxSelect
-                  :model-value="itemForm.required ? '必填' : '可选'"
-                  label="是否必填"
-                  @update:modelValue="handleRequiredChange"
-                >
-                  <IxSelectItem label="必填" value="必填" />
-                  <IxSelectItem label="可选" value="可选" />
-                </IxSelect>
-                <IxTextarea
-                  v-model="itemForm.operationGuide"
-                  label="操作指导"
-                  placeholder="请输入执行提示或检测步骤"
-                  textarea-height="120px"
-                />
-                <IxTextarea
-                  v-model="itemForm.thresholdRaw"
-                  label="规则 JSON"
-                  placeholder='例如：{"options":["是","否"],"normal_value":"是"}'
-                  textarea-height="180px"
-                />
-                <div class="rule-editor-actions">
-                  <IxButton variant="secondary" size="sm" @click="applyDefaultRuleTemplate">套用默认规则模板</IxButton>
-                </div>
-                <div class="rule-editor-hint">
-                  仅支持 number_range、boolean_equal、enum、text_pattern 四种组合；text_pattern 可以留空。
-                </div>
-              </div>
-
-              <div class="form-actions">
-                <IxButton variant="primary" @click="handleSaveItem">保存项目</IxButton>
-                <IxButton variant="secondary" @click="handleCancelItem">取消</IxButton>
-                <IxButton variant="secondary" @click="handleDeleteItem" style="color: var(--theme-color-alarm);">删除项目</IxButton>
-              </div>
-            </div>
-            <div v-else class="empty-state">
-              <p>请从左侧树形结构中选择一个检测项目进行编辑</p>
-              <p style="margin-top: 0.5rem; font-size: 0.875rem; color: var(--theme-color-text-soft);">
-                如果没有项目，请点击"添加根项目"按钮创建新项目
-              </p>
+            <div class="table-actions-right">
+              <input
+                ref="excelInputRef"
+                type="file"
+                accept=".xlsx,.xls"
+                style="display: none;"
+                @change="handleExcelSelected"
+              />
+              <IxButton variant="tertiary" size="sm" @click="triggerExcelImport">导入Excel</IxButton>
+              <IxButton variant="tertiary" size="sm" @click="handleAddRootItem">添加项目</IxButton>
+              <IxButton
+                variant="tertiary"
+                size="sm"
+                @click="handleAddChildItemToSelected"
+                :disabled="!hasSelectedRow"
+              >
+                添加子项目
+              </IxButton>
+              <IxButton
+                variant="tertiary"
+                size="sm"
+                @click="handleDeleteSelectedItems"
+                :disabled="!hasSelectedRow"
+                style="color: var(--theme-color-alarm);"
+              >
+                删除选中项目
+              </IxButton>
             </div>
           </div>
+          <AgGridVue
+            style="flex: 1; width: 100%; min-height: 0;"
+            :gridOptions="gridOptions"
+          />
         </div>
       </div>
     </section>
@@ -228,37 +139,40 @@ import {
   IxInput,
   IxSelect,
   IxSelectItem,
-  IxTextarea,
   showToast,
 } from '@siemens/ix-vue';
+import { AgGridVue } from 'ag-grid-vue3';
+import { getIxTheme } from '@siemens/ix-aggrid';
+import {
+  ModuleRegistry,
+  AllCommunityModule,
+  GridOptions,
+} from 'ag-grid-community';
+import * as agGrid from 'ag-grid-community';
 import productCategoriesData from '@/mockdata/common/productCategories.json';
 import maintenanceSchemesData from '@/mockdata/common/maintenanceSchemes.json';
-import SchemeTree from '../components/SchemeTree.vue';
-import {
-  findItemById,
-  isDetectionItem,
-  mapRequiredToPriority,
-  type SchemeItem as SchemeItemType,
-  type AtomicScheme as AtomicSchemeType,
-} from '../utils/schemeUtils';
 import { inspectionTemplatesApi, templatemappingsApi } from '@/api';
 import type { TemplateMappingDto } from '@/api/modules/templatemappings';
 import { dedupeTemplateMappingField } from '@/util/templateMappings';
 import {
   isTemplateApiId,
   templateDtoToFormAndAtomic,
-  buildTemplateDtoForSave,
   buildTemplateDtoForCreate,
+  buildTemplateDtoForSave,
 } from '../utils/schemeInspectionTemplate';
 import { importInspectionItemsFromExcel } from '../utils/importInspectionItemsFromExcel';
 import { syncTemplateNodesWithProgress } from '../utils/syncTemplateNodes';
 import { loadTemplateItemsByTemplateId } from '../utils/loadTemplateItems';
 import {
-  getDefaultRuleJsonForValueType,
-  getDefaultRuleTypeForValueType,
-  normalizeSupportedValueType,
-  validateRuleDefinition,
-} from '../utils/templateRuleSchema';
+  convertToFlatRows,
+  mapRequiredToPriority,
+  type AtomicScheme,
+  type SchemeItem,
+  type FlatRow,
+} from '../utils/schemeUtils';
+import { createBaseColumnDefs, configureColumnEditing } from '../utils/gridConfig';
+
+ModuleRegistry.registerModules([AllCommunityModule]);
 
 const route = useRoute();
 const router = useRouter();
@@ -268,22 +182,8 @@ const isNew = schemeId === 'new';
 
 const loadedTemplateCreatedate = ref<string | null>(null);
 const templateMappings = ref<TemplateMappingDto[]>([]);
+const pageTitle = computed(() => (isNew ? '新建原子方案' : '编辑原子方案'));
 
-// 使用共享的类型定义
-type SchemeItem = SchemeItemType;
-type AtomicScheme = AtomicSchemeType;
-
-
-// 页面标题
-const pageTitle = computed(() => {
-  if (isNew) {
-    if (!schemeForm.value.atomicType) return '新建原子方案';
-    return schemeForm.value.atomicType === 'peripheral' ? '新建系统外围检测方案' : '新建设备检测方案';
-  }
-  return '编辑原子方案';
-});
-
-// 方案基本信息表单
 const schemeForm = ref({
   name: '',
   description: '',
@@ -295,19 +195,11 @@ const schemeForm = ref({
   size: '',
 });
 
-// 选中的检测项目ID
-const selectedItemId = ref<string | null>(null);
-
-// 当前方案数据
 const currentAtomicScheme = ref<AtomicScheme | null>(null);
-
-// 分类列表
 const categories = productCategoriesData.categories;
-
-// 子分类列表
 const subCategories = computed(() => {
   if (!schemeForm.value.categoryId) return [];
-  const category = categories.find(c => c.id === schemeForm.value.categoryId);
+  const category = categories.find((c) => c.id === schemeForm.value.categoryId);
   return category?.subCategories || [];
 });
 
@@ -343,151 +235,96 @@ async function loadTemplateMappings(): Promise<void> {
   }
 }
 
-
-// 选中的检测项目
-const selectedItem = computed(() => {
-  if (!selectedItemId.value || !currentAtomicScheme.value) return null;
-  return findItemById(currentAtomicScheme.value.items, selectedItemId.value);
-});
-
-const selectedItemIsDetection = computed(() => !!selectedItem.value && isDetectionItem(selectedItem.value));
-
-function mapLegacyTypeToValueType(type?: string): 'number' | 'boolean' | 'enum' | 'text' {
-  if (type === 'electrical' || type === 'environment') return 'number';
-  if (type === 'functional') return 'boolean';
-  return 'text';
-}
-
-function mapValueTypeToSchemeType(valueType: string): string {
-  if (valueType === 'number') return 'electrical';
-  if (valueType === 'boolean' || valueType === 'enum') return 'functional';
-  return 'visual';
-}
-
-function createEmptyItemForm() {
-  return {
-    name: '',
-    required: true,
-    dataType: 'boolean',
-    ruleType: 'boolean_equal',
-    thresholdRaw: getDefaultRuleJsonForValueType('boolean'),
-    operationGuide: '',
-  };
-}
-
-// 项目编辑表单
-const itemForm = ref(createEmptyItemForm());
+const gridOptions = ref<GridOptions | null>(null);
+const gridApi = ref<any>(null);
+const expandedRows = ref<Set<string>>(new Set());
+const rowDataToItemMap = ref<Map<string, SchemeItem>>(new Map());
+const selectedRows = ref<FlatRow[]>([]);
 const excelInputRef = ref<HTMLInputElement | null>(null);
 const syncProgress = ref({ visible: false, percent: 0, message: '' });
+const isEditMode = ref(true);
 
-// 树形模型（已由 SchemeTree 组件管理）
+const hasSelectedRow = computed(() => selectedRows.value.length > 0);
 
-// 验证是否可以保存
-const canSave = computed(() => {
-  if (!schemeForm.value.atomicType || !schemeForm.value.name) return false;
-  if (!schemeForm.value.series.trim() || !schemeForm.value.size.trim()) return false;
-  if (!currentAtomicScheme.value || !currentAtomicScheme.value.items || currentAtomicScheme.value.items.length === 0) {
-    return false;
-  }
-  return true;
-});
-
-// 使用共享的工具函数（已从 schemeUtils 导入）
-
-// 加载项目到表单
-const loadItemToForm = (item: SchemeItem) => {
-  // 只有检测项目（有 type 和 required）才能编辑
-  const isItem = isDetectionItem(item);
-  const valueType = normalizeSupportedValueType(item.dataType) ?? mapLegacyTypeToValueType(item.type);
-  itemForm.value = {
-    name: item.name,
-    required: isItem ? (item.required !== false) : true,
-    dataType: valueType,
-    ruleType: item.ruleType || getDefaultRuleTypeForValueType(valueType),
-    thresholdRaw: item.thresholdRaw || getDefaultRuleJsonForValueType(valueType),
-    operationGuide: item.operationGuide || item.testProcedure || '',
-  };
-};
-
-const handleRequiredChange = (value: string) => {
-  itemForm.value.required = value !== '可选';
-};
-
-const handleDataTypeChange = (value: string) => {
-  const normalized = normalizeSupportedValueType(value) ?? 'text';
-  itemForm.value.dataType = normalized;
-  itemForm.value.ruleType = getDefaultRuleTypeForValueType(normalized);
-  itemForm.value.thresholdRaw = getDefaultRuleJsonForValueType(normalized);
-};
-
-const applyDefaultRuleTemplate = () => {
-  const normalized = normalizeSupportedValueType(itemForm.value.dataType) ?? 'text';
-  itemForm.value.ruleType = getDefaultRuleTypeForValueType(normalized);
-  itemForm.value.thresholdRaw = getDefaultRuleJsonForValueType(normalized);
-};
-
-// 处理项目选择（由 SchemeTree 组件调用）
-const handleItemSelected = (itemId: string) => {
-  selectedItemId.value = itemId;
-  const item = findItemById(currentAtomicScheme.value!.items, itemId);
-      if (item) {
-        loadItemToForm(item);
+const getVisibleRows = (allRows: FlatRow[]): FlatRow[] => {
+  const visible: FlatRow[] = [];
+  const parentStack: string[] = [];
+  allRows.forEach((row) => {
+    if (row.parentId) {
+      const parentIndex = parentStack.indexOf(row.parentId);
+      if (parentIndex === -1 || !expandedRows.value.has(row.parentId)) {
+        return;
       }
+      parentStack.splice(parentIndex + 1);
+    }
+    parentStack.push(row.id);
+    visible.push(row);
+  });
+  return visible;
 };
 
-
-// 添加根项目
-const handleAddItem = () => {
-  if (!currentAtomicScheme.value) return;
-  
-  const newItem: SchemeItem = {
-    id: `new-${Date.now()}`,
-    name: '新检测项目',
-    dataType: 'boolean',
-    ruleType: 'boolean_equal',
-    thresholdRaw: getDefaultRuleJsonForValueType('boolean'),
-    operationGuide: '',
-    type: 'functional',
-    required: true,
-    children: [],
-  };
-  
-  currentAtomicScheme.value.items.push(newItem);
-  // SchemeTree 组件会自动更新
-  setTimeout(() => {
-    selectedItemId.value = newItem.id;
-      loadItemToForm(newItem);
-  }, 100);
-};
-
-// 添加子项目
-const handleAddChildItem = () => {
-  if (!selectedItemId.value || !currentAtomicScheme.value) return;
-  
-  const parentItem = findItemById(currentAtomicScheme.value.items, selectedItemId.value);
-  if (!parentItem) return;
-  
-  const newChildItem: SchemeItem = {
-    id: `new-${Date.now()}`,
-    name: '新子项目',
-    dataType: parentItem.dataType || 'boolean',
-    ruleType: parentItem.ruleType || 'boolean_equal',
-    thresholdRaw: parentItem.thresholdRaw || getDefaultRuleJsonForValueType('boolean'),
-    operationGuide: parentItem.operationGuide || '',
-    type: parentItem.type || 'functional',
-    required: true,
-  };
-  
-  if (!parentItem.children) {
-    parentItem.children = [];
+const toggleRow = (rowId: string) => {
+  if (expandedRows.value.has(rowId)) {
+    expandedRows.value.delete(rowId);
+  } else {
+    expandedRows.value.add(rowId);
   }
-  
-  parentItem.children.push(newChildItem);
-  // SchemeTree 组件会自动更新
+  updateGridData();
+};
+
+const handleExpandAll = () => {
+  if (!currentAtomicScheme.value) return;
+  const allRows = convertToFlatRows(currentAtomicScheme.value.items, undefined, 0);
+  allRows.forEach((row) => {
+    if (row.hasChildren) {
+      expandedRows.value.add(row.id);
+    }
+  });
+  updateGridData();
+};
+
+const handleCollapseAll = () => {
+  expandedRows.value.clear();
+  updateGridData();
+};
+
+const updateGridData = () => {
+  if (!gridApi.value || !currentAtomicScheme.value) return;
+  const allRows = convertToFlatRows(currentAtomicScheme.value.items, undefined, 0);
+  rowDataToItemMap.value.clear();
+  const buildMap = (items: SchemeItem[]) => {
+    items.forEach((item) => {
+      rowDataToItemMap.value.set(item.id, item);
+      if (item.children) {
+        buildMap(item.children);
+      }
+    });
+  };
+  buildMap(currentAtomicScheme.value.items);
+  gridApi.value.setGridOption('rowData', getVisibleRows(allRows));
+};
+
+const findItemByRowId = (rowId: string): SchemeItem | null => rowDataToItemMap.value.get(rowId) || null;
+
+const selectNewItem = (newItem: SchemeItem) => {
   setTimeout(() => {
-    selectedItemId.value = newChildItem.id;
-      loadItemToForm(newChildItem);
+    if (!gridApi.value || !currentAtomicScheme.value) return;
+    const allRows = convertToFlatRows(currentAtomicScheme.value.items, undefined, 0);
+    const visibleRows = getVisibleRows(allRows);
+    const newRow = visibleRows.find((row) => row.id === newItem.id);
+    if (!newRow) return;
+    const node = gridApi.value.getRowNode(newRow.id);
+    if (node) {
+      node.setSelected(true);
+      if (gridOptions.value?.onSelectionChanged) {
+        gridOptions.value.onSelectionChanged({} as any);
+      }
+    }
   }, 100);
+};
+
+const handleCellValueChanged = () => {
+  updateGridData();
 };
 
 const triggerExcelImport = () => {
@@ -503,7 +340,9 @@ const handleExcelSelected = async (event: Event) => {
   try {
     const importedItems = await importInspectionItemsFromExcel(file);
     currentAtomicScheme.value.items = importedItems;
-    selectedItemId.value = null;
+    expandedRows.value.clear();
+    selectedRows.value = [];
+    updateGridData();
     showToast({ message: `导入成功，共导入 ${importedItems.length} 个根节点` });
   } catch (e) {
     showToast({ message: e instanceof Error ? e.message : 'Excel 导入失败' });
@@ -512,82 +351,155 @@ const handleExcelSelected = async (event: Event) => {
   }
 };
 
-// 保存项目
-const handleSaveItem = () => {
-  if (!selectedItem.value) return;
+const canSave = computed(() => {
+  if (!schemeForm.value.atomicType || !schemeForm.value.name) return false;
+  if (!schemeForm.value.categoryId || !schemeForm.value.subCategoryId) return false;
+  if (!schemeForm.value.series.trim() || !schemeForm.value.size.trim()) return false;
+  if (!currentAtomicScheme.value?.items?.length) return false;
+  return true;
+});
 
-  if (!selectedItemIsDetection.value) {
-    selectedItem.value.name = itemForm.value.name;
-    return;
+const findParentAndSiblings = (itemId: string): { parent: SchemeItem | null; siblings: SchemeItem[]; isRoot: boolean } => {
+  if (!currentAtomicScheme.value) {
+    return { parent: null, siblings: [], isRoot: false };
   }
-
-  let validatedRule;
-  try {
-    validatedRule = validateRuleDefinition({
-      valueTypeRaw: itemForm.value.dataType,
-      ruleTypeRaw: itemForm.value.ruleType,
-      ruleRaw: itemForm.value.thresholdRaw,
-      context: `检测项「${itemForm.value.name || selectedItem.value.name}」`,
-    });
-  } catch (error) {
-    showToast({ message: error instanceof Error ? error.message : '规则校验失败' });
-    return;
-  }
-
-  Object.assign(selectedItem.value, {
-    name: itemForm.value.name,
-    required: itemForm.value.required,
-    dataType: validatedRule.valueType,
-    ruleType: validatedRule.ruleType,
-    thresholdRaw: validatedRule.ruleRaw ?? undefined,
-    priority: mapRequiredToPriority(itemForm.value.required),
-    operationGuide: itemForm.value.operationGuide,
-    testProcedure: itemForm.value.operationGuide,
-    type: mapValueTypeToSchemeType(validatedRule.valueType),
-    standardValue: undefined,
-    minThreshold: undefined,
-    maxThreshold: undefined,
-    unit: undefined,
-    expectedResult: undefined,
-    tolerance: undefined,
-    param1: undefined,
-    param2: undefined,
-  });
-  
-  // SchemeTree 组件会自动更新
+  const search = (items: SchemeItem[], parent: SchemeItem | null = null): { parent: SchemeItem | null; siblings: SchemeItem[]; isRoot: boolean } | null => {
+    for (let i = 0; i < items.length; i += 1) {
+      if (items[i].id === itemId) {
+        return { parent, siblings: items, isRoot: parent === null };
+      }
+      if (items[i].children) {
+        const result = search(items[i].children!, items[i]);
+        if (result) return result;
+      }
+    }
+    return null;
+  };
+  return search(currentAtomicScheme.value.items, null) ?? { parent: null, siblings: [], isRoot: true };
 };
 
-// 取消编辑
-const handleCancelItem = () => {
-  selectedItemId.value = null;
-  itemForm.value = createEmptyItemForm();
+const handleAddRootItem = () => {
+  if (!currentAtomicScheme.value) return;
+  let targetSiblings: SchemeItem[] = currentAtomicScheme.value.items;
+  let parentItem: SchemeItem | null = null;
+  if (selectedRows.value.length > 0) {
+    const result = findParentAndSiblings(selectedRows.value[0].id);
+    if (result.siblings.length > 0) {
+      targetSiblings = result.siblings;
+      parentItem = result.parent;
+    }
+  }
+  const newItem: SchemeItem = {
+    id: `new-${Date.now()}`,
+    name: '新检测项目',
+    dataType: 'boolean',
+    ruleType: 'boolean_equal',
+    operationGuide: '',
+    param1: '',
+    param2: '',
+    type: 'visual',
+    required: true,
+    priority: mapRequiredToPriority(true),
+    children: [],
+  };
+  targetSiblings.push(newItem);
+  if (parentItem) {
+    expandedRows.value.add(parentItem.id);
+  }
+  updateGridData();
+  selectNewItem(newItem);
 };
 
-// 删除项目
-const handleDeleteItem = () => {
-  if (!selectedItemId.value || !currentAtomicScheme.value) return;
-  
-  if (confirm('确定要删除这个检测项目吗？删除后其子项目也会被删除。')) {
-    const removeItem = (items: SchemeItem[], itemId: string): boolean => {
-      for (let i = 0; i < items.length; i++) {
-        if (items[i].id === itemId) {
-          items.splice(i, 1);
-          return true;
-        }
-        if (items[i].children) {
-          if (removeItem(items[i].children!, itemId)) {
-            return true;
+const handleAddChildItemToSelected = () => {
+  if (!currentAtomicScheme.value || selectedRows.value.length === 0) {
+    alert('请先选中一个项目作为父级');
+    return;
+  }
+  const selectedRow = selectedRows.value[0];
+  const parentItem = findItemByRowId(selectedRow.id);
+  if (!parentItem) {
+    alert('无法找到选中的项目');
+    return;
+  }
+  const newChildItem: SchemeItem = {
+    id: `new-${Date.now()}`,
+    name: '新子项目',
+    dataType: parentItem.dataType || 'boolean',
+    ruleType: parentItem.ruleType || 'boolean_equal',
+    operationGuide: parentItem.operationGuide || '',
+    param1: parentItem.param1 || '',
+    param2: parentItem.param2 || '',
+    type: parentItem.type || 'visual',
+    required: true,
+    priority: mapRequiredToPriority(true),
+    children: [],
+  };
+  if (!parentItem.children) {
+    parentItem.children = [];
+  }
+  parentItem.children.push(newChildItem);
+  expandedRows.value.add(selectedRow.id);
+  updateGridData();
+  selectNewItem(newChildItem);
+};
+
+const handleDeleteSelectedItems = () => {
+  if (!currentAtomicScheme.value || selectedRows.value.length === 0) {
+    alert('请先选中要删除的项目');
+    return;
+  }
+  const count = selectedRows.value.length;
+  const itemNames = selectedRows.value.map((row) => row.name).join('、');
+  if (!confirm(`确定要删除选中的 ${count} 个项目吗？\n\n删除的项目：${itemNames}\n\n删除后其所有子项目也会被删除，此操作不可恢复！`)) {
+    return;
+  }
+  const removeItem = (items: SchemeItem[], itemId: string): boolean => {
+    for (let i = 0; i < items.length; i += 1) {
+      if (items[i].id === itemId) {
+        items.splice(i, 1);
+        return true;
+      }
+      if (items[i].children && removeItem(items[i].children!, itemId)) {
+        return true;
+      }
+    }
+    return false;
+  };
+  selectedRows.value.forEach((row) => {
+    if (!removeItem(currentAtomicScheme.value!.items, row.id)) {
+      const removeFromChildren = (items: SchemeItem[]): boolean => {
+        for (const item of items) {
+          if (item.children) {
+            if (removeItem(item.children, row.id)) {
+              return true;
+            }
+            if (removeFromChildren(item.children)) {
+              return true;
+            }
           }
         }
+        return false;
+      };
+      removeFromChildren(currentAtomicScheme.value!.items);
+    }
+    const removeExpandedState = (itemId: string) => {
+      expandedRows.value.delete(itemId);
+      const item = findItemByRowId(itemId);
+      if (item?.children) {
+        item.children.forEach((child) => removeExpandedState(child.id));
       }
-      return false;
     };
-    
-    removeItem(currentAtomicScheme.value.items, selectedItemId.value);
-    selectedItemId.value = null;
-    // SchemeTree 组件会自动更新
-    handleCancelItem();
+    removeExpandedState(row.id);
+  });
+  if (gridApi.value) {
+    gridApi.value.deselectAll();
   }
+  selectedRows.value = [];
+  updateGridData();
+};
+
+const handleCancel = () => {
+  router.push('/scheme/list');
 };
 
 const handleSave = async () => {
@@ -595,7 +507,6 @@ const handleSave = async () => {
     alert('请完善方案信息');
     return;
   }
-
   const atomicScheme: AtomicScheme = {
     id: isNew ? '0' : currentAtomicScheme.value?.id || '',
     name: schemeForm.value.name,
@@ -603,15 +514,12 @@ const handleSave = async () => {
     description: schemeForm.value.description,
     items: currentAtomicScheme.value?.items || [],
   };
-
   atomicScheme.categoryId = schemeForm.value.categoryId;
   atomicScheme.subCategoryId = schemeForm.value.subCategoryId;
   atomicScheme.deviceTypes = schemeForm.value.subCategoryId ? [schemeForm.value.subCategoryId] : [];
-
   if (schemeForm.value.atomicType === 'equipment') {
     atomicScheme.model = schemeForm.value.model;
   }
-
   try {
     if (isNew) {
       const payload = buildTemplateDtoForCreate(schemeForm.value, atomicScheme);
@@ -628,12 +536,7 @@ const handleSave = async () => {
     if (isTemplateApiId(schemeId)) {
       const templateId = Number.parseInt(schemeId, 10);
       await inspectionTemplatesApi.updateInspectionTemplate(
-        buildTemplateDtoForSave(
-          templateId,
-          schemeForm.value,
-          atomicScheme,
-          loadedTemplateCreatedate.value,
-        ),
+        buildTemplateDtoForSave(templateId, schemeForm.value, atomicScheme, loadedTemplateCreatedate.value),
       );
       syncProgress.value = { visible: true, percent: 1, message: '准备同步检测项...' };
       await syncTemplateNodesWithProgress(templateId, atomicScheme.items, (p) => {
@@ -655,93 +558,174 @@ const handleSave = async () => {
   }
 };
 
-// 取消
-const handleCancel = () => {
-  router.push('/scheme/list');
+const updateGridOptionsForEdit = () => {
+  if (!gridOptions.value || !gridApi.value) return;
+  const columnDefs = gridOptions.value.columnDefs || [];
+  configureColumnEditing(columnDefs, findItemByRowId, updateGridData);
+  gridApi.value.setGridOption('rowSelection', 'multiple');
+  gridApi.value.setGridOption('columnDefs', columnDefs);
+  gridApi.value.setGridOption('singleClickEdit', false);
+  gridOptions.value.onCellValueChanged = handleCellValueChanged;
+  gridOptions.value.onCellKeyDown = (params: any) => {
+    if (params.event.key === 'F2') {
+      const colId = params.column.getColId();
+      params.api.startEditingCell({ rowIndex: params.node.rowIndex, colKey: colId });
+      params.event.preventDefault();
+    }
+  };
+  gridOptions.value.onCellDoubleClicked = (params: any) => {
+    const target = params.event?.target;
+    if (!target) return;
+    if (!target.classList.contains('expand-icon') && !target.closest('.expand-icon')) {
+      const colId = params.column.getColId();
+      if (gridApi.value) {
+        gridApi.value.startEditingCell({ rowIndex: params.node.rowIndex, colKey: colId });
+      }
+    }
+  };
+  const handleSelectionChanged = () => {
+    if (gridApi.value) {
+      const selectedNodes = gridApi.value.getSelectedNodes();
+      selectedRows.value = selectedNodes.map((node: any) => node.data).filter(Boolean);
+    }
+  };
+  gridOptions.value.onSelectionChanged = handleSelectionChanged;
+  gridOptions.value.onRowClicked = () => {
+    setTimeout(() => handleSelectionChanged(), 0);
+  };
 };
+
+function loadMockScheme(): void {
+  const schemes = Array.isArray(maintenanceSchemesData) ? maintenanceSchemesData : [];
+  const scheme = schemes.find((s) => s.id === schemeId);
+  if (!scheme) {
+    alert('未找到该方案');
+    router.push('/scheme/list');
+    return;
+  }
+  schemeForm.value = {
+    name: scheme.name || '',
+    description: scheme.description || '',
+    atomicType:
+      scheme.type === 'peripheral' || scheme.type === 'equipment'
+        ? scheme.type
+        : ('' as 'peripheral' | 'equipment' | ''),
+    categoryId: scheme.categoryId || '',
+    subCategoryId: scheme.subCategoryId || '',
+    model: scheme.model || '',
+    series: scheme.series || '',
+    size: scheme.size || '',
+  };
+  const schemeItems: SchemeItem[] = (scheme.items || []).map((item: any) => ({
+    ...item,
+    type: item.type || '',
+    required: item.required !== undefined ? item.required : false,
+  })) as SchemeItem[];
+  currentAtomicScheme.value = {
+    id: scheme.id,
+    name: scheme.name,
+    type: scheme.type === 'peripheral' || scheme.type === 'equipment' ? scheme.type : 'peripheral',
+    description: scheme.description,
+    deviceTypes: scheme.deviceTypes || [],
+    categoryId: scheme.categoryId,
+    subCategoryId: scheme.subCategoryId,
+    model: scheme.model,
+    items: schemeItems,
+  };
+  updateGridData();
+}
+
+async function loadApiScheme(): Promise<void> {
+  const templateId = Number.parseInt(schemeId, 10);
+  const dto = await inspectionTemplatesApi.getInspectionTemplate(templateId);
+  loadedTemplateCreatedate.value = dto.createdate ?? null;
+  const { schemeForm: sf, atomic } = templateDtoToFormAndAtomic(dto);
+  const apiItems = await loadTemplateItemsByTemplateId(templateId);
+  if (apiItems.length > 0) {
+    atomic.items = apiItems;
+  }
+  schemeForm.value = sf;
+  currentAtomicScheme.value = atomic;
+  updateGridData();
+}
 
 onMounted(() => {
   void loadTemplateMappings();
+  const ixTheme = getIxTheme(agGrid);
+  const columnDefs = createBaseColumnDefs(expandedRows, toggleRow, gridApi, isEditMode);
+  gridOptions.value = {
+    theme: ixTheme,
+    tooltipShowDelay: 500,
+    columnDefs,
+    defaultColDef: {
+      resizable: true,
+      sortable: false,
+      filter: false,
+      editable: false,
+    },
+    rowData: [],
+    suppressCellFocus: false,
+    singleClickEdit: false,
+    animateRows: true,
+    getRowStyle: (params: any) => {
+      const data = params.data as FlatRow;
+      if (!data.isDetectionItem) {
+        return { backgroundColor: 'var(--theme-color-soft)' };
+      }
+      return { backgroundColor: 'transparent' };
+    },
+    rowSelection: 'multiple',
+    onSelectionChanged: () => {
+      if (gridApi.value) {
+        const selectedNodes = gridApi.value.getSelectedNodes();
+        selectedRows.value = selectedNodes.map((node: any) => node.data).filter(Boolean);
+      }
+    },
+    onRowClicked: () => {
+      setTimeout(() => {
+        if (gridApi.value) {
+          const selectedNodes = gridApi.value.getSelectedNodes();
+          selectedRows.value = selectedNodes.map((node: any) => node.data).filter(Boolean);
+        }
+      }, 0);
+    },
+    onGridReady: (params: any) => {
+      if (params?.api) {
+        gridApi.value = params.api;
+        setTimeout(() => {
+          updateGridOptionsForEdit();
+          updateGridData();
+        }, 100);
+      }
+    },
+  };
+
   void (async () => {
     if (isNew) {
+      currentAtomicScheme.value = {
+        id: `new-${Date.now()}`,
+        name: '',
+        type: 'equipment',
+        description: '',
+        deviceTypes: [],
+        items: [],
+      };
       return;
     }
-    if (isTemplateApiId(schemeId)) {
-      try {
-        const dto = await inspectionTemplatesApi.getInspectionTemplate(Number.parseInt(schemeId, 10));
-        loadedTemplateCreatedate.value = dto.createdate ?? null;
-        const { schemeForm: sf, atomic } = templateDtoToFormAndAtomic(dto);
-        const apiItems = await loadTemplateItemsByTemplateId(Number.parseInt(schemeId, 10));
-        if (apiItems.length > 0) {
-          atomic.items = apiItems;
-        }
-        schemeForm.value = sf;
-        currentAtomicScheme.value = atomic;
-        return;
-      } catch (e) {
-        console.error(e);
-        alert('未找到该方案或加载失败');
-        router.push('/scheme/list');
+    try {
+      if (isTemplateApiId(schemeId)) {
+        await loadApiScheme();
         return;
       }
-    }
-    const schemes = Array.isArray(maintenanceSchemesData) ? maintenanceSchemesData : [];
-    const scheme = schemes.find((s) => s.id === schemeId);
-
-    if (!scheme) {
-      alert('未找到该方案');
+      loadMockScheme();
+    } catch (e) {
+      console.error(e);
+      alert('未找到该方案或加载失败');
       router.push('/scheme/list');
-      return;
     }
-
-    schemeForm.value = {
-      name: scheme.name || '',
-      description: scheme.description || '',
-      atomicType:
-        scheme.type === 'peripheral' || scheme.type === 'equipment'
-          ? scheme.type
-          : ('' as 'peripheral' | 'equipment' | ''),
-      categoryId: scheme.categoryId || '',
-      subCategoryId: scheme.subCategoryId || '',
-      model: scheme.model || '',
-      series: scheme.series || '',
-      size: scheme.size || '',
-    };
-
-    const schemeItems: SchemeItem[] = (scheme.items || []).map((item: any) => ({
-      ...item,
-      type: item.type || '',
-      required: item.required !== undefined ? item.required : false,
-    })) as SchemeItem[];
-
-    currentAtomicScheme.value = {
-      id: scheme.id,
-      name: scheme.name,
-      type: scheme.type === 'peripheral' || scheme.type === 'equipment' ? scheme.type : 'peripheral',
-      description: scheme.description,
-      deviceTypes: scheme.deviceTypes || [],
-      categoryId: scheme.categoryId,
-      subCategoryId: scheme.subCategoryId,
-      model: scheme.model,
-      items: schemeItems,
-    };
   })();
 });
 
-// 监听原子类型变化
-watch(() => schemeForm.value.atomicType, (newType) => {
-  if (newType) {
-    // 初始化原子方案
-    currentAtomicScheme.value = {
-      id: '',
-      name: '',
-      type: newType as 'peripheral' | 'equipment',
-      items: [],
-    };
-  }
-});
-
-// 监听分类变化，更新子分类
 watch(() => schemeForm.value.categoryId, () => {
   if (schemeForm.value.categoryId) {
     schemeForm.value.subCategoryId = '';
@@ -751,322 +735,68 @@ watch(() => schemeForm.value.categoryId, () => {
 
 <style scoped>
 .scheme-edit-page {
-  height: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .page-section {
+  flex: 1;
   padding: 1rem;
-  height: calc(100vh - 80px);
-  overflow-y: auto;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .page-content {
-  max-width: 100%;
+  max-width: 1600px;
   margin: 0 auto;
+  width: 100%;
   height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  overflow: hidden;
 }
 
-/* 方案类型选择 */
-.scheme-type-selection {
-  margin-bottom: 1rem;
-}
-
-.scheme-type-selection h3 {
-  margin: 0 0 0.5rem 0;
-  font-size: 1.125rem;
-  font-weight: 600;
-}
-
-.selection-hint {
-  margin: 0 0 1rem 0;
-  color: var(--theme-color-text-soft);
-  font-size: 0.875rem;
-}
-
-.type-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 1rem;
-}
-
-.type-card {
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.type-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-.card-content h4 {
-  margin: 0 0 0.5rem 0;
-  font-size: 1rem;
-  font-weight: 600;
-}
-
-.card-content p {
-  margin: 0 0 0.75rem 0;
-  color: var(--theme-color-text-soft);
-  font-size: 0.875rem;
-}
-
-.card-content ul {
-  margin: 0;
-  padding-left: 1.25rem;
-  color: var(--theme-color-text-soft);
-  font-size: 0.875rem;
-}
-
-.card-content li {
-  margin: 0.25rem 0;
-}
-
-/* 方案基本信息 */
 .scheme-basic-info {
   display: flex;
   flex-wrap: wrap;
   gap: 1rem;
-  padding: 1rem;
-  background: var(--theme-color-soft);
-  border-radius: 0.25rem;
-}
-
-/* 原子方案选择 */
-.atomic-scheme-selection {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.atomic-scheme-selection h3 {
-  margin: 0;
-  font-size: 1.125rem;
-  font-weight: 600;
-}
-
-.selection-info {
-  padding: 0.75rem 1rem;
-  background: var(--theme-color-primary-soft);
-  border-radius: 0.25rem;
-}
-
-.info-text {
-  margin: 0;
-  font-size: 0.875rem;
-  color: var(--theme-color-primary);
-}
-
-.required-indicator {
-  color: var(--theme-color-alarm);
-  margin-right: 0.25rem;
-}
-
-.scheme-group {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.scheme-group h4 {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
-}
-
-.scheme-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 1rem;
-}
-
-.scheme-card {
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.scheme-card:hover {
-  transform: translateY(-2px);
-}
-
-.scheme-card-content h5 {
-  margin: 0 0 0.5rem 0;
-  font-size: 0.9375rem;
-  font-weight: 600;
-}
-
-.scheme-desc {
-  margin: 0 0 0.5rem 0;
-  color: var(--theme-color-text-soft);
-  font-size: 0.875rem;
-}
-
-.scheme-info {
-  margin: 0;
-  font-size: 0.8125rem;
-  color: var(--theme-color-text-soft);
-}
-
-.scheme-info span {
-  font-weight: 500;
-}
-
-/* 方案预览 */
-.scheme-preview {
-  margin-top: 1rem;
-  padding: 1rem;
-  background: var(--theme-color-soft);
-  border-radius: 0.25rem;
-}
-
-.scheme-preview h4 {
-  margin: 0 0 1rem 0;
-  font-size: 1rem;
-  font-weight: 600;
-}
-
-.preview-tree {
-  max-height: 400px;
-  overflow-y: auto;
   padding: 0.5rem;
-  background: var(--theme-color-background);
-  border-radius: 0.25rem;
+  background: var(--theme-color-surface);
+  border-radius: 0.5rem;
+  flex-shrink: 0;
 }
 
-/* 左树右表布局 */
-.scheme-edit-container {
-  display: flex;
-  gap: 1rem;
-  height: calc(100% - 200px);
-  min-height: 500px;
-}
-
-.scheme-tree-panel {
-  flex: 0 0 400px;
+.scheme-table-container {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--theme-color-soft-border);
-  border-radius: 0.25rem;
-  background: var(--theme-color-background);
+  background: var(--theme-color-surface);
+  border-radius: 0.5rem;
+  padding: 0.5rem;
   overflow: hidden;
+  min-height: 0;
 }
 
-.tree-header {
-  padding: 1rem;
-  border-bottom: 1px solid var(--theme-color-soft-border);
-  background: var(--theme-color-soft);
+.table-actions {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  gap: 1rem;
+  flex-shrink: 0;
 }
 
-.tree-header h3 {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
-}
-
-.tree-actions {
+.table-actions-left {
   display: flex;
   gap: 0.5rem;
-  flex-wrap: wrap;
 }
 
-.tree-container {
-  flex: 1;
-  overflow-y: auto;
-  min-height: 0;
-  padding: 0.5rem;
-}
-
-.tree-container :deep(.ix-tree-item) {
-  padding: 0.5rem;
-  cursor: pointer;
-  border-radius: 0.25rem;
-  transition: background-color 0.2s;
-}
-
-.tree-container :deep(.ix-tree-item:hover) {
-  background-color: var(--theme-color-soft-hover);
-}
-
-.tree-container :deep(.ix-tree-item.selected) {
-  background-color: var(--theme-color-primary-soft);
-  color: var(--theme-color-primary);
-}
-
-.scheme-detail-panel {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  border: 1px solid var(--theme-color-soft-border);
-  border-radius: 0.25rem;
-  background: var(--theme-color-background);
-  overflow: hidden;
-}
-
-.detail-header {
-  padding: 1rem;
-  border-bottom: 1px solid var(--theme-color-soft-border);
-  background: var(--theme-color-soft);
-}
-
-.detail-header h3 {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
-}
-
-.detail-header .empty-title {
-  color: var(--theme-color-text-soft);
-  font-weight: 400;
-}
-
-.detail-form {
-  flex: 1;
-  overflow-y: auto;
-  padding: 1rem;
-}
-
-.form-section {
-  margin-bottom: 2rem;
-}
-
-.form-section h4 {
-  margin: 0 0 1rem 0;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--theme-color-text-soft);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.form-checkbox {
-  margin-top: 1rem;
-}
-
-.form-actions {
+.table-actions-right {
   display: flex;
   gap: 0.5rem;
-  margin-top: 2rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--theme-color-soft-border);
-}
-
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  color: var(--theme-color-text-soft);
-  text-align: center;
-  padding: 2rem;
 }
 
 .sync-progress-mask {

@@ -15,6 +15,8 @@ interface ImportMetaEnv {
    * 开发环境留空时请求走相对路径 `/api/...`，由 Vite 代理到 `VITE_API_PROXY_TARGET`。
    */
   readonly VITE_API_BASE_URL?: string;
+  /** 报告文件下载基地址；不填时默认使用当前前端页面的 origin。 */
+  readonly VITE_REPORT_DOWNLOAD_BASE_URL?: string;
   /**
    * 仅用于 `vite.config.ts` 开发/预览代理：`/api` 转发目标（默认开发后端）。
    * 会打入前端 bundle，请勿在此存放密钥。

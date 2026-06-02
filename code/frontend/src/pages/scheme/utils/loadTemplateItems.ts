@@ -48,6 +48,7 @@ function toSchemeItemFromApi(item: InspectionItemDto): SchemeItem {
   return {
     id: `item-${item.itemid}`,
     name: item.name || '未命名检测项',
+    sortOrder: item.sortOrder,
     dataType: item.valueType || undefined,
     ruleType: item.ruleType || undefined,
     thresholdRaw: item.threshold || undefined,
@@ -104,6 +105,24 @@ function buildCategoryTree(
   return [...roots, ...unboundItems];
 }
 
+function assignDetectionSortOrders(items: SchemeItem[]): SchemeItem[] {
+  let nextSortOrder = 0;
+
+  const walk = (nodes: SchemeItem[]) => {
+    for (const node of nodes) {
+      if (node.children?.length) {
+        walk(node.children);
+        continue;
+      }
+      nextSortOrder += 1;
+      node.sortOrder = nextSortOrder;
+    }
+  };
+
+  walk(items);
+  return items;
+}
+
 export async function loadTemplateItemsByTemplateId(templateId: number): Promise<SchemeItem[]> {
   const [allCategories, allItems] = await Promise.all([
     inspectionCategoriesApi.listInspectionCategories(),
@@ -111,7 +130,7 @@ export async function loadTemplateItemsByTemplateId(templateId: number): Promise
   ]);
   const categories = allCategories.filter((x) => x.templateid === templateId);
   const items = allItems.filter((x) => x.templateid === templateId);
-  return buildCategoryTree(categories, items);
+  return assignDetectionSortOrders(buildCategoryTree(categories, items));
 }
 
 export async function loadTemplateItemsMap(): Promise<Map<number, SchemeItem[]>> {
@@ -127,7 +146,7 @@ export async function loadTemplateItemsMap(): Promise<Map<number, SchemeItem[]>>
   templateIds.forEach((templateId) => {
     const categories = allCategories.filter((x) => x.templateid === templateId);
     const items = allItems.filter((x) => x.templateid === templateId);
-    map.set(templateId, buildCategoryTree(categories, items));
+    map.set(templateId, assignDetectionSortOrders(buildCategoryTree(categories, items)));
   });
   return map;
 }

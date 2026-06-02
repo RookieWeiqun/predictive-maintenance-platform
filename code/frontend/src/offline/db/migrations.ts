@@ -13,6 +13,8 @@ import {
   OFFLINE_DB_MIGRATION_V5_SQL,
   OFFLINE_DB_MIGRATION_V6_SQL,
   OFFLINE_DB_MIGRATION_V7_SQL,
+  OFFLINE_DB_MIGRATION_V8_SQL,
+  OFFLINE_DB_MIGRATION_V9_SQL,
   OFFLINE_DB_VERSION,
 } from './schema';
 import type { SQLiteExecutor } from './sqlite';
@@ -91,6 +93,26 @@ export async function runOfflineMigrations(executor: SQLiteExecutor): Promise<vo
 
   if (version < 7) {
     for (const statement of OFFLINE_DB_MIGRATION_V7_SQL) {
+      try {
+        await executor.execute(statement);
+      } catch {
+        // Column may already exist on partially migrated installs.
+      }
+    }
+  }
+
+  if (version < 8) {
+    for (const statement of OFFLINE_DB_MIGRATION_V8_SQL) {
+      try {
+        await executor.execute(statement);
+      } catch {
+        // Column may already exist on partially migrated installs.
+      }
+    }
+  }
+
+  if (version < 9) {
+    for (const statement of OFFLINE_DB_MIGRATION_V9_SQL) {
       try {
         await executor.execute(statement);
       } catch {

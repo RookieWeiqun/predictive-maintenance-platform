@@ -96,10 +96,12 @@ function flattenScheme(items: SchemeItem[]): {
 } {
   const categories: FlatCategoryNode[] = [];
   const inspectionItems: FlatItemNode[] = [];
+  let nextInspectionItemSortOrder = 0;
 
   const walk = (nodes: SchemeItem[], parentTempId: string | null) => {
     nodes.forEach((node, idx) => {
       if (isDetectionNode(node)) {
+        nextInspectionItemSortOrder += 1;
         const mappedRule = mapRule(node);
         const validatedRule = validateRuleDefinition({
           valueTypeRaw: node.dataType || mappedRule.valueType,
@@ -110,7 +112,7 @@ function flattenScheme(items: SchemeItem[]): {
         inspectionItems.push({
           categoryTempId: parentTempId,
           name: node.name,
-          sortOrder: node.sortOrder ?? idx + 1,
+          sortOrder: node.sortOrder ?? nextInspectionItemSortOrder,
           required: node.required !== false,
                     priority: node.priority?.trim() || mapRequiredToPriority(node.required),
           valueType: validatedRule.valueType,
