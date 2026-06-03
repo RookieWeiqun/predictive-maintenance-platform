@@ -80,6 +80,28 @@ export async function createProjectEquipment(payload: {
   return unwrap(res);
 }
 
+/** Swagger: PUT /api/ProjectEquipments，请求体为 `ProjectEquipment` */
+export async function updateProjectEquipment(payload: {
+  peid: number;
+  projectid: number;
+  equipmentid: number;
+  templateid?: number | null;
+  ifdel?: boolean;
+}): Promise<unknown> {
+  const body: Record<string, number | boolean | null> = {
+    peid: payload.peid,
+    projectid: payload.projectid,
+    equipmentid: payload.equipmentid,
+    ifdel: payload.ifdel ?? false,
+    templateid: payload.templateid ?? null,
+  };
+  const res = await requestJson<ApiEnvelope<unknown>>('/api/ProjectEquipments', {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+  return unwrap(res);
+}
+
 /** Swagger: DELETE /api/ProjectEquipments/{id}，`id` 为关联行主键 peid */
 export async function deleteProjectEquipment(peid: number): Promise<void> {
   const res = await requestJson<ApiEnvelope<unknown>>(`/api/ProjectEquipments/${peid}`, {

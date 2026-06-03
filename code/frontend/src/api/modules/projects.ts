@@ -9,6 +9,11 @@ export type ProjectDto = {
   assigneduserid?: number | null;
   projectstatus: number;
   createdate?: string | null;
+  ifdel?: boolean | null;
+  serviceid?: string | null;
+  city?: string | null;
+  customercontact?: string | null;
+  enddate?: string | null;
 };
 
 function unwrap<T>(res: ApiEnvelope<T>): T {
@@ -40,6 +45,20 @@ function mapProjectRaw(raw: unknown): ProjectDto {
     })(),
     projectstatus: Number(gv('projectstatus', 'Projectstatus')),
     createdate: (gv('createdate', 'Createdate') as string | null | undefined) ?? null,
+    ifdel: (() => {
+      const value = gv('ifdel', 'Ifdel');
+      if (value == null || value === '') return null;
+      if (typeof value === 'boolean') return value;
+      if (typeof value === 'number') return value !== 0;
+      const text = String(value).trim().toLowerCase();
+      if (text === 'true' || text === '1') return true;
+      if (text === 'false' || text === '0') return false;
+      return null;
+    })(),
+    serviceid: (gv('serviceid', 'Serviceid') as string | null | undefined) ?? null,
+    city: (gv('city', 'City') as string | null | undefined) ?? null,
+    customercontact: (gv('customercontact', 'Customercontact') as string | null | undefined) ?? null,
+    enddate: (gv('enddate', 'Enddate') as string | null | undefined) ?? null,
   };
 }
 
@@ -68,6 +87,13 @@ export async function createProject(payload: ProjectDto): Promise<number> {
     body: JSON.stringify({ ...payload, projectid: payload.projectid ?? 0 }),
   });
   return unwrap(res);
+}
+
+export async function deleteProject(id: number): Promise<void> {
+  const res = await requestJson<ApiEnvelope<unknown>>(`/api/Projects/${id}`, {
+    method: 'DELETE',
+  });
+  unwrap(res);
 }
 
 /** 全量替换项目关联设备（请求体为设备 id 数组） */

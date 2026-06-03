@@ -14,6 +14,7 @@ export class OfflineAttachmentRepository {
         SELECT
           attachment_uuid,
           task_item_uuid,
+          filename,
           local_path,
           mime_type,
           size_bytes,
@@ -32,6 +33,7 @@ export class OfflineAttachmentRepository {
         SELECT
           attachment_uuid,
           task_item_uuid,
+          filename,
           local_path,
           mime_type,
           size_bytes,
@@ -53,14 +55,16 @@ export class OfflineAttachmentRepository {
         INSERT INTO offline_attachment (
           attachment_uuid,
           task_item_uuid,
+          filename,
           local_path,
           mime_type,
           size_bytes,
           created_at,
           sync_status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(attachment_uuid) DO UPDATE SET
           task_item_uuid = excluded.task_item_uuid,
+          filename = excluded.filename,
           local_path = excluded.local_path,
           mime_type = excluded.mime_type,
           size_bytes = excluded.size_bytes,
@@ -69,6 +73,7 @@ export class OfflineAttachmentRepository {
       [
         record.attachment_uuid,
         record.task_item_uuid,
+        record.filename,
         record.local_path,
         record.mime_type,
         record.size_bytes,
@@ -91,6 +96,14 @@ export class OfflineAttachmentRepository {
     await executor.execute(
       `DELETE FROM offline_attachment WHERE attachment_uuid = ?`,
       [attachmentUuid],
+    );
+  }
+
+  async updateFilename(attachmentUuid: string, filename: string): Promise<void> {
+    const executor = getOfflineExecutor();
+    await executor.execute(
+      `UPDATE offline_attachment SET filename = ? WHERE attachment_uuid = ?`,
+      [filename, attachmentUuid],
     );
   }
 }

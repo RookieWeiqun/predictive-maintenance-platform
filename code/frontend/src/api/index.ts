@@ -13,3 +13,4 @@ export * as attachmentsApi from './modules/attachments';
 export * as productsApi from './modules/products';
 export * as taskitemsApi from './modules/taskitems';
 export * as reportsApi from './modules/reports';
+export * as usersApi from './modules/users';

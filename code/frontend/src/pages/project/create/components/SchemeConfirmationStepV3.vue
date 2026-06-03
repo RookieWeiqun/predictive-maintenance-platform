@@ -12,6 +12,10 @@
             <span class="info-value">{{ formData.projectName }}</span>
           </div>
           <div class="info-item">
+            <span class="info-label">服务号：</span>
+            <span class="info-value">{{ formData.serviceId || '—' }}</span>
+          </div>
+          <div class="info-item">
             <span class="info-label">客户名称：</span>
             <span class="info-value">{{ getCustomerName(formData.customerId) }}</span>
           </div>
@@ -20,8 +24,20 @@
             <span class="info-value">{{ formData.factory }}</span>
           </div>
           <div class="info-item">
-            <span class="info-label">项目经理：</span>
+            <span class="info-label">西门子联系人：</span>
             <span class="info-value">{{ getProjectManagerName(formData.projectManagerId) }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">服务执行人：</span>
+            <span class="info-value">{{ getUserName(formData.chiefEngineerId) }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">城市：</span>
+            <span class="info-value">{{ formData.city || '—' }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">客户联系人：</span>
+            <span class="info-value">{{ formData.customerContact || '—' }}</span>
           </div>
         </div>
       </div>
@@ -52,23 +68,18 @@
       </div>
       <div v-else class="empty-note">暂无设备匹配记录</div>
 
-      <div v-if="peripheralWorkshopRows.length > 0" class="table-wrap peripheral-wrap">
+      <div v-if="selectedPeripheralScheme" class="table-wrap peripheral-wrap">
         <table class="match-table">
           <thead>
             <tr>
-              <th>工厂 / 车间</th>
-              <th>候选数</th>
               <th>已选外围方案</th>
+              <th>电气室数量</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="row in peripheralWorkshopRows" :key="row.key">
-              <td>{{ row.label }}</td>
-              <td>{{ row.options.length }}</td>
-              <td>
-                <span v-if="resolvePeripheralSelected(row)">{{ resolvePeripheralSelected(row)?.name }}</span>
-                <span v-else class="muted">未匹配</span>
-              </td>
+            <tr>
+              <td>{{ selectedPeripheralScheme.name }}</td>
+              <td>{{ peripheralElectricRoomCount }}</td>
             </tr>
           </tbody>
         </table>
@@ -98,14 +109,12 @@ import { AgGridVue } from 'ag-grid-vue3';
 import { getIxTheme } from '@siemens/ix-aggrid';
 import { ModuleRegistry, AllCommunityModule, type GridOptions } from 'ag-grid-community';
 import * as agGrid from 'ag-grid-community';
-import usersData from '@/mockdata/common/users.json';
 import { isDetectionItem, type SchemeItem } from '@/pages/scheme/utils/schemeUtils';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
 type SchemeOption = { id: string; name: string; model?: string };
 type EquipmentSchemeRow = { key: string; label: string; deviceCount: number; selectedId: string; options: SchemeOption[] };
-type PeripheralWorkshopRow = { key: string; label: string; options: SchemeOption[]; selectedId: string };
 type Device = {
   model: string;
   serialNumber?: string;
@@ -125,17 +134,23 @@ type TaskRow = {
 interface Props {
   formData: {
     projectName: string;
+    serviceId: string;
     customerId: string;
     factory: string;
+    city: string;
+    customerContact: string;
     projectManagerId: string;
+    chiefEngineerId: string;
     maintenanceSchemeId: string;
   };
   devices?: Device[];
   adjustedSchemeItems?: SchemeItem[];
   checkedItems?: string[];
   equipmentSchemeRows?: EquipmentSchemeRow[];
-  peripheralWorkshopRows?: PeripheralWorkshopRow[];
+  selectedPeripheralScheme?: SchemeOption | null;
+  peripheralElectricRoomCount?: string;
   customerOptions?: { label: string; value: string }[];
+  userOptions?: { label: string; value: string }[];
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -144,11 +159,11 @@ const props = withDefaults(defineProps<Props>(), {
   checkedItems: () => [],
   customerOptions: () => [],
   equipmentSchemeRows: () => [],
-  peripheralWorkshopRows: () => [],
+  selectedPeripheralScheme: null,
+  peripheralElectricRoomCount: '暂时未知',
 });
 
 const equipmentSchemeRows = computed(() => props.equipmentSchemeRows ?? []);
-const peripheralWorkshopRows = computed(() => props.peripheralWorkshopRows ?? []);
 
 const getCustomerName = (customerId: string) => {
   const hit = props.customerOptions.find((c) => c.value === customerId);
@@ -156,14 +171,17 @@ const getCustomerName = (customerId: string) => {
 };
 
 const getProjectManagerName = (managerId: string) => {
-  const manager = usersData.users.find((u) => u.id === managerId);
-  return manager?.name || '-';
+  return getUserName(managerId);
+};
+
+const getUserName = (userId: string) => {
+  const id = String(userId ?? '').trim();
+  if (!id) return '-';
+  const hit = (props.userOptions ?? []).find((item) => item.value === id);
+  return hit?.label || `用户#${id}`;
 };
 
 const resolveEquipmentSelected = (row: EquipmentSchemeRow) =>
-  row.options.find((o) => o.id === row.selectedId) ?? null;
-
-const resolvePeripheralSelected = (row: PeripheralWorkshopRow) =>
   row.options.find((o) => o.id === row.selectedId) ?? null;
 
 const taskGridOptions = ref<GridOptions | null>(null);
@@ -210,18 +228,23 @@ function getSelectedTemplateName(): string {
     const hit = row.options.find((x) => x.id === currentId);
     if (hit) return hit.name;
   }
-  for (const row of peripheralWorkshopRows.value) {
-    const hit = row.options.find((x) => x.id === currentId);
-    if (hit) return hit.name;
+  if (props.selectedPeripheralScheme && props.selectedPeripheralScheme.id === currentId) {
+    return props.selectedPeripheralScheme.name;
   }
   return `模板 #${currentId}`;
+}
+
+function getPeripheralCount(): number {
+  const value = String(props.peripheralElectricRoomCount ?? '').trim();
+  if (!value || value === '暂时未知') return 0;
+  const count = Number.parseInt(value, 10);
+  return Number.isFinite(count) && count > 0 ? count : 0;
 }
 
 function engineerNameById(engineerId: string | undefined): string {
   const id = String(engineerId ?? '').trim();
   if (!id) return '未分配';
-  const hit = usersData.users.find((u) => String(u.id) === id);
-  return hit?.name || `用户#${id}`;
+  return getUserName(id);
 }
 
 function buildTaskRows(): TaskRow[] {
@@ -251,6 +274,23 @@ function buildTaskRows(): TaskRow[] {
       });
     }
   }
+
+  const peripheralCount = getPeripheralCount();
+  if (props.selectedPeripheralScheme && peripheralCount > 0) {
+    for (let index = 0; index < peripheralCount; index += 1) {
+      seq += 1;
+      rows.push({
+        taskNo: `外围预览-${index + 1}`,
+        productModel: props.selectedPeripheralScheme.name,
+        serialno: `电气室-${index + 1}`,
+        templateName: props.selectedPeripheralScheme.name,
+        statusText: '未开始',
+        itemCount,
+        engineerName: engineerNameById(props.formData.chiefEngineerId),
+      });
+    }
+  }
+
   return rows;
 }
 
@@ -289,7 +329,8 @@ watch(
       checkedItems: props.checkedItems ?? [],
       maintenanceSchemeId: props.formData.maintenanceSchemeId ?? '',
       equipmentRows: equipmentSchemeRows.value.map((r) => ({ key: r.key, selectedId: r.selectedId })),
-      peripheralRows: peripheralWorkshopRows.value.map((r) => ({ key: r.key, selectedId: r.selectedId })),
+      peripheralTemplateId: props.selectedPeripheralScheme?.id ?? '',
+      peripheralElectricRoomCount: props.peripheralElectricRoomCount ?? '暂时未知',
     }),
   () => {
     taskRows.value = buildTaskRows();

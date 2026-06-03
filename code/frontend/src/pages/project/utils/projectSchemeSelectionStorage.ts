@@ -17,6 +17,9 @@ export type ProjectSchemeSelectionV1 = {
   maintenanceSchemeName: string;
   maintenanceModel: string;
   peripheralRows: ProjectSchemePeripheralRowV1[];
+  peripheralTemplateId?: string;
+  peripheralTemplateName?: string;
+  peripheralElectricRoomCount?: string;
   savedAt: string;
 };
 
@@ -58,6 +61,12 @@ export function loadProjectSchemeSelection(projectId: number): ProjectSchemeSele
         ...row,
         workshopKey: row.workshopKey?.trim() ? row.workshopKey.trim() : undefined,
       })),
+      peripheralTemplateId:
+        typeof p.peripheralTemplateId === 'string' ? p.peripheralTemplateId : undefined,
+      peripheralTemplateName:
+        typeof p.peripheralTemplateName === 'string' ? p.peripheralTemplateName : undefined,
+      peripheralElectricRoomCount:
+        typeof p.peripheralElectricRoomCount === 'string' ? p.peripheralElectricRoomCount : undefined,
       savedAt: typeof p.savedAt === 'string' ? p.savedAt : '',
     };
   } catch {

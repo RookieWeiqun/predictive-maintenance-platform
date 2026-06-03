@@ -2,7 +2,13 @@
 <template>
   <div>
     <IxContentHeader :header-title="isEditMode ? '编辑项目' : '新建项目'">
-      <IxButton variant="secondary" @click="saveDraft">保存草稿</IxButton>
+      <IxButton
+        v-if="showBasicInfoSaveButton"
+        variant="secondary"
+        @click="saveBasicInfo"
+      >
+        保存
+      </IxButton>
     </IxContentHeader>
     <section class="page-section">
       <div class="page-content">
@@ -28,12 +34,15 @@
             v-if="currentStep === 0" 
             :form-data="formData"
             :customer-options="customerOptions"
+            :user-options="userOptions"
             @update:project-name="formData.projectName = $event"
+            @update:service-id="formData.serviceId = $event"
             @update:customer-id="formData.customerId = $event"
             @update:factory="formData.factory = $event"
+            @update:city="formData.city = $event"
+            @update:customer-contact="formData.customerContact = $event"
             @update:project-manager-id="formData.projectManagerId = $event"
             @update:chief-engineer-id="formData.chiefEngineerId = $event"
-            @update:execution-engineers="formData.executionEngineers = $event"
           />
 
           <!-- 第二步：选择设备 -->
@@ -57,14 +66,17 @@
             :devices="deviceList"
             :matched-scheme-cards="matchedSchemeCards"
             :equipment-scheme-rows="equipmentSchemeRows"
-            :peripheral-workshop-rows="peripheralWorkshopRows"
+            :peripheral-template-options="peripheralTemplateOptions"
+            :selected-peripheral-template-id="peripheralSchemeId"
+            :electric-room-count="peripheralElectricRoomCount"
             :loading-matched="loadingMatchedTemplates"
             :selected-scheme-id="formData.maintenanceSchemeId"
             :scheme-tree-model="schemeTreeModel"
             :scheme-tree-context="schemeTreeContext"
             @select-scheme="handleSelectScheme"
             @update-equipment-scheme="handleUpdateEquipmentScheme"
-            @update-peripheral="handleUpdatePeripheralScheme"
+            @update-peripheral-scheme="handleUpdatePeripheralScheme"
+            @update-electric-room-count="peripheralElectricRoomCount = $event"
             @update-tree-context="schemeTreeContext = $event"
           />
 
@@ -93,8 +105,10 @@
             :adjusted-scheme-items="adjustedSchemeItems"
             :checked-items="checkedItems"
             :equipment-scheme-rows="equipmentSchemeRows"
-            :peripheral-workshop-rows="peripheralWorkshopRows"
+            :selected-peripheral-scheme="selectedPeripheralTemplate"
+            :peripheral-electric-room-count="peripheralElectricRoomCount"
             :customer-options="customerOptions"
+            :user-options="userOptions"
           />
 
           <!-- 操作按钮 -->
@@ -151,11 +165,13 @@ import {
 } from '@siemens/ix-vue';
 import {
   equipmentsApi,
+  inspectionTasksApi,
   inspectionTemplatesApi,
   projectEquipmentsApi,
   projectsApi,
   productsApi,
   reportsApi,
+  usersApi,
 } from '@/api';
 import type { InspectionTemplateDto } from '@/api/modules/inspectionTemplates';
 import type { ProjectDto } from '@/api/modules/projects';
@@ -167,10 +183,7 @@ import { loadTemplateItemsByTemplateId } from '@/pages/scheme/utils/loadTemplate
 import {
   searchTemplatesForProjectDevices,
   searchEquipmentTemplatesWithDiagnostics,
-  searchPeripheralTemplatesByWorkshop,
-  INSPECTION_TYPE_EQUIPMENT,
-  workshopKey,
-  workshopLabel,
+  INSPECTION_TYPE_PERIPHERAL,
 } from './utils/matchInspectionTemplates';
 import { mapEquipmentToSelectable } from './utils/equipmentSelection';
 import {
@@ -204,6 +217,7 @@ const editProjectId = computed<number | null>(() => {
 });
 
 const isEditMode = computed(() => String(route.query.mode ?? '') === 'edit' && editProjectId.value != null);
+const showBasicInfoSaveButton = computed(() => isEditMode.value && currentStep.value === 0);
 
 const loadedProject = ref<ProjectDto | null>(null);
 
@@ -215,6 +229,16 @@ const workflowSteps = [
   { title: '调整方案', description: '调整维护方案' },
   { title: '确认方案', description: '预览并确认最终方案' },
 ];
+
+const PERIPHERAL_ELECTRIC_ROOM_UNKNOWN = '暂时未知';
+const peripheralElectricRoomCountOptions = [
+  PERIPHERAL_ELECTRIC_ROOM_UNKNOWN,
+  '1',
+  '2',
+  '3',
+  '4',
+  '5',
+] as const;
 
 const currentStep = ref(0);
 const isSubmittingProject = ref(false);
@@ -229,16 +253,36 @@ function setSubmitProgress(percent: number, message: string) {
 }
 
 const customerOptions = ref<{ label: string; value: string }[]>([]);
+const userOptions = ref<{ label: string; value: string }[]>([]);
 
 async function loadCustomerOptions() {
   customerOptions.value = await loadCustomerSelectOptions();
 }
 
+async function loadUserOptions() {
+  try {
+    const users = await usersApi.listUsers();
+    userOptions.value = users
+      .filter((item) => item.userid > 0)
+      .map((item) => ({
+        label: item.username?.trim() || `用户#${item.userid}`,
+        value: String(item.userid),
+      }))
+      .sort((left, right) => left.label.localeCompare(right.label, 'zh-CN'));
+  } catch (error) {
+    userOptions.value = [];
+    showToast({ message: error instanceof Error ? error.message : '用户列表加载失败' });
+  }
+}
+
 // 表单数据
 const formData = ref({
   projectName: '',
+  serviceId: '',
   customerId: '',
   factory: '',
+  city: '',
+  customerContact: '',
   projectManagerId: '',
   chiefEngineerId: '',
   executionEngineers: [] as string[],
@@ -262,6 +306,9 @@ interface Device {
 const deviceList = ref<Device[]>([]);
 const showAddDeviceModal = ref(false);
 const editingDeviceIndex = ref<number | null>(null);
+const matchedPeripheralTemplates = ref<InspectionTemplateDto[]>([]);
+const peripheralSchemeId = ref('');
+const peripheralElectricRoomCount = ref<string>(PERIPHERAL_ELECTRIC_ROOM_UNKNOWN);
 
 async function loadProjectDevicesForWizard(projectId: number, companyid: number) {
   try {
@@ -296,10 +343,16 @@ async function loadProjectForEdit() {
     const dto = await projectsApi.getProject(editProjectId.value);
     loadedProject.value = dto;
     formData.value.projectName = dto.projectname ?? '';
+    formData.value.serviceId = dto.serviceid ?? '';
     formData.value.customerId = String(dto.companyid ?? '');
+    formData.value.city = dto.city ?? '';
+    formData.value.customerContact = dto.customercontact ?? '';
     formData.value.projectManagerId = dto.managerid != null ? String(dto.managerid) : '';
     formData.value.chiefEngineerId = dto.assigneduserid != null ? String(dto.assigneduserid) : '';
     await loadProjectDevicesForWizard(editProjectId.value, dto.companyid);
+    await loadEquipmentSchemeSelectionForEdit(editProjectId.value);
+    await loadPeripheralSelectionForEdit(editProjectId.value);
+    await refreshMatchedTemplates();
   } catch (e) {
     showToast({ message: e instanceof Error ? e.message : '项目数据加载失败' });
   }
@@ -307,7 +360,7 @@ async function loadProjectForEdit() {
 
 onMounted(() => {
   void (async () => {
-    await loadCustomerOptions();
+    await Promise.all([loadCustomerOptions(), loadUserOptions()]);
     await loadProjectForEdit();
   })();
 });
@@ -337,10 +390,7 @@ const equipmentTemplatesByModel = ref<Record<string, InspectionTemplateDto[]>>({
 const equipmentMatchDiagnosticsByModel = ref<Record<string, { series: string; size: string; message: string }>>({});
 /** 每个型号行当前选中的设备模板 id */
 const equipmentSchemeIdByModel = ref<Record<string, string>>({});
-/** 外围检测模板：按车间 key（factory\\tworkshop）分组 */
-const peripheralTemplatesByWorkshop = ref<Record<string, InspectionTemplateDto[]>>({});
-/** 各车间选中的外围模板 id */
-const peripheralSchemeIdByWorkshop = ref<Record<string, string>>({});
+const persistedEquipmentSchemeIdByModel = ref<Record<string, string>>({});
 const loadingMatchedTemplates = ref(false);
 
 const matchedSchemeCards = computed(() =>
@@ -417,46 +467,29 @@ const equipmentSchemeRows = computed(() => {
     .sort((a, b) => a.label.localeCompare(b.label, 'zh-CN'));
 });
 
-const peripheralWorkshopRows = computed(() => {
-  const rec = peripheralTemplatesByWorkshop.value;
-  return Object.keys(rec)
-    .map((key) => {
-      const opts = rec[key] ?? [];
-      const d = deviceList.value.find((x) => workshopKey(x) === key);
-      const label = d ? workshopLabel(d) : key.replace(/\t/g, ' / ');
-      return {
-        key,
-        label,
-        options: opts.map((t) => ({
-          id: String(t.templateid),
-          name: t.name?.trim() ? (t.name as string) : `模板 #${t.templateid}`,
-          model: t.mlfb?.trim() ? (t.mlfb as string) : '-',
-        })),
-        selectedId: peripheralSchemeIdByWorkshop.value[key] ?? '',
-      };
-    })
-    .sort((a, b) => a.label.localeCompare(b.label, 'zh-CN'));
+const peripheralTemplateOptions = computed(() =>
+  matchedPeripheralTemplates.value
+    .map((template) => ({
+      id: String(template.templateid),
+      name: template.name?.trim() ? (template.name as string) : `模板 #${template.templateid}`,
+      model: template.mlfb?.trim() ? (template.mlfb as string) : '-',
+    }))
+    .sort((left, right) => left.name.localeCompare(right.name, 'zh-CN')),
+);
+
+const selectedPeripheralTemplate = computed(() => {
+  const selectedId = String(peripheralSchemeId.value ?? '').trim();
+  if (!selectedId) return null;
+  return peripheralTemplateOptions.value.find((item) => item.id === selectedId) ?? null;
 });
 
 const peripheralSelectedSchemeCards = computed(() => {
-  const rows: { id: string; name: string; model: string; schemeKind: 'peripheral'; workshopLabel: string }[] = [];
-  for (const [key, tid] of Object.entries(peripheralSchemeIdByWorkshop.value)) {
-    const id = String(tid ?? '').trim();
-    if (!id) continue;
-    const opts = peripheralTemplatesByWorkshop.value[key] ?? [];
-    const t = opts.find((x) => String(x.templateid) === id);
-    if (!t) continue;
-    const d = deviceList.value.find((x) => workshopKey(x) === key);
-    rows.push({
-      id,
-      name: t.name?.trim() ? (t.name as string) : `模板 #${id}`,
-      model: t.mlfb?.trim() ? (t.mlfb as string) : '-',
-      schemeKind: 'peripheral',
-      workshopLabel: d ? workshopLabel(d) : key.replace(/\t/g, ' / '),
-    });
-  }
-  rows.sort((a, b) => a.workshopLabel.localeCompare(b.workshopLabel, 'zh-CN'));
-  return rows;
+  if (!selectedPeripheralTemplate.value) return [];
+  return [{
+    ...selectedPeripheralTemplate.value,
+    schemeKind: 'peripheral' as const,
+    workshopLabel: `电气室数量：${peripheralElectricRoomCount.value}`,
+  }];
 });
 
 /** 避免对 deviceList 使用 deep watch（易与异步方案加载叠加导致更新阶段异常） */
@@ -476,31 +509,19 @@ let refreshMatchedSeq = 0;
 
 /**
  * 无设备检测模板候选时，用已选外围方案作为向导「主方案」id（树预览、调整、确认共用）。
- * 多车间且选了不同外围模板时，按车间 key 排序取第一个作为当前树（与确认页各车间摘要并存）。
  */
 function syncPrimarySchemeFromPeripheralOnly() {
   if (matchedEquipmentTemplates.value.length > 0) return;
 
-  const picked: { key: string; id: string }[] = [];
-  for (const [key, tid] of Object.entries(peripheralSchemeIdByWorkshop.value)) {
-    const id = String(tid ?? '').trim();
-    if (!id) continue;
-    const opts = peripheralTemplatesByWorkshop.value[key] ?? [];
-    if (opts.some((t) => String(t.templateid) === id)) {
-      picked.push({ key, id });
-    }
-  }
-  if (picked.length === 0) {
+  const pickedId = String(peripheralSchemeId.value ?? '').trim();
+  const isValid = matchedPeripheralTemplates.value.some(
+    (template) => String(template.templateid) === pickedId,
+  );
+  if (!pickedId || !isValid) {
     formData.value.maintenanceSchemeId = '';
     return;
   }
-  const uniqueIds = [...new Set(picked.map((p) => p.id))];
-  if (uniqueIds.length === 1) {
-    formData.value.maintenanceSchemeId = uniqueIds[0];
-    return;
-  }
-  picked.sort((a, b) => a.key.localeCompare(b.key));
-  formData.value.maintenanceSchemeId = picked[0].id;
+  formData.value.maintenanceSchemeId = pickedId;
 }
 
 function syncPrimarySchemeFromEquipmentRows() {
@@ -534,8 +555,9 @@ async function refreshMatchedTemplates() {
     equipmentTemplatesByModel.value = {};
     equipmentMatchDiagnosticsByModel.value = {};
     equipmentSchemeIdByModel.value = {};
-    peripheralTemplatesByWorkshop.value = {};
-    peripheralSchemeIdByWorkshop.value = {};
+    persistedEquipmentSchemeIdByModel.value = {};
+    matchedPeripheralTemplates.value = [];
+    peripheralSchemeId.value = '';
     formData.value.maintenanceSchemeId = '';
     loadingMatchedTemplates.value = false;
     return;
@@ -550,14 +572,14 @@ async function refreshMatchedTemplates() {
       list.push(d);
       modelGroups.set(key, list);
     }
-    const [equipByModelEntries, perMap] = await Promise.all([
+    const [equipByModelEntries, peripheralTemplates] = await Promise.all([
       Promise.all(
         [...modelGroups.entries()].map(async ([key, list]) => {
           const result = await searchEquipmentTemplatesWithDiagnostics(list);
           return [key, result] as const;
         }),
       ),
-      searchPeripheralTemplatesByWorkshop(deviceList.value),
+      searchTemplatesForProjectDevices(deviceList.value, INSPECTION_TYPE_PERIPHERAL),
     ]);
     if (seq !== refreshMatchedSeq) return;
 
@@ -579,66 +601,75 @@ async function refreshMatchedTemplates() {
       for (const t of result.options) mergedEquip.set(t.templateid, t);
     }
     matchedEquipmentTemplates.value = [...mergedEquip.values()];
-    peripheralTemplatesByWorkshop.value = Object.fromEntries(perMap);
+    matchedPeripheralTemplates.value = peripheralTemplates;
 
     const prevEquipment = { ...equipmentSchemeIdByModel.value };
+    const persistedEquipment = { ...persistedEquipmentSchemeIdByModel.value };
     const nextEquipment: Record<string, string> = {};
     for (const [key, result] of equipByModelEntries) {
       const opts = result.options;
       if (!opts || opts.length === 0) continue;
       const prev = prevEquipment[key];
       const prevValid = prev && opts.some((t) => String(t.templateid) === prev);
+      const persisted = persistedEquipment[key];
+      const persistedValid = persisted && opts.some((t) => String(t.templateid) === persisted);
       if (opts.length === 1) {
         nextEquipment[key] = String(opts[0].templateid);
       } else if (prevValid) {
         nextEquipment[key] = prev;
+      } else if (isEditMode.value && persistedValid) {
+        nextEquipment[key] = persisted;
       } else {
         nextEquipment[key] = '';
       }
     }
     equipmentSchemeIdByModel.value = nextEquipment;
 
-    const prevPeripheral = { ...peripheralSchemeIdByWorkshop.value };
-    const nextPeripheral: Record<string, string> = {};
-    for (const key of Object.keys(peripheralTemplatesByWorkshop.value)) {
-      const opts = peripheralTemplatesByWorkshop.value[key] ?? [];
-      if (opts.length === 0) continue;
-      const prev = prevPeripheral[key];
-      const prevValid = prev && opts.some((t) => String(t.templateid) === prev);
-      if (opts.length === 1) {
-        nextPeripheral[key] = String(opts[0].templateid);
-      } else if (prevValid) {
-        nextPeripheral[key] = prev;
-      } else {
-        nextPeripheral[key] = '';
-      }
+    const currentPeripheralId = String(peripheralSchemeId.value ?? '').trim();
+    const currentPeripheralValid = currentPeripheralId && peripheralTemplates.some(
+      (template) => String(template.templateid) === currentPeripheralId,
+    );
+    let nextPeripheralId = '';
+    if (peripheralTemplates.length === 1) {
+      nextPeripheralId = String(peripheralTemplates[0].templateid);
+    } else if (currentPeripheralValid) {
+      nextPeripheralId = currentPeripheralId;
     }
-    // 编辑模式：用本地快照补全「尚未有有效选中」的车间；不得覆盖用户在本轮向导里已选中的外围模板
-    // （否则从步骤 2 进入 3 时 currentStep 触发刷新，会把刚改的外围方案写回旧快照）
+
     if (isEditMode.value && editProjectId.value != null) {
       const stored = loadProjectSchemeSelection(editProjectId.value);
-      if (stored?.peripheralRows?.length) {
-        for (const row of stored.peripheralRows) {
-          const tid = String(row.templateId ?? '').trim();
-          if (!tid) continue;
-          let wk = String(row.workshopKey ?? '').trim();
-          if (!wk) {
-            const label = String(row.workshopLabel ?? '').trim();
-            const d = deviceList.value.find((x) => workshopLabel(x) === label);
-            if (d) wk = workshopKey(d);
-          }
-          if (!wk || !(wk in nextPeripheral)) continue;
-          const opts = peripheralTemplatesByWorkshop.value[wk] ?? [];
-          if (!opts.some((t) => String(t.templateid) === tid)) continue;
-          const prevPick = String(prevPeripheral[wk] ?? '').trim();
-          const userAlreadyHasValidPick =
-            prevPick !== '' && opts.some((t) => String(t.templateid) === prevPick);
-          if (userAlreadyHasValidPick) continue;
-          nextPeripheral[wk] = tid;
+      const storedPeripheralId = String(stored?.peripheralTemplateId ?? '').trim();
+      if (
+        !nextPeripheralId
+        && storedPeripheralId
+        && peripheralTemplates.some((template) => String(template.templateid) === storedPeripheralId)
+      ) {
+        nextPeripheralId = storedPeripheralId;
+      }
+      const currentCount = String(peripheralElectricRoomCount.value ?? '').trim();
+      if (
+        !currentCount
+        || !peripheralElectricRoomCountOptions.includes(
+          currentCount as (typeof peripheralElectricRoomCountOptions)[number],
+        )
+      ) {
+        const storedCount = String(stored?.peripheralElectricRoomCount ?? '').trim();
+        if (
+          storedCount
+          && peripheralElectricRoomCountOptions.includes(
+            storedCount as (typeof peripheralElectricRoomCountOptions)[number],
+          )
+        ) {
+          peripheralElectricRoomCount.value = storedCount;
         }
       }
     }
-    peripheralSchemeIdByWorkshop.value = nextPeripheral;
+
+    peripheralSchemeId.value = nextPeripheralId;
+
+    if (!peripheralSchemeId.value && peripheralTemplates.length === 0 && !isEditMode.value) {
+      peripheralElectricRoomCount.value = PERIPHERAL_ELECTRIC_ROOM_UNKNOWN;
+    }
 
     if (matchedEquipmentTemplates.value.length === 0) {
       syncPrimarySchemeFromPeripheralOnly();
@@ -765,11 +796,8 @@ function handleUpdateEquipmentScheme(modelKey: string, templateId: string) {
   syncPrimarySchemeFromEquipmentRows();
 }
 
-function handleUpdatePeripheralScheme(workshopKey: string, templateId: string) {
-  peripheralSchemeIdByWorkshop.value = {
-    ...peripheralSchemeIdByWorkshop.value,
-    [workshopKey]: templateId,
-  };
+function handleUpdatePeripheralScheme(templateId: string) {
+  peripheralSchemeId.value = String(templateId ?? '').trim();
   syncPrimarySchemeFromPeripheralOnly();
 }
 
@@ -870,6 +898,84 @@ async function applySchemeTreeFromSchemeId(newSchemeId: string) {
   }
 }
 
+async function loadPeripheralSelectionForEdit(projectId: number): Promise<void> {
+  const stored = loadProjectSchemeSelection(projectId);
+  const storedCount = String(stored?.peripheralElectricRoomCount ?? '').trim();
+  if (
+    storedCount
+    && peripheralElectricRoomCountOptions.includes(
+      storedCount as (typeof peripheralElectricRoomCountOptions)[number],
+    )
+  ) {
+    peripheralElectricRoomCount.value = storedCount;
+  } else {
+    peripheralElectricRoomCount.value = PERIPHERAL_ELECTRIC_ROOM_UNKNOWN;
+  }
+
+  const storedTemplateId = String(stored?.peripheralTemplateId ?? '').trim();
+  if (storedTemplateId) {
+    peripheralSchemeId.value = storedTemplateId;
+  }
+
+  try {
+    const tasks = await inspectionTasksApi.searchInspectionTasks({ projectid: projectId, productid: 0 });
+    const activeTasks = tasks.filter((task) => !task.ifdel);
+    if (activeTasks.length > 0) {
+      peripheralElectricRoomCount.value =
+        activeTasks.length <= 5 ? String(activeTasks.length) : PERIPHERAL_ELECTRIC_ROOM_UNKNOWN;
+      const templateId = activeTasks[0]?.templateid;
+      peripheralSchemeId.value = templateId != null ? String(templateId) : peripheralSchemeId.value;
+    }
+  } catch {
+    // ignore: edit fallback remains local storage
+  }
+}
+
+async function loadEquipmentSchemeSelectionForEdit(projectId: number): Promise<void> {
+  persistedEquipmentSchemeIdByModel.value = {};
+
+  if (deviceList.value.length === 0) {
+    return;
+  }
+
+  try {
+    const links = await projectEquipmentsApi.listByProject(projectId);
+    const templateIdByEquipmentId = new Map<number, string>();
+    for (const link of links) {
+      if (link.ifdel || link.equipmentid <= 0 || (link.templateid ?? 0) <= 0) {
+        continue;
+      }
+      templateIdByEquipmentId.set(link.equipmentid, String(link.templateid));
+    }
+
+    const nextSelections: Record<string, string> = {};
+    for (const device of deviceList.value) {
+      const equipmentId = Number.parseInt(String(device.id ?? '').trim(), 10);
+      if (!Number.isFinite(equipmentId) || equipmentId <= 0) {
+        continue;
+      }
+      const templateId = templateIdByEquipmentId.get(equipmentId);
+      if (!templateId) {
+        continue;
+      }
+      const modelKey = equipmentModelKey(device);
+      if (!nextSelections[modelKey]) {
+        nextSelections[modelKey] = templateId;
+      }
+    }
+
+    persistedEquipmentSchemeIdByModel.value = nextSelections;
+    if (Object.keys(nextSelections).length > 0) {
+      equipmentSchemeIdByModel.value = {
+        ...equipmentSchemeIdByModel.value,
+        ...nextSelections,
+      };
+    }
+  } catch {
+    persistedEquipmentSchemeIdByModel.value = {};
+  }
+}
+
 watch(
   () => formData.value.maintenanceSchemeId,
   (newSchemeId) => {
@@ -903,7 +1009,11 @@ const handlePrevious = () => {
 const handleNext = () => {
   // 表单验证
   if (currentStep.value === 0) {
-    if (!formData.value.customerId) {
+    if (
+      !formData.value.projectName.trim() ||
+      !formData.value.customerId ||
+      !formData.value.factory.trim()
+    ) {
       alert('请填写完整的基本信息');
       return;
     }
@@ -918,17 +1028,20 @@ const handleNext = () => {
       if (matchedEquipmentTemplates.value.length > 0) {
         alert('请单击上方卡片选择「设备检测」维护方案。');
       } else {
-        alert(
-          '当前未匹配到设备检测模板。请在「各车间外围检测方案」中为每个有候选的车间选择外围方案；外围方案将用于本阶段的方案树预览与编辑。',
-        );
+        alert('当前未匹配到设备检测模板。请先选择外围检测方案。');
       }
       return;
     }
-    for (const row of peripheralWorkshopRows.value) {
-      if (row.options.length > 0 && !String(row.selectedId ?? '').trim()) {
-        alert(`请为「${row.label}」选择外围方案`);
-        return;
-      }
+    if (peripheralTemplateOptions.value.length > 0 && !String(peripheralSchemeId.value ?? '').trim()) {
+      alert('请选择外围检测方案');
+      return;
+    }
+    if (
+      peripheralElectricRoomCount.value !== PERIPHERAL_ELECTRIC_ROOM_UNKNOWN
+      && !String(peripheralSchemeId.value ?? '').trim()
+    ) {
+      alert('已选择电气室数量时，必须同时选择外围检测方案');
+      return;
     }
   }
   
@@ -939,53 +1052,75 @@ const handleNext = () => {
   }
 };
 
-const saveDraft = () => {
-  showToast({ message: '草稿功能尚未接入后端，请使用「下一步」完成流程' });
-};
+async function saveBasicInfo(): Promise<void> {
+  if (!isEditMode.value || editProjectId.value == null) {
+    return;
+  }
+
+  const name = formData.value.projectName.trim();
+  if (!name) {
+    alert('请填写项目名称');
+    return;
+  }
+
+  const companyid = Number.parseInt(formData.value.customerId, 10);
+  if (Number.isNaN(companyid)) {
+    alert('请选择客户名称');
+    return;
+  }
+
+  const factory = formData.value.factory.trim();
+  if (!factory) {
+    alert('请填写工厂信息');
+    return;
+  }
+
+  try {
+    await projectsApi.updateProject({
+      projectid: editProjectId.value,
+      projectname: name,
+      companyid,
+      managerid: parseOptionalUserId(formData.value.projectManagerId),
+      assigneduserid:
+        parseOptionalUserId(formData.value.chiefEngineerId) ??
+        parseOptionalUserId(formData.value.executionEngineers[0]),
+      projectstatus: loadedProject.value?.projectstatus ?? PROJECT_STATUS_IN_PROGRESS,
+      createdate: loadedProject.value?.createdate?.trim() || new Date().toISOString().slice(0, 10),
+      ifdel: loadedProject.value?.ifdel ?? false,
+      serviceid: formData.value.serviceId.trim() || null,
+      city: formData.value.city.trim() || null,
+      customercontact: formData.value.customerContact.trim() || null,
+      enddate: loadedProject.value?.enddate?.trim() || null,
+    });
+
+    loadedProject.value = {
+      ...(loadedProject.value ?? {}),
+      projectid: editProjectId.value,
+      projectname: name,
+      companyid,
+      managerid: parseOptionalUserId(formData.value.projectManagerId),
+      assigneduserid:
+        parseOptionalUserId(formData.value.chiefEngineerId) ??
+        parseOptionalUserId(formData.value.executionEngineers[0]),
+      projectstatus: loadedProject.value?.projectstatus ?? PROJECT_STATUS_IN_PROGRESS,
+      createdate: loadedProject.value?.createdate?.trim() || new Date().toISOString().slice(0, 10),
+      ifdel: loadedProject.value?.ifdel ?? false,
+      serviceid: formData.value.serviceId.trim() || null,
+      city: formData.value.city.trim() || null,
+      customercontact: formData.value.customerContact.trim() || null,
+      enddate: loadedProject.value?.enddate?.trim() || null,
+    };
+
+    showToast({ message: '项目基本信息已保存' });
+  } catch (error) {
+    showToast({ message: error instanceof Error ? error.message : '项目基本信息保存失败' });
+  }
+}
 
 function parseOptionalUserId(id: string | undefined): number | null {
   if (id == null || String(id).trim() === '') return null;
   const n = Number.parseInt(String(id), 10);
   return Number.isNaN(n) ? null : n;
-}
-
-/**
- * 得到可写入 ProjectEquipments 的 equipmentid 列表。
- * - 档案选择的设备：id 为纯数字字符串（equipid）
- * - 手动创建等临时 id：先 POST /api/Equipments，再使用返回的 equipid
- */
-async function resolvePersistedEquipmentIds(): Promise<number[]> {
-  const companyid = Number.parseInt(formData.value.customerId, 10);
-  if (Number.isNaN(companyid)) return [];
-
-  const result: number[] = [];
-  for (const d of deviceList.value) {
-    const idStr = String(d.id ?? '').trim();
-    const numeric = /^(\d+)$/.exec(idStr)?.[1];
-    if (numeric) {
-      result.push(Number(numeric));
-      continue;
-    }
-    const cat = productCategoriesData.categories.find((c) => c.id === d.categoryId);
-    const sub = cat?.subCategories.find((s) => s.id === d.subCategoryId);
-    const created = await equipmentsApi.createEquipment({
-      companyid,
-      factory: (d.factoryName ?? formData.value.factory ?? '').trim() || null,
-      workshop: (d.workshopName ?? '').trim() || null,
-      mlfb: d.model || null,
-      equipmentname: null,
-      productcategory: cat?.name ?? null,
-      productgroup: sub?.name ?? null,
-      number: d.quantity,
-    });
-    const eqId = created.equipid;
-    if (eqId == null || Number.isNaN(Number(eqId)) || Number(eqId) <= 0) {
-      throw new Error('新建设备档案失败：未返回有效 equipid');
-    }
-    d.id = String(eqId);
-    result.push(Number(eqId));
-  }
-  return Array.from(new Set(result));
 }
 
 type PersistedEquipmentBinding = {
@@ -1064,26 +1199,30 @@ function buildProjectEquipmentTemplateBindings(
 ): Array<{ equipmentid: number; templateid: number }> {
   const bindings: Array<{ equipmentid: number; templateid: number }> = [];
   const maintenanceTemplateId = Number.parseInt(formData.value.maintenanceSchemeId ?? '', 10);
-  const workshopTemplateMap = peripheralSchemeIdByWorkshop.value;
+  const matchedEquipmentTemplateIds = new Set(
+    matchedEquipmentTemplates.value.map((template) => template.templateid),
+  );
 
   for (const binding of persistedBindings) {
-    if (Number.isFinite(maintenanceTemplateId) && maintenanceTemplateId > 0) {
-      bindings.push({
-        equipmentid: binding.equipmentId,
-        templateid: maintenanceTemplateId,
-      });
-    }
-
-    const workshopTemplateId = Number.parseInt(
-      workshopTemplateMap[workshopKey(binding.device)] ?? '',
+    const modelKey = equipmentModelKey(binding.device);
+    const selectedTemplateId = Number.parseInt(
+      String(equipmentSchemeIdByModel.value[modelKey] ?? '').trim(),
       10,
     );
-    if (Number.isFinite(workshopTemplateId) && workshopTemplateId > 0) {
-      bindings.push({
-        equipmentid: binding.equipmentId,
-        templateid: workshopTemplateId,
-      });
+    const resolvedTemplateId =
+      Number.isFinite(selectedTemplateId) && selectedTemplateId > 0
+        ? selectedTemplateId
+        : maintenanceTemplateId;
+    if (!Number.isFinite(resolvedTemplateId) || resolvedTemplateId <= 0) {
+      continue;
     }
+    if (!matchedEquipmentTemplateIds.has(resolvedTemplateId)) {
+      continue;
+    }
+    bindings.push({
+      equipmentid: binding.equipmentId,
+      templateid: resolvedTemplateId,
+    });
   }
 
   return bindings;
@@ -1101,42 +1240,208 @@ function buildSchemeSelectionForStorage(): ProjectSchemeSelectionV1 {
   if (card) {
     maintenanceSchemeName = card.name;
     maintenanceModel = card.model;
+  } else if (selectedPeripheralTemplate.value && selectedPeripheralTemplate.value.id === mid) {
+    maintenanceSchemeName = selectedPeripheralTemplate.value.name;
+    maintenanceModel = selectedPeripheralTemplate.value.model || '-';
   } else {
-    for (const opts of Object.values(peripheralTemplatesByWorkshop.value)) {
-      const t = opts.find((x) => String(x.templateid) === mid);
-      if (t) {
-        maintenanceSchemeName = t.name?.trim() ? (t.name as string) : `模板 #${mid}`;
-        maintenanceModel = t.mlfb?.trim() ? (t.mlfb as string) : '-';
-        break;
-      }
-    }
     if (!maintenanceSchemeName && mid) {
       maintenanceSchemeName = `模板 #${mid}`;
       maintenanceModel = '-';
     }
   }
-  const peripheralRows: ProjectSchemeSelectionV1['peripheralRows'] = [];
-  for (const [key, tid] of Object.entries(peripheralSchemeIdByWorkshop.value)) {
-    const id = String(tid ?? '').trim();
-    if (!id) continue;
-    const opts = peripheralTemplatesByWorkshop.value[key] ?? [];
-    const t = opts.find((x) => String(x.templateid) === id);
-    const d = deviceList.value.find((x) => workshopKey(x) === key);
-    peripheralRows.push({
-      workshopKey: key,
-      workshopLabel: d ? workshopLabel(d) : key.replace(/\t/g, ' / '),
-      templateId: id,
-      schemeName: t?.name?.trim() || `模板 #${id}`,
-    });
-  }
-  peripheralRows.sort((a, b) => a.workshopLabel.localeCompare(b.workshopLabel, 'zh-CN'));
+  const peripheralTemplate = selectedPeripheralTemplate.value;
   return {
     savedAt: new Date().toISOString(),
     maintenanceSchemeId: mid,
     maintenanceSchemeName,
     maintenanceModel,
-    peripheralRows,
+    peripheralRows: [],
+    peripheralTemplateId: peripheralTemplate?.id,
+    peripheralTemplateName: peripheralTemplate?.name,
+    peripheralElectricRoomCount: peripheralElectricRoomCount.value,
   };
+}
+
+function getDesiredPeripheralCount(): number {
+  const value = String(peripheralElectricRoomCount.value ?? '').trim();
+  if (!value || value === PERIPHERAL_ELECTRIC_ROOM_UNKNOWN) return 0;
+  const count = Number.parseInt(value, 10);
+  return Number.isFinite(count) && count > 0 ? count : 0;
+}
+
+async function createPeripheralBindings(projectId: number, templateId: number, count: number): Promise<void> {
+  for (let index = 0; index < count; index += 1) {
+    await projectEquipmentsApi.createProjectEquipment({
+      peid: 0,
+      projectid: projectId,
+      equipmentid: 0,
+      templateid: templateId,
+      ifdel: false,
+    });
+  }
+}
+
+async function syncPeripheralTasks(projectId: number): Promise<void> {
+  const desiredCount = getDesiredPeripheralCount();
+  const templateId = Number.parseInt(String(peripheralSchemeId.value ?? '').trim(), 10);
+  const existingTasks = (await inspectionTasksApi.searchInspectionTasks({ projectid: projectId, productid: 0 }))
+    .filter((task) => !task.ifdel)
+    .sort((left, right) => Number(left.taskid ?? 0) - Number(right.taskid ?? 0));
+
+  if (desiredCount <= 0) {
+    await Promise.all(existingTasks.map(async (task) => {
+      if (task.taskid != null) {
+        await inspectionTasksApi.deleteInspectionTask(task.taskid);
+      }
+    }));
+    return;
+  }
+
+  if (!Number.isFinite(templateId) || templateId <= 0) {
+    throw new Error('已选择电气室数量，但外围检测方案无效');
+  }
+
+  await Promise.all(existingTasks.map(async (task) => {
+    if (task.templateid === templateId) return;
+    await inspectionTasksApi.updateInspectionTask({
+      ...task,
+      projectid: projectId,
+      templateid: templateId,
+      status: task.status ?? 1,
+      productid: task.productid ?? 0,
+      inspectiontype: task.inspectiontype ?? INSPECTION_TYPE_PERIPHERAL,
+      ifdel: false,
+    });
+  }));
+
+  if (existingTasks.length > desiredCount) {
+    const tasksToDelete = existingTasks.slice(desiredCount);
+    await Promise.all(tasksToDelete.map(async (task) => {
+      if (task.taskid != null) {
+        await inspectionTasksApi.deleteInspectionTask(task.taskid);
+      }
+    }));
+    return;
+  }
+
+  if (existingTasks.length < desiredCount) {
+    await createPeripheralBindings(projectId, templateId, desiredCount - existingTasks.length);
+  }
+}
+
+async function listEquipmentProductIds(equipmentId: number): Promise<number[]> {
+  const products = await productsApi.searchProducts({ equipmentid: equipmentId });
+  return products
+    .map((product) => product.productid)
+    .filter((productId): productId is number => productId != null && productId > 0);
+}
+
+async function deleteInspectionTasksForProducts(projectId: number, productIds: number[]): Promise<void> {
+  for (const productId of productIds) {
+    const tasks = await inspectionTasksApi.searchInspectionTasks({ projectid: projectId, productid: productId });
+    const activeTasks = tasks.filter((task) => !task.ifdel);
+    for (const task of activeTasks) {
+      if (task.taskid != null) {
+        await inspectionTasksApi.deleteInspectionTask(task.taskid);
+      }
+    }
+  }
+}
+
+function isDuplicateEquipmentBindingError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  return error.message.includes('同一项目下该设备已存在');
+}
+
+async function syncEquipmentBindings(projectId: number, persistedBindings: PersistedEquipmentBinding[]): Promise<void> {
+  const desiredBindings = buildProjectEquipmentTemplateBindings(persistedBindings);
+  const desiredByEquipmentId = new Map<number, { equipmentid: number; templateid: number }>();
+  for (const binding of desiredBindings) {
+    if (binding.equipmentid > 0 && binding.templateid > 0) {
+      desiredByEquipmentId.set(binding.equipmentid, binding);
+    }
+  }
+
+  const existingLinks = (await projectEquipmentsApi.listByProject(projectId))
+    .filter((link) => !link.ifdel && link.equipmentid > 0);
+  const existingByEquipmentId = new Map<number, typeof existingLinks[number]>();
+  for (const link of existingLinks) {
+    if (!existingByEquipmentId.has(link.equipmentid)) {
+      existingByEquipmentId.set(link.equipmentid, link);
+    }
+  }
+
+  for (const link of existingLinks) {
+    if (desiredByEquipmentId.has(link.equipmentid)) {
+      continue;
+    }
+    if (link.peid != null && link.peid > 0) {
+      await projectEquipmentsApi.deleteProjectEquipment(link.peid);
+    }
+    const productIds = await listEquipmentProductIds(link.equipmentid);
+    await deleteInspectionTasksForProducts(projectId, productIds);
+  }
+
+  for (const binding of desiredBindings) {
+    const existingLink = existingByEquipmentId.get(binding.equipmentid);
+    const productIds = await listEquipmentProductIds(binding.equipmentid);
+    const productTaskMatrix = await Promise.all(
+      productIds.map(async (productId) => {
+        const tasks = await inspectionTasksApi.searchInspectionTasks({ projectid: projectId, productid: productId });
+        return {
+          productId,
+          activeTasks: tasks.filter((task) => !task.ifdel),
+        };
+      }),
+    );
+    const everyProductHasTask =
+      productTaskMatrix.length > 0 && productTaskMatrix.every((entry) => entry.activeTasks.length > 0);
+
+    if (existingLink) {
+      const existingTemplateId = Number(existingLink.templateid ?? 0);
+      if (existingTemplateId === binding.templateid) {
+        continue;
+      }
+      if (existingLink.peid != null && existingLink.peid > 0) {
+        try {
+          await projectEquipmentsApi.updateProjectEquipment({
+            peid: existingLink.peid,
+            projectid: projectId,
+            equipmentid: binding.equipmentid,
+            templateid: binding.templateid,
+            ifdel: false,
+          });
+        } catch (error) {
+          if (isDuplicateEquipmentBindingError(error)) {
+            continue;
+          }
+          throw error;
+        }
+      }
+      continue;
+    }
+
+    if (everyProductHasTask) {
+      continue;
+    }
+
+    try {
+      await projectEquipmentsApi.createProjectEquipment({
+        peid: 0,
+        projectid: projectId,
+        equipmentid: binding.equipmentid,
+        templateid: binding.templateid,
+        ifdel: false,
+      });
+    } catch (error) {
+      if (isDuplicateEquipmentBindingError(error)) {
+        continue;
+      }
+      throw error;
+    }
+  }
 }
 
 const submitProject = async () => {
@@ -1176,6 +1481,11 @@ const submitProject = async () => {
           assigneduserid,
           projectstatus,
           createdate: baseCreatedate,
+          ifdel: loadedProject.value?.ifdel ?? false,
+          serviceid: formData.value.serviceId.trim() || null,
+          city: formData.value.city.trim() || null,
+          customercontact: formData.value.customerContact.trim() || null,
+          enddate: loadedProject.value?.enddate?.trim() || null,
         })
       : await projectsApi.createProject({
           projectid: 0,
@@ -1185,6 +1495,11 @@ const submitProject = async () => {
           assigneduserid,
           projectstatus,
           createdate: baseCreatedate,
+          ifdel: false,
+          serviceid: formData.value.serviceId.trim() || null,
+          city: formData.value.city.trim() || null,
+          customercontact: formData.value.customerContact.trim() || null,
+          enddate: null,
         });
 
     let reportInitializationError: string | null = null;
@@ -1212,7 +1527,6 @@ const submitProject = async () => {
 
     setSubmitProgress(50, '正在同步项目设备与产品数据...');
     const persistedBindings = await resolvePersistedEquipmentBindings();
-    const equipIds = [...new Set(persistedBindings.map((binding) => binding.equipmentId))];
     for (const binding of persistedBindings) {
       await ensureProductsForEquipment(binding);
     }
@@ -1221,11 +1535,11 @@ const submitProject = async () => {
     const needEquipmentSync = persistedBindings.length > 0 || isEditMode.value;
     if (needEquipmentSync) {
       try {
-        await projectEquipmentsApi.syncProjectEquipmentTemplateLinks(
-          savedId,
-          buildProjectEquipmentTemplateBindings(persistedBindings),
-        );
+        await syncEquipmentBindings(savedId, persistedBindings);
       } catch (linkErr) {
+        if (isDuplicateEquipmentBindingError(linkErr)) {
+          // Duplicate equipment bindings are non-fatal: skip them and continue peripheral sync.
+        } else {
         showToast({
           message:
             linkErr instanceof Error
@@ -1234,8 +1548,12 @@ const submitProject = async () => {
         });
         router.push('/project/list');
         return;
+        }
       }
     }
+
+    setSubmitProgress(80, '正在同步外围检测任务...');
+    await syncPeripheralTasks(savedId);
 
     const baseOk = isEditMode.value ? '项目更新成功' : '项目创建成功';
     setSubmitProgress(100, '全部保存成功');

@@ -6,6 +6,7 @@ export type AttachmentDto = {
   taskid?: number | null;
   taskitemid?: string;
   filepath?: string | null;
+  filename?: string | null;
 };
 
 function unwrap<T>(res: ApiEnvelope<T>): T {
@@ -31,6 +32,7 @@ function mapAttachmentRaw(raw: unknown): AttachmentDto {
     })(),
     taskitemid: String(gv(r, 'taskitemid', 'Taskitemid') ?? '').trim() || undefined,
     filepath: String(gv(r, 'filepath', 'Filepath') ?? '').trim() || null,
+    filename: String(gv(r, 'filename', 'Filename') ?? '').trim() || null,
   };
 }
 
@@ -71,7 +73,11 @@ export async function listAttachmentsByTaskid(taskid: number): Promise<Attachmen
   return unwrap(res).map(mapAttachmentRaw);
 }
 
-export async function uploadAttachmentFiles(itemId: string, taskId: number, files: File[]): Promise<void> {
+export async function uploadAttachmentFiles(
+  itemId: string,
+  taskId: number,
+  files: Array<{ file: File; filename: string }>,
+): Promise<void> {
   if (!itemId.trim()) {
     throw new Error('上传图片失败：缺少任务项 ItemId');
   }
@@ -85,8 +91,9 @@ export async function uploadAttachmentFiles(itemId: string, taskId: number, file
   const formData = new FormData();
   formData.append('Itemid', itemId);
   formData.append('Taskid', String(taskId));
-  for (const file of files) {
-    formData.append('Files', file, file.name);
+  for (const entry of files) {
+    formData.append('Filenames', entry.filename);
+    formData.append('Files', entry.file, entry.file.name);
   }
 
   await request('/api/Attachments/upload', {

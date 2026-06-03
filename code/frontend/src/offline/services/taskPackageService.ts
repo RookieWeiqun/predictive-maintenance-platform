@@ -528,6 +528,7 @@ async function downloadTaskPackageFromResponse(
 ): Promise<{ taskCount: number; itemCount: number }> {
   const task = response.data.task;
   const taskItems = response.data.task_items ?? [];
+  const isPeripheralTask = Number(task.inspection_type ?? 0) === 2;
   const taskUuid = String(task.task_uuid || task.task_id);
   const taskNo = String(task.task_no || taskUuid).trim() || `任务#${taskUuid}`;
   const schemeId = String(task.template_id || '');
@@ -539,10 +540,10 @@ async function downloadTaskPackageFromResponse(
     task_uuid: taskUuid,
     server_task_id: String(task.task_id),
     task_no: taskNo,
-    serial_no: task.serial_no?.trim() || null,
-    equipment_name: task.equipmentname?.trim() || null,
-    equipment_number: task.equipmentnumber?.trim() || null,
-    department: task.department?.trim() || null,
+    serial_no: isPeripheralTask ? null : task.serial_no?.trim() || null,
+    equipment_name: isPeripheralTask ? null : task.equipmentname?.trim() || null,
+    equipment_number: isPeripheralTask ? null : task.equipmentnumber?.trim() || null,
+    department: isPeripheralTask ? null : task.department?.trim() || null,
     assigned_user_name: task.assigned_user_name?.trim() || null,
     assigned_user_id: task.assigned_user_id != null ? String(task.assigned_user_id) : null,
     download_device_name: task.download_device_name?.trim() || null,

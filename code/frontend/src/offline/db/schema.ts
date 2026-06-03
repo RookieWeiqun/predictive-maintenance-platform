@@ -9,7 +9,7 @@ function quoteList(values: readonly string[]): string {
   return values.map((value) => `'${value}'`).join(', ');
 }
 
-export const OFFLINE_DB_VERSION = 9;
+export const OFFLINE_DB_VERSION = 10;
 
 export const OFFLINE_TASK_TABLE = 'offline_task';
 export const OFFLINE_TASK_ITEM_TABLE = 'offline_task_item';
@@ -162,10 +162,15 @@ export const OFFLINE_DB_MIGRATION_V9_SQL = [
   `ALTER TABLE ${OFFLINE_TASK_TABLE} ADD COLUMN scheme_snapshot_json TEXT;`,
 ];
 
+export const OFFLINE_DB_MIGRATION_V10_SQL = [
+  `ALTER TABLE ${OFFLINE_ATTACHMENT_TABLE} ADD COLUMN filename TEXT NOT NULL DEFAULT '';`,
+];
+
 export const CREATE_OFFLINE_ATTACHMENT_TABLE_SQL = `
 CREATE TABLE IF NOT EXISTS ${OFFLINE_ATTACHMENT_TABLE} (
   attachment_uuid TEXT PRIMARY KEY NOT NULL,
   task_item_uuid TEXT NOT NULL,
+  filename TEXT NOT NULL,
   local_path TEXT NOT NULL,
   mime_type TEXT,
   size_bytes INTEGER,

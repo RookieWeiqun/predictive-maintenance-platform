@@ -9,6 +9,14 @@
         @update:model-value="(value: string) => $emit('update:projectName', value)"
         placeholder="请输入项目名称" 
       />
+
+      <IxFieldLabel htmlFor="serviceId">服务号</IxFieldLabel>
+      <IxInput
+        id="serviceId"
+        :model-value="formData.serviceId"
+        @update:model-value="(value: string) => $emit('update:serviceId', value)"
+        placeholder="请输入服务号"
+      />
       
       <IxFieldLabel htmlFor="customerId">客户名称 <span class="required">*</span></IxFieldLabel>
       <IxSelect 
@@ -48,12 +56,12 @@
         :placeholder="factoryInputPlaceholder"
       />
       
-      <IxFieldLabel htmlFor="projectManagerId">项目经理 <span class="required">*</span></IxFieldLabel>
+      <IxFieldLabel htmlFor="projectManagerId">西门子联系人</IxFieldLabel>
       <IxSelect 
         id="projectManagerId"
         :model-value="formData.projectManagerId"
         @update:model-value="(value: string) => $emit('update:projectManagerId', value)"
-        placeholder="请选择项目经理"
+        placeholder="请选择西门子联系人"
       >
         <IxSelectItem 
           v-for="item in projectManagerOptions" 
@@ -62,37 +70,37 @@
           :value="item.value" 
         />
       </IxSelect>
-      
-      <IxFieldLabel htmlFor="chiefEngineerId">主任工程师 <span class="required">*</span></IxFieldLabel>
-      <IxSelect 
+
+      <IxFieldLabel htmlFor="chiefEngineerId">服务执行人</IxFieldLabel>
+      <IxSelect
         id="chiefEngineerId"
         :model-value="formData.chiefEngineerId"
         @update:model-value="(value: string) => $emit('update:chiefEngineerId', value)"
-        placeholder="请选择主任工程师"
+        placeholder="请选择服务执行人"
       >
-        <IxSelectItem 
-          v-for="item in chiefEngineerOptions" 
-          :key="item.value" 
-          :label="item.label" 
-          :value="item.value" 
+        <IxSelectItem
+          v-for="item in serviceExecutorOptions"
+          :key="item.value"
+          :label="item.label"
+          :value="item.value"
         />
       </IxSelect>
       
-      <IxFieldLabel htmlFor="executionEngineers">执行工程师 <span class="required">*</span></IxFieldLabel>
-      <IxSelect 
-        id="executionEngineers"
-        :model-value="formData.executionEngineers"
-        @update:model-value="(value: string[]) => $emit('update:executionEngineers', value)"
-        placeholder="请选择执行工程师（可多选）"
-        multiple
-      >
-        <IxSelectItem 
-          v-for="item in maintenanceEngineerOptions" 
-          :key="item.value" 
-          :label="item.label" 
-          :value="item.value" 
-        />
-      </IxSelect>
+      <IxFieldLabel htmlFor="city">城市</IxFieldLabel>
+      <IxInput
+        id="city"
+        :model-value="formData.city"
+        @update:model-value="(value: string) => $emit('update:city', value)"
+        placeholder="请输入城市"
+      />
+
+      <IxFieldLabel htmlFor="customerContact">客户联系人</IxFieldLabel>
+      <IxInput
+        id="customerContact"
+        :model-value="formData.customerContact"
+        @update:model-value="(value: string) => $emit('update:customerContact', value)"
+        placeholder="请输入客户联系人"
+      />
     </IxLayoutAuto>
   </div>
 </template>
@@ -107,30 +115,34 @@ import {
   IxSelectItem,
   showToast,
 } from '@siemens/ix-vue';
-import usersData from '@/mockdata/common/users.json';
 import { equipmentsApi } from '@/api';
 
 interface Props {
   formData: {
     projectName: string;
+    serviceId: string;
     customerId: string;
     factory: string;
+    city: string;
+    customerContact: string;
     projectManagerId: string;
     chiefEngineerId: string;
-    executionEngineers: string[];
   };
   customerOptions: { label: string; value: string }[];
+  userOptions: { label: string; value: string }[];
 }
 
 const props = defineProps<Props>();
 
 const emit = defineEmits<{
   'update:projectName': [value: string];
+  'update:serviceId': [value: string];
   'update:customerId': [value: string];
   'update:factory': [value: string];
+  'update:city': [value: string];
+  'update:customerContact': [value: string];
   'update:projectManagerId': [value: string];
   'update:chiefEngineerId': [value: string];
-  'update:executionEngineers': [value: string[]];
 }>();
 
 const factoryOptions = ref<string[]>([]);
@@ -180,23 +192,9 @@ watch(
   { immediate: true },
 );
 
-const projectManagerOptions = computed(() => 
-  usersData.users
-    .filter(u => u.role === 'project_manager')
-    .map(u => ({ label: u.name, value: u.id }))
-);
+const projectManagerOptions = computed(() => props.userOptions ?? []);
+const serviceExecutorOptions = computed(() => props.userOptions ?? []);
 
-const chiefEngineerOptions = computed(() => 
-  usersData.users
-    .filter(u => u.role === 'chief_engineer')
-    .map(u => ({ label: u.name, value: u.id }))
-);
-
-const maintenanceEngineerOptions = computed(() => 
-  usersData.users
-    .filter(u => u.role === 'maintenance_engineer')
-    .map(u => ({ label: u.name, value: u.id }))
-);
 </script>
 
 <style scoped>
