@@ -17,13 +17,15 @@ public class ReportService
     private readonly ServiceTools _serviceTools;
     private const string FullTableWidth = "5000";
 
-    public ReportService(PredictiveMaintenancePlatformContext context, IWebHostEnvironment env, ServiceTools serviceTools)
+    public ReportService(
+        PredictiveMaintenancePlatformContext context,
+        IWebHostEnvironment env,
+        ServiceTools serviceTools)
     {
         _context = context;
         _env = env;
         _serviceTools = serviceTools;
     }
-
 
     public async Task<string> GenerateProjectReportAsync(int projectId)
     {
@@ -34,13 +36,12 @@ public class ReportService
         if (project == null)
             throw new InvalidOperationException("项目不存在");
 
-
         Report report = await _context.Reports
             .FirstOrDefaultAsync(r => r.Projectid == projectId)
             ?? new Report
             {
                 Projectid = projectId,
-                Createdate = DateOnly.FromDateTime(DateTime.Now)
+                Createdate = DateOnly.FromDateTime(_serviceTools.NowInChina())
             };
 
         if (report.Reportid == 0)
@@ -59,6 +60,7 @@ public class ReportService
 
         var equipmentIds = projectEquipments
             .Select(x => x.Equipmentid)
+            .Where(x => x > 0)
             .Distinct()
             .ToList();
 
@@ -103,7 +105,7 @@ public class ReportService
             .ToListAsync();
 
         var reportEquipments = projectEquipments
-            .Where(pe => equipments.ContainsKey(pe.Equipmentid))
+            .Where(pe => pe.Equipmentid > 0 && equipments.ContainsKey(pe.Equipmentid))
             .GroupBy(pe => pe.Equipmentid)
             .Select(g => g.OrderBy(x => x.Peid).First())
             .Select(pe =>
@@ -135,14 +137,15 @@ public class ReportService
             })
             .ToList();
 
-
         var detailGroups = tasks
             .Where(t => productDict.ContainsKey(t.Productid))
             .SelectMany(task =>
             {
                 var product = productDict[task.Productid];
                 if (!product.Equipid.HasValue || !equipments.ContainsKey(product.Equipid.Value))
+                {
                     return Enumerable.Empty<(string ElectricRoom, string? EquipmentName, string? EquipmentNumber, string? Factory, string CategoryPath, ReportDetailRowDto Row)>();
+                }
 
                 var equipment = equipments[product.Equipid.Value];
 
@@ -156,6 +159,7 @@ public class ReportService
                         CategoryPath: item.Categorypath ?? string.Empty,
                         Row: new ReportDetailRowDto
                         {
+                            CategoryPath = item.Categorypath ?? string.Empty,
                             TaskName = item.Taskname ?? string.Empty,
                             ResultState = GetJsonValue(item.Taskresult, "resultState"),
                             Value = GetJsonValue(item.Taskresult, "value"),
@@ -205,9 +209,9 @@ public class ReportService
                     .Where(i => i.Taskid == task.Taskid)
                     .Select(item => (
                         DownloadDeviceName: task.DownloadDeviceName ?? string.Empty,
-                        CategoryPath: item.Categorypath ?? string.Empty,
                         Row: new ReportDetailRowDto
                         {
+                            CategoryPath = item.Categorypath ?? string.Empty,
                             TaskName = item.Taskname ?? string.Empty,
                             ResultState = GetJsonValue(item.Taskresult, "resultState"),
                             Value = GetJsonValue(item.Taskresult, "value"),
@@ -217,21 +221,19 @@ public class ReportService
                             HazardResolved = GetJsonValue(item.Taskresult, "hazardResolved")
                         }))
             )
-            .GroupBy(x => new
-            {
-                x.DownloadDeviceName,
-                x.CategoryPath
-            })
+            .GroupBy(x => x.DownloadDeviceName)
             .Select(g => new ReportDetailGroupDto
             {
                 ElectricRoom = "外围检测",
-                EquipmentName = g.Key.DownloadDeviceName,
+                EquipmentName = string.Empty,
+                DownloadDeviceName = g.Key,
                 EquipmentNumber = string.Empty,
                 Factory = string.Empty,
-                CategoryPath = g.Key.CategoryPath,
+                CategoryPath = string.Empty,
                 Rows = g.Select(x => x.Row)
                     .DistinctBy(r => new
                     {
+                        r.CategoryPath,
                         r.TaskName,
                         r.ResultState,
                         r.Value,
@@ -239,13 +241,12 @@ public class ReportService
                         r.MaintenanceInstructions,
                         r.Remarks
                     })
+                    .OrderBy(r => r.CategoryPath)
+                    .ThenBy(r => r.TaskName)
                     .ToList()
             })
-            .OrderBy(x => x.EquipmentName)
-            .ThenBy(x => x.CategoryPath)
+            .OrderBy(x => x.DownloadDeviceName)
             .ToList();
-
-
 
         var failResults = tasks
             .Where(t => productDict.ContainsKey(t.Productid))
@@ -333,76 +334,75 @@ public class ReportService
             .ToList();
 
         var outerFailResults = tasks
-    .Where(t => t.Inspectiontype == 2 && t.Productid == 0)
-    .SelectMany(task =>
-        taskitems
-            .Where(i => i.Taskid == task.Taskid)
-            .Select(item => new
-            {
-                Task = task,
-                Item = item,
-                ResultState = GetJsonValue(item.Taskresult, "resultState")
-            })
-            .Where(x => string.Equals(x.ResultState, "abnormal", StringComparison.OrdinalIgnoreCase))
-            .Select(x =>
-            {
-                var itemAttachments = attachments
-                    .Where(a => a.Taskitemid == x.Item.Itemid)
-                    .Select(a => new
+            .Where(t => t.Inspectiontype == 2 && t.Productid == 0)
+            .SelectMany(task =>
+                taskitems
+                    .Where(i => i.Taskid == task.Taskid)
+                    .Select(item => new
                     {
-                        Path = ResolveAttachmentPath(a.Filepath),
-                        FileName = a.Filename
+                        Task = task,
+                        Item = item,
+                        ResultState = GetJsonValue(item.Taskresult, "resultState")
                     })
-                    .Where(a => !string.IsNullOrWhiteSpace(a.Path))
-                    .DistinctBy(a => a.Path)
-                    .Take(4)
-                    .ToList();
-
-                while (itemAttachments.Count < 4)
-                {
-                    itemAttachments.Add(new
+                    .Where(x => string.Equals(x.ResultState, "abnormal", StringComparison.OrdinalIgnoreCase))
+                    .Select(x =>
                     {
-                        Path = string.Empty,
-                        FileName = string.Empty
-                    });
-                }
+                        var itemAttachments = attachments
+                            .Where(a => a.Taskitemid == x.Item.Itemid)
+                            .Select(a => new
+                            {
+                                Path = ResolveAttachmentPath(a.Filepath),
+                                FileName = a.Filename
+                            })
+                            .Where(a => !string.IsNullOrWhiteSpace(a.Path))
+                            .DistinctBy(a => a.Path)
+                            .Take(4)
+                            .ToList();
 
-                return new ReportFailResultDto
-                {
-                    DownloadDeviceName = x.Task.DownloadDeviceName,
-                    CategoryPath = x.Item.Categorypath ?? string.Empty,
-                    TaskName = x.Item.Taskname ?? string.Empty,
-                    Value = GetJsonValue(x.Item.Taskresult, "value"),
-                    HazardResolved = GetJsonValue(x.Item.Taskresult, "hazardResolved"),
-                    ActionTaken = GetJsonValue(x.Item.Taskresult, "actionTaken"),
-                    RecommendationContent = GetJsonValue(x.Item.Taskresult, "recommendationContent"),
-                    Photo1 = itemAttachments[0].Path,
-                    Photo2 = itemAttachments[1].Path,
-                    Photo3 = itemAttachments[2].Path,
-                    Photo4 = itemAttachments[3].Path,
-                    Photo1Name = itemAttachments[0].FileName,
-                    Photo2Name = itemAttachments[1].FileName,
-                    Photo3Name = itemAttachments[2].FileName,
-                    Photo4Name = itemAttachments[3].FileName
-                };
-            }))
-    .DistinctBy(x => new
-    {
-        x.DownloadDeviceName,
-        x.CategoryPath,
-        x.TaskName,
-        x.Value,
-        x.HazardResolved,
-        x.ActionTaken,
-        x.RecommendationContent
-    })
-    .ToList();
+                        while (itemAttachments.Count < 4)
+                        {
+                            itemAttachments.Add(new
+                            {
+                                Path = string.Empty,
+                                FileName = string.Empty
+                            });
+                        }
+
+                        return new ReportFailResultDto
+                        {
+                            DownloadDeviceName = x.Task.DownloadDeviceName,
+                            CategoryPath = x.Item.Categorypath ?? string.Empty,
+                            TaskName = x.Item.Taskname ?? string.Empty,
+                            Value = GetJsonValue(x.Item.Taskresult, "value"),
+                            HazardResolved = GetJsonValue(x.Item.Taskresult, "hazardResolved"),
+                            ActionTaken = GetJsonValue(x.Item.Taskresult, "actionTaken"),
+                            RecommendationContent = GetJsonValue(x.Item.Taskresult, "recommendationContent"),
+                            Photo1 = itemAttachments[0].Path,
+                            Photo2 = itemAttachments[1].Path,
+                            Photo3 = itemAttachments[2].Path,
+                            Photo4 = itemAttachments[3].Path,
+                            Photo1Name = itemAttachments[0].FileName,
+                            Photo2Name = itemAttachments[1].FileName,
+                            Photo3Name = itemAttachments[2].FileName,
+                            Photo4Name = itemAttachments[3].FileName
+                        };
+                    }))
+            .DistinctBy(x => new
+            {
+                x.DownloadDeviceName,
+                x.CategoryPath,
+                x.TaskName,
+                x.Value,
+                x.HazardResolved,
+                x.ActionTaken,
+                x.RecommendationContent
+            })
+            .ToList();
 
         var reportsRoot = Path.Combine(_env.ContentRootPath, "Reports");
         Directory.CreateDirectory(reportsRoot);
 
         var templatePath = Path.Combine(reportsRoot, "reportTemplate.docx");
-
         if (!File.Exists(templatePath))
             throw new FileNotFoundException($"报告模板不存在：{templatePath}", templatePath);
 
@@ -418,16 +418,10 @@ public class ReportService
         memoryStream.Position = 0;
 
         var abnormalCount = taskitems.Count(x =>
-            string.Equals(
-                GetJsonValue(x.Taskresult, "resultState"),
-                "abnormal",
-                StringComparison.OrdinalIgnoreCase));
+            string.Equals(GetJsonValue(x.Taskresult, "resultState"), "abnormal", StringComparison.OrdinalIgnoreCase));
 
         var normalCount = taskitems.Count(x =>
-            string.Equals(
-                GetJsonValue(x.Taskresult, "resultState"),
-                "normal",
-                StringComparison.OrdinalIgnoreCase));
+            string.Equals(GetJsonValue(x.Taskresult, "resultState"), "normal", StringComparison.OrdinalIgnoreCase));
 
         var totalCount = abnormalCount + normalCount;
 
@@ -436,17 +430,18 @@ public class ReportService
             var mainPart = wordDoc.MainDocumentPart
                 ?? throw new InvalidOperationException("Word 模板缺少 MainDocumentPart");
 
-            var document = mainPart.Document ?? throw new InvalidOperationException("Word 模板缺少 Document");
+            var document = mainPart.Document
+                ?? throw new InvalidOperationException("Word 模板缺少 Document");
 
-            ReplacePlaceholder(document, "{$projectname}", projectName ?? "");
+            ReplacePlaceholder(document, "{$projectname}", projectName);
             ReplacePlaceholder(document, "{$city}", project.City ?? "");
-            ReplacePlaceholder(document, "{$companyname}", companyName ?? "");
+            ReplacePlaceholder(document, "{$companyname}", companyName);
             ReplacePlaceholder(document, "{$Createdate}", project.Createdate.ToString("yyyy-MM-dd"));
-            ReplacePlaceholder(document, "{$serviceId}", project.Serviceid?.ToString()??"");
-            ReplacePlaceholder(document, "{$customerContact}", project.Customercontact?.ToString()??"");
+            ReplacePlaceholder(document, "{$serviceId}", project.Serviceid?.ToString() ?? "");
+            ReplacePlaceholder(document, "{$customerContact}", project.Customercontact?.ToString() ?? "");
             ReplacePlaceholder(document, "{$siemensContact}", siemensContact);
             ReplacePlaceholder(document, "{$startDate}", project.Createdate.ToString("yyyy-MM-dd"));
-            ReplacePlaceholder(document, "{$endDate}", project.Enddate?.ToString("yyyy-MM-dd") ??"");
+            ReplacePlaceholder(document, "{$endDate}", project.Enddate?.ToString("yyyy-MM-dd") ?? "");
             ReplacePlaceholder(document, "{$reportCreateDate}", report.Createdate.ToString("yyyy-MM-dd"));
             ReplacePlaceholder(document, "{$leadEngineer}", leadEngineer);
             ReplacePlaceholder(document, "{$SummaryDescription}", report.Summarydescription ?? string.Empty);
@@ -464,13 +459,11 @@ public class ReportService
                 maintainElements.Add(CreateEquipmentTable(eq));
             }
             maintainElements.Add(CreatePageBreakParagraph());
-          
             ReplacePlaceholderWithElements(document, "{$maintainList}", maintainElements);
 
             var detailElements = new List<OpenXmlElement>();
             var detailIndex = 1;
 
-            // 设备检测明细
             foreach (var group in detailGroups)
             {
                 detailElements.Add(CreateEmptyParagraph());
@@ -480,13 +473,12 @@ public class ReportService
                 detailIndex++;
             }
 
-            // 外围检测明细，继续沿用 6.x 编号
             foreach (var group in outerDetailGroups)
             {
                 detailElements.Add(CreateEmptyParagraph());
                 detailElements.Add(CreateHeading2Paragraph(
-                    $"6.{detailIndex} 外围检测>>{group.EquipmentName}"));
-                detailElements.Add(CreateDetailTable(group));
+                    $"6.{detailIndex} 外围检测>>{group.DownloadDeviceName}"));
+                detailElements.Add(CreateOuterDetailTable(group));
                 detailIndex++;
             }
 
@@ -494,16 +486,17 @@ public class ReportService
 
             var resolvedElements = new List<OpenXmlElement>();
             var unResolvedElements = new List<OpenXmlElement>();
+
             foreach (var item in failResults)
             {
-                if (item.HazardResolved == "true")
+                if (string.Equals(item.HazardResolved, "true", StringComparison.OrdinalIgnoreCase))
                 {
-                    resolvedElements.Add(CreateResolvedFailResultTable(item, item?.Factory ?? "", mainPart));
+                    resolvedElements.Add(CreateFailResultTable(item, item.Factory ?? "", mainPart));
                     resolvedElements.Add(CreateEmptyParagraph());
                 }
                 else
                 {
-                    unResolvedElements.Add(CreateUnresolvedFailResultTable(item, item?.Factory ?? "", mainPart));
+                    unResolvedElements.Add(CreateFailResultTable(item, item.Factory ?? "", mainPart));
                     unResolvedElements.Add(CreateEmptyParagraph());
                 }
             }
@@ -511,14 +504,25 @@ public class ReportService
             ReplacePlaceholderWithElements(document, "{$resolvedProblems}", resolvedElements);
             ReplacePlaceholderWithElements(document, "{$unresolvedProblems}", unResolvedElements);
 
-            var outerInspectionElements = new List<OpenXmlElement>();
+            var outerResolvedElements = new List<OpenXmlElement>();
+            var outerUnresolvedElements = new List<OpenXmlElement>();
+
             foreach (var item in outerFailResults)
             {
-                outerInspectionElements.Add(CreateOuterInspectionFailResultTable(item, mainPart));
-                outerInspectionElements.Add(CreateEmptyParagraph());
+                if (string.Equals(item.HazardResolved, "true", StringComparison.OrdinalIgnoreCase))
+                {
+                    outerResolvedElements.Add(CreateOuterInspectionFailResultTable(item, mainPart));
+                    outerResolvedElements.Add(CreateEmptyParagraph());
+                }
+                else
+                {
+                    outerUnresolvedElements.Add(CreateOuterInspectionFailResultTable(item, mainPart));
+                    outerUnresolvedElements.Add(CreateEmptyParagraph());
+                }
             }
 
-            ReplacePlaceholderWithElements(document, "{$outerInspectionProblems}", outerInspectionElements);
+            ReplacePlaceholderWithElements(document, "{$outerResolvedProblems}", outerResolvedElements);
+            ReplacePlaceholderWithElements(document, "{$outerUnresolvedProblems}", outerUnresolvedElements);
 
             ReplacePlaceholder(document, "abnormal", "异常");
             ReplacePlaceholder(document, "normal", "正常");
@@ -526,7 +530,7 @@ public class ReportService
             document.Save();
         }
 
-        var fileName = $"项目报告_{projectId}_{DateTime.Now:yyyyMMddHHmmss}.docx";
+        var fileName = $"项目报告_{projectId}_{_serviceTools.NowInChina():yyyyMMddHHmmss}.docx";
         var outputPath = Path.Combine(reportsRoot, fileName);
 
         await File.WriteAllBytesAsync(outputPath, memoryStream.ToArray());
@@ -577,9 +581,10 @@ public class ReportService
             : GetJsonValue(json, "recommendationContent");
     }
 
-    private static Table CreateResolvedFailResultTable(ReportFailResultDto item, string factory, MainDocumentPart mainPart)
+    private static Table CreateFailResultTable(ReportFailResultDto item, string factory, MainDocumentPart mainPart)
     {
         var table = CreateBaseTable(3);
+        var resolved = string.Equals(item.HazardResolved, "true", StringComparison.OrdinalIgnoreCase);
 
         table.Append(CreateSpanRow($"{factory}车间隐患以及解决措施", 3, true));
 
@@ -597,16 +602,16 @@ public class ReportService
         );
 
         table.Append(
-        CreateFailRightSpanRowContinue(
-        $"检测项目：{item.CategoryPath}",
-        $"问题描述：{item.TaskName} : {item.Value}",
-        string.Empty)
+            CreateFailRightSpanRowContinue(
+                $"检测项目：{item.CategoryPath}",
+                $"问题描述：{item.TaskName} : {item.Value}",
+                string.Empty)
         );
 
         table.Append(
             CreateFailRightSpanRowContinue(
-                "问题处理说明：",
-                item.ActionTaken,
+                resolved ? "问题处理说明：" : "隐患说明及建议：",
+                resolved ? item.ActionTaken : item.RecommendationContent,
                 string.Empty)
         );
 
@@ -616,51 +621,15 @@ public class ReportService
         return table;
     }
 
-
-    private static Table CreateUnresolvedFailResultTable(ReportFailResultDto item, string factory, MainDocumentPart mainPart)
-    {
-        var table = CreateBaseTable(3);
-
-        table.Append(CreateSpanRow($"{factory}车间隐患以及解决措施", 3, true));
-
-        table.Append(
-            CreateFailThreeColumnRowStart(
-                item.ElectricRoom,
-                $"设备名称:{item.EquipmentName}",
-                $"设备型号:{item.Mlfb}")
-        );
-
-        table.Append(
-            CreateFailThreeColumnRowContinue(
-                $"设备编号:{item.EquipmentNumber}",
-                $"序列号:{item.Serialno}")
-        );
-
-        table.Append(
-        CreateFailRightSpanRowContinue(
-        $"检测项目：{item.CategoryPath}",
-        $"问题描述：{item.TaskName} : {item.Value}",
-        string.Empty)
-        );
-
-        table.Append(
-            CreateFailRightSpanRowContinue(
-                $"隐患说明及建议：{item.RecommendationContent}",
-                string.Empty,string.Empty)
-        );
-
-        table.Append(CreateFailPhotoRow(mainPart, item.Photo1, item.Photo1Name, item.Photo2, item.Photo2Name));
-        table.Append(CreateFailPhotoRow(mainPart, item.Photo3, item.Photo3Name, item.Photo4, item.Photo4Name));
-
-        return table;
-    }
-
-
     private static Table CreateOuterInspectionFailResultTable(ReportFailResultDto item, MainDocumentPart mainPart)
     {
         var table = CreateBaseTable(3);
+        var resolved = string.Equals(item.HazardResolved, "true", StringComparison.OrdinalIgnoreCase);
 
-        table.Append(CreateSpanRow("外围检测隐患及解决措施", 3, true));
+        table.Append(CreateSpanRow(
+            resolved ? "外围检测已解决隐患及解决措施" : "外围检测未解决隐患及解决措施",
+            3,
+            true));
 
         table.Append(
             CreateFailThreeColumnRowStart(
@@ -676,33 +645,18 @@ public class ReportService
                 string.Empty)
         );
 
-        var hazardResolved = string.Equals(item.HazardResolved, "true", StringComparison.OrdinalIgnoreCase);
-
         table.Append(
             CreateFailRightSpanRowContinue(
-                hazardResolved ? "问题处理说明：" : "隐患说明及建议：",
-                hazardResolved ? item.ActionTaken : item.RecommendationContent,
+                resolved ? "问题处理说明：" : "隐患说明及建议：",
+                resolved ? item.ActionTaken : item.RecommendationContent,
                 string.Empty)
         );
-       /*
-        table.Append(
-            CreateFailThreeColumnRowContinue(
-                "照片1：",
-                "照片2：")
-        );
-       */
+
         table.Append(CreateFailPhotoRow(mainPart, item.Photo1, item.Photo1Name, item.Photo2, item.Photo2Name));
-        /*
-        table.Append(
-            CreateFailThreeColumnRowContinue(
-                "照片3：",
-                "照片4：")
-        );*/
         table.Append(CreateFailPhotoRow(mainPart, item.Photo3, item.Photo3Name, item.Photo4, item.Photo4Name));
 
         return table;
     }
-
 
     private static TableRow CreateFailThreeColumnRowStart(string? left, string? middle, string? right)
     {
@@ -758,10 +712,10 @@ public class ReportService
     }
 
     private static TableCell CreateImageCell(
-    string? imagePath,
-    string? fileName,
-    MainDocumentPart mainPart,
-    string cellWidth)
+        string? imagePath,
+        string? fileName,
+        MainDocumentPart mainPart,
+        string cellWidth)
     {
         var cell = new TableCell(
             new TableCellProperties(
@@ -928,9 +882,9 @@ public class ReportService
     }
 
     private static void ReplacePlaceholderWithElements(
-     Document document,
-     string placeholder,
-     IEnumerable<OpenXmlElement> elements)
+        Document document,
+        string placeholder,
+        IEnumerable<OpenXmlElement> elements)
     {
         var paragraph = document
             .Descendants<Paragraph>()
@@ -963,7 +917,6 @@ public class ReportService
     private static void ReplacePlaceholder(Document document, string placeholder, string value)
     {
         var safeValue = SanitizeOpenXmlText(value);
-
         var paragraphs = document.Descendants<Paragraph>().ToList();
 
         foreach (var paragraph in paragraphs)
@@ -1033,9 +986,7 @@ public class ReportService
         var table = CreateBaseTable(4);
 
         table.Append(CreateSpanRow(group.CategoryPath ?? string.Empty, 4));
-
-        table.Append(CreateHeaderRow(
-            "检查项", "测试结果", "检测值", "备注"));
+        table.Append(CreateHeaderRow("检查项", "测试结果", "检测值", "备注"));
 
         if (group.Rows.Count == 0)
         {
@@ -1045,23 +996,39 @@ public class ReportService
         {
             foreach (var row in group.Rows)
             {
-                table.Append(
-                    CreateRow(
-                        row.TaskName,
-                        row.ResultState,
-                        row.Value,
-                        row.Remarks)
-                );
+                table.Append(CreateRow(row.TaskName, row.ResultState, row.Value, row.Remarks));
             }
         }
 
-        var hiddenHazardText = BuildSummaryLines(
-            group.Rows,
-            r => r.HiddenHazardContent);
+        var hiddenHazardText = BuildSummaryLines(group.Rows, r => r.HiddenHazardContent);
+        var maintenanceText = BuildSummaryLines(group.Rows, r => r.MaintenanceInstructions);
 
-        var maintenanceText = BuildSummaryLines(
-            group.Rows,
-            r => r.MaintenanceInstructions);
+        table.Append(CreateSpanRow($"问题隐患说明：{hiddenHazardText}", 4));
+        table.Append(CreateSpanRow($"维护与优化建议：{maintenanceText}", 4));
+
+        return table;
+    }
+
+    private static Table CreateOuterDetailTable(ReportDetailGroupDto group)
+    {
+        var table = CreateBaseTable(4);
+        string? currentCategory = null;
+
+        table.Append(CreateHeaderRow("检查项", "测试结果", "检测值", "备注"));
+
+        foreach (var row in group.Rows)
+        {
+            if (!string.Equals(currentCategory, row.CategoryPath, StringComparison.Ordinal))
+            {
+                currentCategory = row.CategoryPath;
+                table.Append(CreateSpanRow(currentCategory ?? string.Empty, 4));
+            }
+
+            table.Append(CreateRow(row.TaskName, row.ResultState, row.Value, row.Remarks));
+        }
+
+        var hiddenHazardText = BuildSummaryLines(group.Rows, r => r.HiddenHazardContent);
+        var maintenanceText = BuildSummaryLines(group.Rows, r => r.MaintenanceInstructions);
 
         table.Append(CreateSpanRow($"问题隐患说明：{hiddenHazardText}", 4));
         table.Append(CreateSpanRow($"维护与优化建议：{maintenanceText}", 4));
@@ -1070,8 +1037,8 @@ public class ReportService
     }
 
     private static string BuildSummaryLines(
-    IEnumerable<ReportDetailRowDto> rows,
-    Func<ReportDetailRowDto, string?> selector)
+        IEnumerable<ReportDetailRowDto> rows,
+        Func<ReportDetailRowDto, string?> selector)
     {
         var lines = rows
             .Select(r => new
@@ -1313,7 +1280,6 @@ public class ReportService
 
     private static Table CreateEquipmentTable(ReportEquipmentDto eq)
     {
-        // 第一列更窄，第二列更宽
         var table = CreateBaseTable(650, 1900, 1500, 1400, 1300, 1200, 1050);
 
         var headerRow = new TableRow(
@@ -1390,7 +1356,6 @@ public class ReportProductDto
     public string? EquipmentNumber { get; set; }
 }
 
-
 public class ReportDetailRowDto
 {
     public string? TaskName { get; set; }
@@ -1399,14 +1364,14 @@ public class ReportDetailRowDto
     public string? HiddenHazardContent { get; set; }
     public string? MaintenanceInstructions { get; set; }
     public string? Remarks { get; set; }
-    public string? HazardResolved { get; set; } = null;
+    public string? HazardResolved { get; set; }
+    public string? CategoryPath { get; set; }
 }
 
 public class ReportEquipmentDto
 {
     public int Peid { get; set; }
     public int Equipmentid { get; set; }
-
     public string? Workshop { get; set; }
     public string? ElectricRoom { get; set; }
     public string? Factory { get; set; }
@@ -1421,6 +1386,7 @@ public class ReportDetailGroupDto
     public string? EquipmentName { get; set; }
     public string? EquipmentNumber { get; set; }
     public string? CategoryPath { get; set; }
+    public string? DownloadDeviceName { get; set; }
     public List<ReportDetailRowDto> Rows { get; set; } = new();
 }
 
@@ -1435,13 +1401,10 @@ public class ReportFailResultDto
     public string? CategoryPath { get; set; }
     public string? TaskName { get; set; }
     public string? Value { get; set; }
-    public string? Resolution { get; set; }   
-
+    public string? Resolution { get; set; }
     public string? HazardResolved { get; set; }
-
     public string? RecommendationContent { get; set; }
     public string? DownloadDeviceName { get; set; }
-
     public string? ActionTaken { get; set; }
     public string? Photo1 { get; set; }
     public string? Photo2 { get; set; }
