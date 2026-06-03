@@ -72,7 +72,7 @@ namespace premaintainProjects.Controllers
             var exists = await _context.ProjectEquipments.AnyAsync(x =>
                 x.Peid != projectEquipment.Peid &&
                 x.Projectid == projectEquipment.Projectid &&
-                x.Equipmentid == projectEquipment.Equipmentid &&
+                x.Equipmentid == projectEquipment.Equipmentid && x.Equipmentid != 0 &&
                 x.Ifdel == false);
 
             if (exists)
@@ -298,11 +298,12 @@ namespace premaintainProjects.Controllers
         {
             var exists = await _context.ProjectEquipments.AnyAsync(x =>
                 x.Projectid == projectEquipment.Projectid &&
-                x.Equipmentid == projectEquipment.Equipmentid &&
+                x.Equipmentid == projectEquipment.Equipmentid && x.Equipmentid != 0 &&
                 x.Ifdel == false);
 
             if (exists)
             {
+                
                 return new JsonResult(new
                 {
                     code = ResponseCode.参数无效,
