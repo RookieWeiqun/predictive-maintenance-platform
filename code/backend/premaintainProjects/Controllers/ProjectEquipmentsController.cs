@@ -72,7 +72,7 @@ namespace premaintainProjects.Controllers
             var exists = await _context.ProjectEquipments.AnyAsync(x =>
                 x.Peid != projectEquipment.Peid &&
                 x.Projectid == projectEquipment.Projectid &&
-                x.Equipmentid == projectEquipment.Equipmentid &&
+                x.Equipmentid == projectEquipment.Equipmentid && x.Equipmentid != 0 &&
                 x.Ifdel == false);
 
             if (exists)
@@ -96,12 +96,10 @@ namespace premaintainProjects.Controllers
                     return new JsonResult(new { code = ResponseCode.记录不存在, data = (object)null, msg = "记录不存在" });
                 }
 
-                // 保留旧值，用于删除旧任务
                 var oldProjectId = existing.Projectid;
                 var oldTemplateId = existing.Templateid;
                 var oldEquipmentId = existing.Equipmentid;
 
-                // 更新项目设备关系
                 existing.Projectid = projectEquipment.Projectid;
                 existing.Equipmentid = projectEquipment.Equipmentid;
                 existing.Templateid = projectEquipment.Templateid;
@@ -109,52 +107,6 @@ namespace premaintainProjects.Controllers
 
                 await _context.SaveChangesAsync();
 
-                // 校验设备
-                var equipment = await _context.Equipments.FindAsync(existing.Equipmentid);
-                if (equipment == null)
-                {
-                    await transaction.RollbackAsync();
-                    _logger.LogWarning("更新项目设备失败，设备不存在，EquipmentId：{EquipmentId}", existing.Equipmentid);
-                    return new JsonResult(new { code = ResponseCode.记录不存在, data = (object)null, msg = "设备不存在" });
-                }
-
-                // 旧设备产品，用于删除旧任务
-                var oldProductIds = await _context.Products
-                    .Where(p => p.Equipid == oldEquipmentId)
-                    .Select(p => p.Productid)
-                    .ToListAsync();
-
-                // 新设备产品
-                var productIds = await _context.Products
-                    .Where(p => p.Equipid == existing.Equipmentid)
-                    .Select(p => p.Productid)
-                    .ToListAsync();
-
-                // 如果新设备还没产品，则自动补齐
-                if (equipment.Number.HasValue && equipment.Number.Value > 0)
-                {
-                    var products = new List<Product>();
-
-                    for (int i = 0; i < equipment.Number.Value-productIds.Count; i++)
-                    {
-                        products.Add(new Product
-                        {
-                            Equipid = equipment.Equipid,
-                            Mlfb = equipment.Mlfb,
-                            Serialno = null
-                        });
-                    }
-
-                    _context.Products.AddRange(products);
-                    await _context.SaveChangesAsync();
-
-                    productIds = await _context.Products
-                        .Where(p => p.Equipid == existing.Equipmentid)
-                        .Select(p => p.Productid)
-                        .ToListAsync();
-                }
-
-                // 校验模板
                 var template = await _context.InspectionTemplates.FindAsync(existing.Templateid);
                 if (template == null)
                 {
@@ -163,8 +115,20 @@ namespace premaintainProjects.Controllers
                     return new JsonResult(new { code = ResponseCode.记录不存在, data = (object)null, msg = "未匹配到巡检模板" });
                 }
 
-                // 删除旧任务
-                if (oldProductIds.Count > 0)
+                List<int> oldProductIds;
+                if (oldEquipmentId == 0)
+                {
+                    oldProductIds = new List<int> { 0 };
+                }
+                else
+                {
+                    oldProductIds = await _context.Products
+                        .Where(p => p.Equipid == oldEquipmentId)
+                        .Select(p => p.Productid)
+                        .ToListAsync();
+                }
+
+                if (oldProductIds.Count > 0 && oldTemplateId.HasValue)
                 {
                     var oldTasks = await _context.InspectionTasks
                         .Where(t =>
@@ -177,38 +141,142 @@ namespace premaintainProjects.Controllers
                     {
                         foreach (var oldTask in oldTasks)
                         {
-                            oldTask.Ifdel = true; // 逻辑删除
+                            oldTask.Ifdel = true;
                         }
+
                         _context.InspectionTasks.UpdateRange(oldTasks);
                         await _context.SaveChangesAsync();
                     }
                 }
 
-                // 生成新任务
                 var tasks = new List<InspectionTask>();
 
-                foreach (var productId in productIds)
+                if (existing.Equipmentid == 0)
                 {
                     tasks.Add(new InspectionTask
                     {
                         Taskid = 0,
                         Projectid = existing.Projectid,
                         Templateid = template.Templateid,
-                        Productid = productId,
+                        Productid = 0,
                         Status = 1,
                         Assigneduserid = null,
                         TaskNo = await _serviceTools.GenerateTaskNoAsync(),
-                        Inspectiontype = template.Inspectiontype,
+                        Inspectiontype = 2,
                         Ifdel = false,
-                         Assignedusername= null,
-                         DownloadDeviceName = null,
-                         DownloadedAt= null,
-                         LocalUpdatedAt= null,
-                         Version = 1
+                        Assignedusername = null,
+                        DownloadDeviceName = null,
+                        DownloadedAt = null,
+                        LocalUpdatedAt = null,
+                        Version = 1
                     });
+                }
+                else
+                {
+                    var equipment = await _context.Equipments.FindAsync(existing.Equipmentid);
+                    if (equipment == null)
+                    {
+                        await transaction.RollbackAsync();
+                        _logger.LogWarning("更新项目设备失败，设备不存在，EquipmentId：{EquipmentId}", existing.Equipmentid);
+                        return new JsonResult(new { code = ResponseCode.记录不存在, data = (object)null, msg = "设备不存在" });
+                    }
+
+                    var productIds = await _context.Products
+                        .Where(p => p.Equipid == existing.Equipmentid)
+                        .Select(p => p.Productid)
+                        .ToListAsync();
+
+                    if (equipment.Number.HasValue && equipment.Number.Value > 0 && productIds.Count < equipment.Number.Value)
+                    {
+                        var products = new List<Product>();
+
+                        for (int i = productIds.Count; i < equipment.Number.Value; i++)
+                        {
+                            products.Add(new Product
+                            {
+                                Equipid = equipment.Equipid,
+                                Mlfb = equipment.Mlfb,
+                                Serialno = null
+                            });
+                        }
+
+                        _context.Products.AddRange(products);
+                        await _context.SaveChangesAsync();
+
+                        productIds = await _context.Products
+                            .Where(p => p.Equipid == existing.Equipmentid)
+                            .Select(p => p.Productid)
+                            .ToListAsync();
+                    }
+
+                    foreach (var productId in productIds)
+                    {
+                        tasks.Add(new InspectionTask
+                        {
+                            Taskid = 0,
+                            Projectid = existing.Projectid,
+                            Templateid = template.Templateid,
+                            Productid = productId,
+                            Status = 1,
+                            Assigneduserid = null,
+                            TaskNo = await _serviceTools.GenerateTaskNoAsync(),
+                            Inspectiontype = template.Inspectiontype,
+                            Ifdel = false,
+                            Assignedusername = null,
+                            DownloadDeviceName = null,
+                            DownloadedAt = null,
+                            LocalUpdatedAt = null,
+                            Version = 1
+                        });
+                    }
                 }
 
                 _context.InspectionTasks.AddRange(tasks);
+                await _context.SaveChangesAsync();
+
+                var inspectionItems = await _context.InspectionItems
+                    .Where(x => x.Templateid == template.Templateid)
+                    .OrderBy(x => x.SortOrder)
+                    .ToListAsync();
+
+                var categoryPathMap = await BuildCategoryPathMapAsync(template.Templateid);
+
+                var taskitems = new List<Taskitem>();
+
+                foreach (var task in tasks)
+                {
+                    foreach (var inspectionItem in inspectionItems)
+                    {
+                        taskitems.Add(new Taskitem
+                        {
+                            Itemid = Guid.NewGuid(),
+                            Taskid = task.Taskid,
+                            Inspectionitemid = inspectionItem.Itemid,
+                            Taskname = inspectionItem.Name,
+                            Categorypath = inspectionItem.Categoryid.HasValue &&
+                                           categoryPathMap.ContainsKey(inspectionItem.Categoryid.Value)
+                                ? categoryPathMap[inspectionItem.Categoryid.Value]
+                                : null,
+                            Taskresult = null,
+                            Isnormal = true,
+                            Isrecheck = false,
+                            Createtime = _serviceTools.NowInChina(),
+                            ExecutionStatus = 1,
+                            Updatetime = _serviceTools.NowInChina(),
+                            SourceType = 1,
+                            RenderSchemaJson = null,
+                            Operationguide = inspectionItem.Operationguide,
+                            Displaycondition = inspectionItem.Displaycondition,
+                            Recommendedrules = inspectionItem.Recommendedrules,
+                            Recommendationcontent = inspectionItem.Recommendationcontent,
+                            Hiddenhazardcontent = inspectionItem.Hiddenhazardcontent,
+                            Maintenanceinstructions = inspectionItem.Maintenanceinstructions,
+                            SortOrder = inspectionItem.SortOrder
+                        });
+                    }
+                }
+
+                _context.Taskitems.AddRange(taskitems);
                 await _context.SaveChangesAsync();
 
                 await transaction.CommitAsync();
@@ -228,14 +296,14 @@ namespace premaintainProjects.Controllers
         [HttpPost]
         public async Task<IActionResult> PostProjectEquipment(ProjectEquipment projectEquipment)
         {
-
             var exists = await _context.ProjectEquipments.AnyAsync(x =>
-                    x.Projectid == projectEquipment.Projectid &&
-                    x.Equipmentid == projectEquipment.Equipmentid &&
-                    x.Ifdel == false);
+                x.Projectid == projectEquipment.Projectid &&
+                x.Equipmentid == projectEquipment.Equipmentid && x.Equipmentid != 0 &&
+                x.Ifdel == false);
 
             if (exists)
             {
+                
                 return new JsonResult(new
                 {
                     code = ResponseCode.参数无效,
@@ -252,43 +320,6 @@ namespace premaintainProjects.Controllers
                 _context.ProjectEquipments.Add(projectEquipment);
                 await _context.SaveChangesAsync();
 
-                var equipment = await _context.Equipments.FindAsync(projectEquipment.Equipmentid);
-
-                if (equipment == null)
-                {
-                    await transaction.RollbackAsync();
-                    _logger.LogWarning("新增项目设备失败，设备不存在，EquipmentId：{EquipmentId}", projectEquipment.Equipmentid);
-                    return new JsonResult(new { code = ResponseCode.记录不存在, data = (object)null, msg = "设备不存在" });
-                }
-
-                var productIds = await _context.Products
-                    .Where(p => p.Equipid == projectEquipment.Equipmentid)
-                    .Select(p => p.Productid)
-                    .ToListAsync();
-
-                if (equipment.Number.HasValue && equipment.Number.Value > 0 && productIds.Count < equipment.Number.Value)
-                {
-                    var products = new List<Product>();
-
-                    for (int i = productIds.Count; i < equipment.Number.Value; i++)
-                    {
-                        products.Add(new Product
-                        {
-                            Equipid = equipment.Equipid,
-                            Mlfb = equipment.Mlfb,
-                            Serialno = null
-                        });
-                    }
-
-                    _context.Products.AddRange(products);
-                    await _context.SaveChangesAsync();
-
-                    productIds = await _context.Products
-                        .Where(p => p.Equipid == projectEquipment.Equipmentid)
-                        .Select(p => p.Productid)
-                        .ToListAsync();
-                }
-
                 var template = await _context.InspectionTemplates.FindAsync(projectEquipment.Templateid);
 
                 if (template == null)
@@ -300,25 +331,85 @@ namespace premaintainProjects.Controllers
 
                 var tasks = new List<InspectionTask>();
 
-                foreach (var productId in productIds)
+                if (projectEquipment.Equipmentid == 0)
                 {
                     tasks.Add(new InspectionTask
                     {
                         Taskid = 0,
                         Projectid = projectEquipment.Projectid,
                         Templateid = template.Templateid,
-                        Productid = productId,
+                        Productid = 0,
                         Status = 1,
                         Assigneduserid = null,
                         TaskNo = await _serviceTools.GenerateTaskNoAsync(),
-                        Inspectiontype = template.Inspectiontype,
-                        Ifdel = false,                        
+                        Inspectiontype = 2,
+                        Ifdel = false,
                         Assignedusername = null,
                         Version = 1,
                         DownloadedAt = null,
                         LocalUpdatedAt = null,
                         DownloadDeviceName = null
                     });
+                }
+                else
+                {
+                    var equipment = await _context.Equipments.FindAsync(projectEquipment.Equipmentid);
+
+                    if (equipment == null)
+                    {
+                        await transaction.RollbackAsync();
+                        _logger.LogWarning("新增项目设备失败，设备不存在，EquipmentId：{EquipmentId}", projectEquipment.Equipmentid);
+                        return new JsonResult(new { code = ResponseCode.记录不存在, data = (object)null, msg = "设备不存在" });
+                    }
+
+                    var productIds = await _context.Products
+                        .Where(p => p.Equipid == projectEquipment.Equipmentid)
+                        .Select(p => p.Productid)
+                        .ToListAsync();
+
+                    if (equipment.Number.HasValue && equipment.Number.Value > 0 && productIds.Count < equipment.Number.Value)
+                    {
+                        var products = new List<Product>();
+
+                        for (int i = productIds.Count; i < equipment.Number.Value; i++)
+                        {
+                            products.Add(new Product
+                            {
+                                Equipid = equipment.Equipid,
+                                Mlfb = equipment.Mlfb,
+                                Serialno = null
+                            });
+                        }
+
+                        _context.Products.AddRange(products);
+                        await _context.SaveChangesAsync();
+
+                        productIds = await _context.Products
+                            .Where(p => p.Equipid == projectEquipment.Equipmentid)
+                            .Select(p => p.Productid)
+                            .ToListAsync();
+                    }
+
+                    foreach (var productId in productIds)
+                    {
+                        tasks.Add(new InspectionTask
+                        {
+                            Taskid = 0,
+                            Projectid = projectEquipment.Projectid,
+                            Templateid = template.Templateid,
+                            Productid = productId,
+                            Status = 1,
+                            Assigneduserid = null,
+                            TaskNo = await _serviceTools.GenerateTaskNoAsync(),
+                            Inspectiontype = template.Inspectiontype,
+                            Ifdel = false,
+                            Assignedusername = null,
+                            Version = 1,
+                            DownloadedAt = null,
+                            LocalUpdatedAt = null,
+                            DownloadDeviceName = null
+                        });
+                    }
                 }
 
                 _context.InspectionTasks.AddRange(tasks);

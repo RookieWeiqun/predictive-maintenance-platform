@@ -380,6 +380,9 @@ public class ReportService
             ReplacePlaceholderWithElements(document, "{$resolvedProblems}", resolvedElements);
             ReplacePlaceholderWithElements(document, "{$unresolvedProblems}", unResolvedElements);
 
+            ReplacePlaceholder(document, "abnormal", "异常");
+            ReplacePlaceholder(document, "normal", "正常");
+
             document.Save();
         }
 
