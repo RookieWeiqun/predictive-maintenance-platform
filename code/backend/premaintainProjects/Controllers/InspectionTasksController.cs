@@ -415,18 +415,59 @@ namespace premaintainProjects.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteInspectionTask(int id)
         {
-            var task = await _context.InspectionTasks.FindAsync(id);
-            if (task == null)
-            {
-                _logger.LogWarning("删除失败，巡检任务不存在，ID：{Id}", id);
-                return new JsonResult(new { code = ResponseCode.记录不存在, data = (object)null, msg = "记录不存在" });
-            }
-            task.Ifdel = true; // 逻辑删除
-            _context.InspectionTasks.Update(task);
-            await _context.SaveChangesAsync();
+            await using var transaction = await _context.Database.BeginTransactionAsync();
 
-            _logger.LogInformation("删除巡检任务成功，ID：{Id}", id);
-            return new JsonResult(new { code = ResponseCode.成功, data = id, msg = "" });
+            try
+            {
+                var task = await _context.InspectionTasks.FindAsync(id);
+                if (task == null)
+                {
+                    _logger.LogWarning("删除失败，巡检任务不存在，ID：{Id}", id);
+                    return new JsonResult(new { code = ResponseCode.记录不存在, data = (object)null, msg = "记录不存在" });
+                }
+
+                var taskitems = await _context.Taskitems
+                    .Where(x => x.Taskid == id)
+                    .ToListAsync();
+
+                var itemIds = taskitems
+                    .Select(x => x.Itemid)
+                    .ToList();
+
+                var attachments = await _context.Attachments
+                    .Where(x => x.Taskid == id || itemIds.Contains(x.Taskitemid))
+                    .ToListAsync();
+
+                if (attachments.Count > 0)
+                {
+                    _context.Attachments.RemoveRange(attachments);
+                }
+
+                if (taskitems.Count > 0)
+                {
+                    _context.Taskitems.RemoveRange(taskitems);
+                }
+
+                //task.Ifdel = true; // 任务主表仍保留逻辑删除
+                _context.InspectionTasks.Remove(task);
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                _logger.LogInformation(
+                    "删除检测任务成功，ID：{Id}，删除任务项数量：{TaskitemCount}，删除附件数量：{AttachmentCount}",
+                    id,
+                    taskitems.Count,
+                    attachments.Count);
+
+                return new JsonResult(new { code = ResponseCode.成功, data = id, msg = "" });
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                _logger.LogError(ex, "删除巡检任务失败，ID：{Id}", id);
+                return new JsonResult(new { code = ResponseCode.操作失败, data = (object)null, msg = "删除失败" });
+            }
         }
 
         private bool InspectionTaskExists(int id)
