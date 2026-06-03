@@ -40,35 +40,11 @@
               </button>
             </div>
           </div>
-          <IxFieldLabel htmlFor="customerIndustry">行业</IxFieldLabel>
+          <IxFieldLabel htmlFor="customerCreditCode">信用代码</IxFieldLabel>
           <IxInput
-            id="customerIndustry"
-            v-model="form.industry"
-            placeholder="请输入行业"
-          />
-          <IxFieldLabel htmlFor="customerContact">联系人</IxFieldLabel>
-          <IxInput
-            id="customerContact"
-            v-model="form.contact"
-            placeholder="请输入联系人"
-          />
-          <IxFieldLabel htmlFor="customerPhone">电话</IxFieldLabel>
-          <IxInput
-            id="customerPhone"
-            v-model="form.phone"
-            placeholder="请输入电话"
-          />
-          <IxFieldLabel htmlFor="customerEmail">邮箱</IxFieldLabel>
-          <IxInput
-            id="customerEmail"
-            v-model="form.email"
-            placeholder="请输入邮箱"
-          />
-          <IxFieldLabel htmlFor="customerRemarks">备注</IxFieldLabel>
-          <IxInput
-            id="customerRemarks"
-            v-model="form.remarks"
-            placeholder="备注（可选）"
+            id="customerCreditCode"
+            v-model="form.creditCode"
+            placeholder="请输入统一社会信用代码"
           />
         </IxLayoutAuto>
       </IxModalContent>
@@ -97,11 +73,7 @@ import type { CompanyInfoSuggestion } from '@/api/modules/companies';
 
 export type CustomerFormPayload = {
   name: string;
-  industry: string;
-  contact: string;
-  phone: string;
-  email: string;
-  remarks: string;
+  creditCode: string;
 };
 
 const props = defineProps<{
@@ -130,11 +102,7 @@ const showLookupPanel = computed(
 function emptyPayload(): CustomerFormPayload {
   return {
     name: '',
-    industry: '',
-    contact: '',
-    phone: '',
-    email: '',
-    remarks: '',
+    creditCode: '',
   };
 }
 
@@ -201,7 +169,7 @@ function handleNameBlur() {
 function applyLookupSuggestion(item: CompanyInfoSuggestion) {
   form.value.name = item.name;
   if (item.creditCode) {
-    form.value.industry = item.creditCode;
+    form.value.creditCode = item.creditCode;
   }
   lookupSuggestions.value = [];
   lookupError.value = '';
@@ -216,11 +184,7 @@ function submit(closeModal: () => void) {
   }
   const payload: CustomerFormPayload = {
     name,
-    industry: form.value.industry.trim(),
-    contact: form.value.contact.trim(),
-    phone: form.value.phone.trim(),
-    email: form.value.email.trim(),
-    remarks: form.value.remarks.trim(),
+    creditCode: form.value.creditCode.trim(),
   };
   props.data?.onSubmit(payload);
   closeModal();
@@ -261,13 +225,18 @@ function submit(closeModal: () => void) {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  max-height: 16rem;
+  min-height: 0;
+  max-height: min(28rem, 55vh);
   overflow-y: auto;
   padding: 0.375rem;
   border: 1px solid var(--theme-color-soft-border);
   border-radius: 0.375rem;
   background: var(--theme-color-base-1, #fff);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+}
+
+:deep(ix-modal-content) {
+  overflow: visible;
 }
 
 .lookup-state {
@@ -284,12 +253,15 @@ function submit(closeModal: () => void) {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  flex: 0 0 auto;
   gap: 0.25rem;
   width: 100%;
-  padding: 0.625rem 0.75rem;
+  min-height: 0;
+  padding: 0.5rem 0.625rem;
   border: 0;
   border-radius: 0.25rem;
   background: transparent;
+  box-sizing: border-box;
   color: inherit;
   text-align: left;
   cursor: pointer;
@@ -300,11 +272,21 @@ function submit(closeModal: () => void) {
 }
 
 .lookup-option__name {
+  display: block;
+  width: 100%;
   font-weight: 600;
+  line-height: 1.35;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .lookup-option__meta {
+  display: block;
+  width: 100%;
   font-size: 0.75rem;
+  line-height: 1.35;
+  white-space: normal;
+  word-break: break-word;
   color: var(--theme-color-soft-text, var(--theme-color-weak-text));
 }
 </style>

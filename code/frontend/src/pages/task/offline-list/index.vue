@@ -301,7 +301,13 @@ async function handleUploadData(): Promise<void> {
 
     const selectedTasks = tasks.value.filter((task) => selectedTaskIds.includes(task.task_uuid));
     const invalidTasks = selectedTasks.filter(
-      (task) => isBlank(task.serial_no) || isBlank(task.assigned_user_name),
+      (task) => {
+        const isPeripheralTask = Number(task.inspection_type ?? 0) === 2;
+        if (isPeripheralTask) {
+          return isBlank(task.download_device_name) || isBlank(task.assigned_user_name);
+        }
+        return isBlank(task.serial_no) || isBlank(task.assigned_user_name);
+      },
     );
     if (invalidTasks.length > 0) {
       const names = invalidTasks
@@ -309,7 +315,8 @@ async function handleUploadData(): Promise<void> {
         .map((task) => task.task_no || task.task_uuid)
         .join('、');
       const suffix = invalidTasks.length > 3 ? ' 等任务' : '';
-      showToast({ message: `请先补全序列号和检查人员：${names}${suffix}` });
+      const hasPeripheralTask = invalidTasks.some((task) => Number(task.inspection_type ?? 0) === 2);
+      showToast({ message: hasPeripheralTask ? `请先补全电气室和检查人员：${names}${suffix}` : `请先补全序列号和检查人员：${names}${suffix}` });
       return;
     }
 

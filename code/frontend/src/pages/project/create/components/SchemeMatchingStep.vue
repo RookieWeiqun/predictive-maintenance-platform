@@ -4,8 +4,8 @@
     <p class="step-description">
       <strong>设备方案</strong>：按产品型号（含产品分类）逐行匹配并选择设备检测模板；
       每行对应一个设备方案映射。
-      <strong>外围方案</strong>：按<strong>工厂/车间</strong>分组，每组单独匹配
-      <code>inspectiontype=2</code>；同一车间仅关联一个外围模板，多个候选时用下拉选择。
+      <strong>外围方案</strong>：统一匹配 <code>inspectiontype=2</code> 模板，只保留一个已选外围方案；
+      电气室数量由下拉单独指定。
       <strong v-if="equipmentSchemeRows.length > 0">若某型号匹配到多个模板，请在该行“操作”中下拉选择。</strong>
     </p>
     
@@ -17,7 +17,7 @@
     </div>
     <div v-else>
       <!-- 匹配结果 -->
-      <div v-if="equipmentSchemeRows.length > 0 || peripheralWorkshopRows.length > 0" class="matched-schemes">
+      <div v-if="equipmentSchemeRows.length > 0 || peripheralTemplateOptions.length > 0" class="matched-schemes">
         <div class="schemes-header">
           <h3>匹配到的方案</h3>
           <div class="summary-stats">
@@ -32,10 +32,10 @@
           </div>
         </div>
         <p
-          v-if="equipmentSchemeRows.length === 0 && peripheralWorkshopRows.length > 0"
+          v-if="equipmentSchemeRows.length === 0 && peripheralTemplateOptions.length > 0"
           class="scheme-pick-hint scheme-pick-hint--info"
         >
-          未匹配到<strong>设备检测</strong>模板（上方无卡片）。请在下表选择<strong>外围检测</strong>方案；系统将用外围方案做本步的方案树预览与后续编辑。
+          未匹配到<strong>设备检测</strong>模板（上方无卡片）。请在下方选择<strong>外围检测</strong>方案；系统将用外围方案做本步的方案树预览与后续编辑。
         </p>
         <h4 v-if="equipmentSchemeRows.length > 0" class="subsection-title">设备检测方案（按型号）</h4>
         <div v-if="equipmentSchemeRows.length > 0" class="equipment-table-wrap">
@@ -109,38 +109,49 @@
           </table>
         </div>
 
-        <div v-if="peripheralWorkshopRows.length > 0" class="peripheral-by-workshop">
-          <h4 class="subsection-title">各车间外围检测方案</h4>
-          <p class="peripheral-hint">每个车间最多关联一个外围模板；仅有一个候选时已自动选中。</p>
+        <div v-if="peripheralTemplateOptions.length > 0" class="peripheral-by-workshop">
+          <h4 class="subsection-title">外围检测方案</h4>
+          <p class="peripheral-hint">外围检测仅保留一个已选方案；电气室数量单独控制创建数量。</p>
           <div class="peripheral-table-wrap">
             <table class="peripheral-scheme-table">
               <thead>
                 <tr>
-                  <th>工厂 / 车间</th>
-                  <th>候选数</th>
+                  <th>电气室数量</th>
                   <th>已选外围方案</th>
                   <th>操作</th>
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="row in peripheralWorkshopRows" :key="row.key">
-                  <td>{{ row.label }}</td>
-                  <td>{{ row.options.length }}</td>
+                <tr>
                   <td>
-                    <span v-if="resolvePeripheralSelected(row)">
-                      {{ resolvePeripheralSelected(row)?.name }}
+                    <IxSelect
+                      :model-value="electricRoomCount"
+                      placeholder="请选择电气室数量"
+                      @update:model-value="(v: string) => $emit('update-electric-room-count', v)"
+                    >
+                      <IxSelectItem
+                        v-for="value in electricRoomCountOptions"
+                        :key="value"
+                        :label="value"
+                        :value="value"
+                      />
+                    </IxSelect>
+                  </td>
+                  <td>
+                    <span v-if="selectedPeripheralTemplate">
+                      {{ selectedPeripheralTemplate.name }}
                     </span>
                     <span v-else class="muted">未匹配</span>
                   </td>
                   <td>
-                    <div v-if="row.options.length > 1" class="row-actions">
+                    <div v-if="peripheralTemplateOptions.length > 1" class="row-actions">
                       <IxSelect
-                        :model-value="row.selectedId"
+                        :model-value="selectedPeripheralTemplateId"
                         placeholder="选择外围方案"
-                        @update:model-value="(v: string) => $emit('update-peripheral', row.key, v)"
+                        @update:model-value="(v: string) => $emit('update-peripheral-scheme', v)"
                       >
                         <IxSelectItem
-                          v-for="opt in row.options"
+                          v-for="opt in peripheralTemplateOptions"
                           :key="opt.id"
                           :label="`${opt.name}（${opt.model || '-'}）`"
                           :value="opt.id"
@@ -149,18 +160,18 @@
                       <button
                         type="button"
                         class="link-btn"
-                        :disabled="!resolvePeripheralSelected(row)"
-                        @click="openSchemeDetail(resolvePeripheralSelected(row) || null, 'peripheral')"
+                        :disabled="!selectedPeripheralTemplate"
+                        @click="openSchemeDetail(selectedPeripheralTemplate || null, 'peripheral')"
                       >
                         查看详情
                       </button>
                     </div>
-                    <div v-else-if="row.options.length === 1" class="row-actions">
+                    <div v-else-if="peripheralTemplateOptions.length === 1" class="row-actions">
                       <span class="muted">已自动匹配</span>
                       <button
                         type="button"
                         class="link-btn"
-                        @click="openSchemeDetail(resolvePeripheralSelected(row) || null, 'peripheral')"
+                        @click="openSchemeDetail(selectedPeripheralTemplate || null, 'peripheral')"
                       >
                         查看详情
                       </button>
@@ -204,13 +215,6 @@ interface Device {
   quantity: number;
 }
 
-export interface PeripheralWorkshopRow {
-  key: string;
-  label: string;
-  options: { id: string; name: string; model?: string }[];
-  selectedId: string;
-}
-
 interface Props {
   devices: Device[];
   /** 设备检测候选（卡片，给后续步骤复用） */
@@ -225,8 +229,10 @@ interface Props {
     matchMessage?: string;
     options: { id: string; name: string; model: string; series?: string; size?: string }[];
   }[];
-  /** 各车间外围检测候选与当前选中 id */
-  peripheralWorkshopRows?: PeripheralWorkshopRow[];
+  /** 外围检测候选与当前选中 id */
+  peripheralTemplateOptions?: { id: string; name: string; model?: string }[];
+  selectedPeripheralTemplateId?: string;
+  electricRoomCount?: string;
   loadingMatched?: boolean;
   selectedSchemeId: string;
   schemeTreeModel?: TreeModel<any>;
@@ -235,8 +241,10 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   loadingMatched: false,
-  peripheralWorkshopRows: () => [],
+  peripheralTemplateOptions: () => [],
   equipmentSchemeRows: () => [],
+  selectedPeripheralTemplateId: '',
+  electricRoomCount: '暂时未知',
 });
 
 let alive = true;
@@ -247,9 +255,12 @@ onBeforeUnmount(() => {
 const emit = defineEmits<{
   'select-scheme': [schemeId: string];
   'update-equipment-scheme': [modelKey: string, templateId: string];
-  'update-peripheral': [workshopKey: string, templateId: string];
+  'update-peripheral-scheme': [templateId: string];
+  'update-electric-room-count': [value: string];
   'update-tree-context': [context: TreeContext];
 }>();
+
+const electricRoomCountOptions = ['暂时未知', '1', '2', '3', '4', '5'];
 
 const totalDeviceQuantity = computed(() => {
   return props.devices.reduce((sum, device) => sum + device.quantity, 0);
@@ -261,21 +272,17 @@ const uniqueModels = computed(() => {
 });
 
 const equipmentSchemeRows = computed(() => props.equipmentSchemeRows ?? []);
+const peripheralTemplateOptions = computed(() => props.peripheralTemplateOptions ?? []);
+const selectedPeripheralTemplate = computed(() => {
+  const selectedId = String(props.selectedPeripheralTemplateId ?? '').trim();
+  if (!selectedId) return null;
+  return peripheralTemplateOptions.value.find((item) => item.id === selectedId) ?? null;
+});
 
 function resolveRowSelected(row: {
   selectedId: string;
   options: { id: string; name: string; model: string; series?: string; size?: string }[];
 }) {
-  const selectedId = String(row.selectedId ?? '').trim();
-  if (selectedId) {
-    const s = row.options.find((x) => x.id === selectedId);
-    if (s) return s;
-  }
-  if (row.options.length === 1) return row.options[0];
-  return null;
-}
-
-function resolvePeripheralSelected(row: PeripheralWorkshopRow) {
   const selectedId = String(row.selectedId ?? '').trim();
   if (selectedId) {
     const s = row.options.find((x) => x.id === selectedId);

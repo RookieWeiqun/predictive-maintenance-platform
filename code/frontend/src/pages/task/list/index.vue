@@ -47,7 +47,7 @@
             <div class="table-header-left">
               <span class="table-title">任务列表</span>
             </div>
-            <div class="table-header-right">
+            <!-- <div class="table-header-right">
               <IxButton 
                 variant="secondary" 
                 size="sm"
@@ -56,7 +56,7 @@
               >
                 创建子任务
               </IxButton>
-            </div>
+            </div> -->
           </div>
           <div class="table-grid-wrap">
             <AgGridVue

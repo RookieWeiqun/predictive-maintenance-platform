@@ -20,6 +20,7 @@ type ParsedOfflineResult = {
 export type OfflineSyncAttachmentPayload = {
   attachment_uuid: string;
   task_item_uuid: string;
+  filename: string;
   local_path: string;
   mime_type: string | null;
   size_bytes: number | null;
@@ -188,6 +189,7 @@ export async function buildTaskSyncPayload(taskUuid: string): Promise<OfflineSyn
     list.push({
       attachment_uuid: attachment.attachment_uuid,
       task_item_uuid: attachment.task_item_uuid,
+      filename: attachment.filename,
       local_path: attachment.local_path,
       mime_type: attachment.mime_type,
       size_bytes: attachment.size_bytes,
@@ -436,6 +438,14 @@ async function syncProductDeviceInfo(task: OfflineSyncTaskPayload, productId: nu
   });
 }
 
+function shouldSyncProductDeviceInfo(productId: number, inspectionType: number): boolean {
+  if (inspectionType === 2) {
+    return false;
+  }
+
+  return productId > 0;
+}
+
 function mapExecutionStatusToBackend(status: string): number {
   if (status === 'completed') return 2;
   if (status === 'skipped') return 3;
@@ -456,18 +466,29 @@ function getServerItemId(taskItemUuid: string, serverItemId: string | null): str
   return parts.length > 1 ? parts.slice(1).join(':') : taskItemUuid;
 }
 
-function getAttachmentFileName(localPath: string, attachmentUuid: string, mimeType: string | null): string {
+function getAttachmentExtension(mimeType: string | null): string {
+  if (mimeType === 'image/png') return '.png';
+  if (mimeType === 'image/webp') return '.webp';
+  return '.jpg';
+}
+
+function getAttachmentFileName(
+  filename: string,
+  localPath: string,
+  attachmentUuid: string,
+  mimeType: string | null,
+): string {
+  const normalized = filename.trim();
+  if (normalized) {
+    return /\.[a-z0-9]+$/i.test(normalized)
+      ? normalized
+      : `${normalized}${getAttachmentExtension(mimeType)}`;
+  }
   const fromPath = localPath.split('/').pop()?.trim();
   if (fromPath) {
     return fromPath;
   }
-  if (mimeType === 'image/png') {
-    return `${attachmentUuid}.png`;
-  }
-  if (mimeType === 'image/webp') {
-    return `${attachmentUuid}.webp`;
-  }
-  return `${attachmentUuid}.jpg`;
+  return `${attachmentUuid}${getAttachmentExtension(mimeType)}`;
 }
 
 function base64ToUint8Array(base64: string): Uint8Array {
@@ -487,6 +508,7 @@ async function readAttachmentAsFile(attachment: OfflineSyncAttachmentPayload): P
 
   const mimeType = attachment.mime_type || 'image/jpeg';
   const fileName = getAttachmentFileName(
+    attachment.filename,
     attachment.local_path,
     attachment.attachment_uuid,
     attachment.mime_type,
@@ -629,12 +651,15 @@ async function uploadSingleTask(taskUuid: string): Promise<boolean> {
   const uploadTaskVersion = getUploadTaskVersion(task.version);
   const uploadedAt = nowIso();
   const backendUploadedAt = nowChinaTimestamptz();
+  const inspectionType = requireNumber(task.inspection_type ?? serverTask.inspection_type, '巡检类型');
   const productId = requireNumber(task.product_id ?? serverTask.product_id, '产品 ID');
 
-  await syncProductDeviceInfo({
-    ...payload,
-    serial_no: payload.serial_no ?? serverTask.serial_no ?? null,
-  }, productId);
+  if (shouldSyncProductDeviceInfo(productId, inspectionType)) {
+    await syncProductDeviceInfo({
+      ...payload,
+      serial_no: payload.serial_no ?? serverTask.serial_no ?? null,
+    }, productId);
+  }
 
   const detailPayload = {
     task: {
@@ -645,7 +670,7 @@ async function uploadSingleTask(taskUuid: string): Promise<boolean> {
       taskNo: task.task_no ?? serverTask.task_no ?? null,
       assigneduserid: toOptionalNumber(task.assigned_user_id ?? serverTask.assigned_user_id),
       productid: productId,
-      inspectiontype: requireNumber(task.inspection_type ?? serverTask.inspection_type, '巡检类型'),
+      inspectiontype: inspectionType,
       ifdel: false,
       version: uploadTaskVersion,
       downloadedAt: toChinaTimestamptz(task.downloaded_at),
@@ -680,7 +705,14 @@ async function uploadSingleTask(taskUuid: string): Promise<boolean> {
     }
 
     const serverItemId = getServerItemId(item.task_item_uuid, item.server_item_id);
-    const files = await Promise.all(pendingAttachments.map((attachment) => readAttachmentAsFile(attachment)));
+    const files = await Promise.all(
+      pendingAttachments.map(async (attachment) => ({
+        file: await readAttachmentAsFile(attachment),
+        filename:
+          attachment.filename.trim() ||
+          getAttachmentFileName('', attachment.local_path, attachment.attachment_uuid, attachment.mime_type),
+      })),
+    );
     await attachmentsApi.uploadAttachmentFiles(serverItemId, serverTaskId, files);
   }
 

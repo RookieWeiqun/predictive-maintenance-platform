@@ -37,12 +37,22 @@
               />
             </div>
 
-            <div class="sidebar-field-block">
+            <div v-if="!isPeripheralTask" class="sidebar-field-block">
               <IxFieldLabel htmlFor="serial-number-input">序列号</IxFieldLabel>
               <IxInput
                 id="serial-number-input"
                 v-model="serialNumber"
                 placeholder="请输入序列号"
+                class="meta-input"
+              />
+            </div>
+
+            <div v-else class="sidebar-field-block">
+              <IxFieldLabel htmlFor="electric-room-input">电气室</IxFieldLabel>
+              <IxInput
+                id="electric-room-input"
+                v-model="electricRoom"
+                placeholder="请输入电气室"
                 class="meta-input"
               />
             </div>
@@ -57,7 +67,7 @@
               />
             </div>
 
-            <div class="sidebar-field-block">
+            <div v-if="!isPeripheralTask" class="sidebar-field-block">
               <IxFieldLabel htmlFor="equipment-name-input">设备名称</IxFieldLabel>
               <IxInput
                 id="equipment-name-input"
@@ -67,7 +77,7 @@
               />
             </div>
 
-            <div class="sidebar-field-block">
+            <div v-if="!isPeripheralTask" class="sidebar-field-block">
               <IxFieldLabel htmlFor="equipment-number-input">设备号</IxFieldLabel>
               <IxInput
                 id="equipment-number-input"
@@ -77,7 +87,7 @@
               />
             </div>
 
-            <div class="sidebar-field-block">
+            <div v-if="!isPeripheralTask" class="sidebar-field-block">
               <IxFieldLabel htmlFor="department-input">部门</IxFieldLabel>
               <IxInput
                 id="department-input"
@@ -288,6 +298,12 @@
                       class="task-photo-card"
                     >
                       <img :src="photo.preview_url" alt="任务照片" class="task-photo-image" />
+                      <IxInput
+                        :model-value="photo.filename"
+                        class="task-photo-name-input"
+                        placeholder="请输入照片名称"
+                        @update:model-value="(value: string) => updateTaskPhotoFilename(task, photo, value)"
+                      />
                       <button
                         type="button"
                         class="task-photo-remove"
@@ -527,11 +543,15 @@ const inspectorName = ref('');
 // 序列号
 const serialNumber = ref('');
 
+const electricRoom = ref('');
+
 const equipmentName = ref('');
 
 const equipmentNumber = ref('');
 
 const department = ref('');
+
+const isPeripheralTask = computed(() => taskInfo.value?.taskType === 'peripheral');
 
 // 帮助对话框显示状态
 const showHelpModal = ref(false);
@@ -544,6 +564,7 @@ const leftSidebarScrollRef = ref<HTMLElement | null>(null);
 type TaskPhotoView = {
   attachment_uuid: string;
   task_item_uuid: string;
+  filename: string;
   local_path: string;
   preview_url: string;
   mime_type: string | null;
@@ -555,6 +576,22 @@ type TaskPhotoView = {
 const taskPhotoMap = ref<Record<string, TaskPhotoView[]>>({});
 const taskPhotoFileInputRef = ref<HTMLInputElement | null>(null);
 const pendingPhotoTaskId = ref<string>('');
+
+function buildDefaultTaskPhotoName(taskName: string, index: number): string {
+  const base = String(taskName ?? '').trim() || '执行照片';
+  return `${base} -${index}`;
+}
+
+function normalizeTaskPhotoName(name: string, fallback: string): string {
+  const normalized = String(name ?? '').trim().replace(/[\\/:*?"<>|]+/g, ' ');
+  return normalized.replace(/\s+/g, ' ').trim() || fallback;
+}
+
+async function getNextTaskPhotoIndex(taskId: string): Promise<number> {
+  const taskItemUuid = buildTaskItemUuid(taskId);
+  const records = await offlineAttachmentRepository.listByTaskItemUuid(taskItemUuid);
+  return records.length + 1;
+}
 
 function resetLeftSidebarScroll(): void {
   leftSidebarScrollRef.value?.scrollTo({ top: 0, behavior: 'auto' });
@@ -837,6 +874,7 @@ async function setupFromOfflineTask(taskUuid: string): Promise<boolean> {
 
   inspectorName.value = offlineTask.assigned_user_name || '';
   serialNumber.value = offlineTask.serial_no || '';
+  electricRoom.value = offlineTask.download_device_name || '';
   equipmentName.value = offlineTask.equipment_name || '';
   equipmentNumber.value = offlineTask.equipment_number || '';
   department.value = offlineTask.department || '';
@@ -857,9 +895,10 @@ async function setupFromOfflineTask(taskUuid: string): Promise<boolean> {
 
       const resolvedTaskNo = (dto.taskNo ?? '').trim();
       const resolvedDeviceModel = (product?.mlfb ?? '').trim();
-      const resolvedEquipmentName = offlineTask.equipment_name || product?.equipmentname?.trim() || '';
-      const resolvedEquipmentNumber = offlineTask.equipment_number || product?.equipmentnumber?.trim() || '';
-      const resolvedDepartment = offlineTask.department || product?.department?.trim() || '';
+      const isPeripheral = taskType === 'peripheral';
+      const resolvedEquipmentName = isPeripheral ? '' : offlineTask.equipment_name || product?.equipmentname?.trim() || '';
+      const resolvedEquipmentNumber = isPeripheral ? '' : offlineTask.equipment_number || product?.equipmentnumber?.trim() || '';
+      const resolvedDepartment = isPeripheral ? '' : offlineTask.department || product?.department?.trim() || '';
       if (missingTaskNo && resolvedTaskNo) {
         taskInfo.value = {
           ...taskInfo.value,
@@ -874,32 +913,33 @@ async function setupFromOfflineTask(taskUuid: string): Promise<boolean> {
         };
       }
 
-      if (!equipmentName.value && resolvedEquipmentName) {
+      if (!isPeripheral && !equipmentName.value && resolvedEquipmentName) {
         equipmentName.value = resolvedEquipmentName;
       }
 
-      if (!equipmentNumber.value && resolvedEquipmentNumber) {
+      if (!isPeripheral && !equipmentNumber.value && resolvedEquipmentNumber) {
         equipmentNumber.value = resolvedEquipmentNumber;
       }
 
-      if (!department.value && resolvedDepartment) {
+      if (!isPeripheral && !department.value && resolvedDepartment) {
         department.value = resolvedDepartment;
       }
 
       if (
         (missingTaskNo && resolvedTaskNo)
         || (missingDeviceModel && resolvedDeviceModel)
-        || (!offlineTask.equipment_name && !!resolvedEquipmentName)
-        || (!offlineTask.equipment_number && !!resolvedEquipmentNumber)
-        || (!offlineTask.department && !!resolvedDepartment)
+        || (!isPeripheral && !offlineTask.equipment_name && !!resolvedEquipmentName)
+        || (!isPeripheral && !offlineTask.equipment_number && !!resolvedEquipmentNumber)
+        || (!isPeripheral && !offlineTask.department && !!resolvedDepartment)
       ) {
         await offlineTaskRepository.upsert({
           ...offlineTask,
-          serial_no: offlineTask.serial_no,
-          equipment_name: resolvedEquipmentName || offlineTask.equipment_name,
-          equipment_number: resolvedEquipmentNumber || offlineTask.equipment_number,
-          department: resolvedDepartment || offlineTask.department,
+          serial_no: isPeripheral ? null : offlineTask.serial_no,
+          equipment_name: isPeripheral ? null : resolvedEquipmentName || offlineTask.equipment_name,
+          equipment_number: isPeripheral ? null : resolvedEquipmentNumber || offlineTask.equipment_number,
+          department: isPeripheral ? null : resolvedDepartment || offlineTask.department,
           assigned_user_name: offlineTask.assigned_user_name,
+          download_device_name: offlineTask.download_device_name,
           task_no: resolvedTaskNo || offlineTask.task_no,
           device_model: resolvedDeviceModel || offlineTask.device_model,
         });
@@ -954,9 +994,10 @@ async function setupFromApiTask(numericId: number): Promise<void> {
   const localTask = await offlineTaskRepository.getByTaskUuid(String(numericId));
   inspectorName.value = localTask?.assigned_user_name || '';
   serialNumber.value = localTask?.serial_no || '';
-  equipmentName.value = localTask?.equipment_name || product?.equipmentname?.trim() || '';
-  equipmentNumber.value = localTask?.equipment_number || product?.equipmentnumber?.trim() || '';
-  department.value = localTask?.department || product?.department?.trim() || '';
+  electricRoom.value = localTask?.download_device_name || '';
+  equipmentName.value = inspType === 'peripheral' ? '' : localTask?.equipment_name || product?.equipmentname?.trim() || '';
+  equipmentNumber.value = inspType === 'peripheral' ? '' : localTask?.equipment_number || product?.equipmentnumber?.trim() || '';
+  department.value = inspType === 'peripheral' ? '' : localTask?.department || product?.department?.trim() || '';
 
   currentTaskId.value = String(numericId);
 
@@ -992,6 +1033,7 @@ async function initTaskCollect(): Promise<void> {
   taskPhotoMap.value = {};
   inspectorName.value = '';
   serialNumber.value = '';
+  electricRoom.value = '';
   equipmentName.value = '';
   equipmentNumber.value = '';
   department.value = '';
@@ -1098,9 +1140,11 @@ function isTaskPhotoLimitReached(taskId: string): boolean {
 async function loadTaskPhotosByTaskId(taskId: string): Promise<void> {
   const taskItemUuid = buildTaskItemUuid(taskId);
   const records = await offlineAttachmentRepository.listByTaskItemUuid(taskItemUuid);
+  const task = currentTaskList.value.find((item) => String(item.id) === taskId);
   const photos = await Promise.all(
-    records.map(async (record) => ({
+    records.map(async (record, index) => ({
       ...record,
+      filename: record.filename || buildDefaultTaskPhotoName(task?.name ?? '', index + 1),
       preview_url: await resolveStoredPhotoPreviewUrl(record.local_path),
     })),
   );
@@ -1310,6 +1354,7 @@ async function persistTaskPhoto(task: any, photo: TaskPhotoView): Promise<void> 
   await offlineAttachmentRepository.upsert({
     attachment_uuid: photo.attachment_uuid,
     task_item_uuid: photo.task_item_uuid,
+    filename: photo.filename,
     local_path: photo.local_path,
     mime_type: photo.mime_type,
     size_bytes: photo.size_bytes,
@@ -1325,6 +1370,7 @@ async function persistTaskPhoto(task: any, photo: TaskPhotoView): Promise<void> 
     payload_json: JSON.stringify({
       attachment_uuid: photo.attachment_uuid,
       task_item_uuid: photo.task_item_uuid,
+      filename: photo.filename,
       local_path: photo.local_path,
       mime_type: photo.mime_type,
       size_bytes: photo.size_bytes,
@@ -1343,7 +1389,12 @@ async function handleCaptureTaskPhoto(task: any): Promise<void> {
 
   try {
     const taskItemUuid = buildTaskItemUuid(task.id);
-    const captured = await captureTaskPhoto(routeTaskId.value, taskItemUuid);
+    const nextPhotoIndex = await getNextTaskPhotoIndex(String(task.id));
+    const captured = await captureTaskPhoto(
+      routeTaskId.value,
+      taskItemUuid,
+      buildDefaultTaskPhotoName(task.name, nextPhotoIndex),
+    );
     await persistTaskPhoto(task, {
       ...captured,
       preview_url: await resolveStoredPhotoPreviewUrl(captured.local_path),
@@ -1391,7 +1442,13 @@ async function handleTaskPhotoFileSelected(event: Event): Promise<void> {
 
   try {
     const taskItemUuid = buildTaskItemUuid(task.id);
-    const saved = await saveTaskPhotoFromFile(routeTaskId.value, taskItemUuid, file);
+    const nextPhotoIndex = await getNextTaskPhotoIndex(String(task.id));
+    const saved = await saveTaskPhotoFromFile(
+      routeTaskId.value,
+      taskItemUuid,
+      file,
+      buildDefaultTaskPhotoName(task.name, nextPhotoIndex),
+    );
     await persistTaskPhoto(task, {
       ...saved,
       preview_url: await resolveStoredPhotoPreviewUrl(saved.local_path),
@@ -1411,6 +1468,39 @@ async function removeTaskPhoto(task: any, photo: TaskPhotoView): Promise<void> {
     await loadTaskPhotosByTaskId(task.id);
   } catch (error) {
     showToast({ message: error instanceof Error ? error.message : '删除照片失败，请重试' });
+  }
+}
+
+async function updateTaskPhotoFilename(task: any, photo: TaskPhotoView, nextName: string): Promise<void> {
+  const fallback = photo.filename || buildDefaultTaskPhotoName(task.name, 1);
+  const normalized = normalizeTaskPhotoName(nextName, fallback);
+  if (normalized === photo.filename) {
+    return;
+  }
+
+  try {
+    await offlineAttachmentRepository.updateFilename(photo.attachment_uuid, normalized);
+    await offlineOutboxRepository.replacePending({
+      entity_type: 'attachment',
+      entity_uuid: photo.attachment_uuid,
+      action: 'upsert_attachment',
+      payload_json: JSON.stringify({
+        attachment_uuid: photo.attachment_uuid,
+        task_item_uuid: photo.task_item_uuid,
+        filename: normalized,
+        local_path: photo.local_path,
+        mime_type: photo.mime_type,
+        size_bytes: photo.size_bytes,
+        created_at: photo.created_at,
+      }),
+    });
+    await offlineTaskRepository.markDirty(routeTaskId.value);
+    await persistTaskRecord(task);
+    taskPhotoMap.value[task.id] = getTaskPhotos(task.id).map((item) =>
+      item.attachment_uuid === photo.attachment_uuid ? { ...item, filename: normalized } : item,
+    );
+  } catch (error) {
+    showToast({ message: error instanceof Error ? error.message : '更新照片名称失败，请重试' });
   }
 }
 
@@ -2101,6 +2191,9 @@ const loadDraft = () => {
       if (typeof draft.serialNumber === 'string') {
         serialNumber.value = draft.serialNumber;
       }
+      if (typeof draft.electricRoom === 'string') {
+        electricRoom.value = draft.electricRoom;
+      }
       if (typeof draft.equipmentName === 'string') {
         equipmentName.value = draft.equipmentName;
       }
@@ -2135,6 +2228,7 @@ const saveDraft = () => {
       taskDataMap: taskDataMap.value,
       inspectorName: inspectorName.value,
       serialNumber: serialNumber.value,
+      electricRoom: electricRoom.value,
       equipmentName: equipmentName.value,
       equipmentNumber: equipmentNumber.value,
       department: department.value,
@@ -2156,10 +2250,11 @@ async function persistTaskMeta(): Promise<void> {
   }
 
   await offlineTaskRepository.updateCollectedMeta(routeTaskId.value, {
-    serialNo: serialNumber.value.trim() || null,
-    equipmentName: equipmentName.value.trim() || null,
-    equipmentNumber: equipmentNumber.value.trim() || null,
-    department: department.value.trim() || null,
+    serialNo: isPeripheralTask.value ? null : serialNumber.value.trim() || null,
+    equipmentName: isPeripheralTask.value ? null : equipmentName.value.trim() || null,
+    equipmentNumber: isPeripheralTask.value ? null : equipmentNumber.value.trim() || null,
+    department: isPeripheralTask.value ? null : department.value.trim() || null,
+    downloadDeviceName: isPeripheralTask.value ? electricRoom.value.trim() || null : existing.download_device_name,
     assignedUserName: inspectorName.value.trim() || null,
   });
 
@@ -2168,10 +2263,11 @@ async function persistTaskMeta(): Promise<void> {
     entity_uuid: routeTaskId.value,
     action: 'upsert_task',
     payload_json: JSON.stringify({
-      serial_no: serialNumber.value.trim() || null,
-      equipment_name: equipmentName.value.trim() || null,
-      equipment_number: equipmentNumber.value.trim() || null,
-      department: department.value.trim() || null,
+      serial_no: isPeripheralTask.value ? null : serialNumber.value.trim() || null,
+      equipment_name: isPeripheralTask.value ? null : equipmentName.value.trim() || null,
+      equipment_number: isPeripheralTask.value ? null : equipmentNumber.value.trim() || null,
+      department: isPeripheralTask.value ? null : department.value.trim() || null,
+      download_device_name: isPeripheralTask.value ? electricRoom.value.trim() || null : existing.download_device_name,
       assigned_user_name: inspectorName.value.trim() || null,
     }),
   });
@@ -2240,6 +2336,11 @@ watch(inspectorName, () => {
 });
 
 watch(serialNumber, () => {
+  saveDraft();
+  void persistTaskMeta();
+});
+
+watch(electricRoom, () => {
   saveDraft();
   void persistTaskMeta();
 });
@@ -2602,6 +2703,8 @@ watch(department, () => {
   border-radius: 0.4rem;
   overflow: hidden;
   background: var(--theme-color-background);
+  display: flex;
+  flex-direction: column;
 }
 
 .task-photo-image {
@@ -2609,6 +2712,10 @@ watch(department, () => {
   width: 100%;
   height: 6rem;
   object-fit: cover;
+}
+
+.task-photo-name-input {
+  padding: 0.45rem;
 }
 
 .task-photo-remove {

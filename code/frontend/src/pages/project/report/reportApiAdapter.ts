@@ -3,6 +3,7 @@ import type { EquipmentDto } from '@/api/modules/equipments';
 import type { ProjectDto } from '@/api/modules/projects';
 import type { ProductDto } from '@/api/modules/products';
 import type { CompanyDto } from '@/api/modules/companies';
+import type { UserDto } from '@/api/modules/users';
 import type { ReportData } from '@/mockdata/report';
 import { getIssueSuggestionText } from './reportIssueUtils';
 
@@ -12,6 +13,7 @@ type ProjectTaskDetailsReportSource = {
   tasks: InspectionTaskDto[];
   equipmentById?: Map<number, EquipmentDto>;
   productById?: Map<number, ProductDto>;
+  userById?: Map<number, UserDto>;
   taskDetailsByTask: Array<{
     task: InspectionTaskDto;
     detail: InspectionTaskDetailDto;
@@ -36,12 +38,42 @@ function formatDateOnly(value: string | null | undefined): string {
   return `${year}-${month}-${day}`;
 }
 
+function getTodayDateOnly(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function joinDateRange(start: string | null | undefined, end: string | null | undefined): string {
   const startText = formatDateOnly(start);
   const endText = formatDateOnly(end);
   if (startText === '-' && endText === '-') return '-';
   if (startText === endText) return startText;
   return `${startText} ~ ${endText}`;
+}
+
+function resolveUser(userId: number | null | undefined, userById: Map<number, UserDto>): UserDto | null {
+  if (userId == null) return null;
+  const normalizedId = Number(userId);
+  if (!Number.isFinite(normalizedId) || normalizedId <= 0) return null;
+  return userById.get(normalizedId) ?? null;
+}
+
+function resolveUserName(userId: number | null | undefined, userById: Map<number, UserDto>): string {
+  const user = resolveUser(userId, userById);
+  if (!user) return '-';
+  return user.username?.trim() || `用户#${user.userid}`;
+}
+
+function resolveUserContact(userId: number | null | undefined, userById: Map<number, UserDto>) {
+  const user = resolveUser(userId, userById);
+  if (!user) return { name: '-' };
+  return {
+    name: user.username?.trim() || `用户#${user.userid}`,
+    phone: user.mobile?.trim() || undefined,
+  };
 }
 
 function getTaskResultValue(item: InspectionTaskDetailDto['task_items'][number]): string {
@@ -113,11 +145,38 @@ function getEntryEquipment(
   return Number.isFinite(equipId) && equipId > 0 ? equipmentById.get(equipId) ?? null : null;
 }
 
+function isPeripheralEntry(entry: ProjectTaskDetailsReportSource['taskDetailsByTask'][number]): boolean {
+  return Number(entry.detail.task.inspection_type ?? entry.task.inspectiontype ?? 0) === 2;
+}
+
+function resolveEntryElectricRoom(
+  entry: ProjectTaskDetailsReportSource['taskDetailsByTask'][number],
+  equipment: EquipmentDto | null,
+  project: ProjectDto,
+): string {
+  if (isPeripheralEntry(entry)) {
+    return entry.detail.task.download_device_name?.trim()
+      || entry.task.downloadDeviceName?.trim()
+      || '未分配电气室';
+  }
+
+  return equipment?.electricroom?.trim()
+    || equipment?.workshop?.trim()
+    || project.projectname?.trim()
+    || '未分配电气室';
+}
+
 function getAppendixDeviceTitle(
   entry: ProjectTaskDetailsReportSource['taskDetailsByTask'][number],
   productById: Map<number, ProductDto>,
   equipmentById: Map<number, EquipmentDto>,
 ): string {
+  if (isPeripheralEntry(entry)) {
+    return entry.detail.task.download_device_name?.trim()
+      || entry.task.downloadDeviceName?.trim()
+      || '未分配电气室';
+  }
+
   const product = getEntryProduct(entry, productById);
   const equipment = getEntryEquipment(product, equipmentById);
   const equipmentName = product?.equipmentname?.trim() || equipment?.equipmentname?.trim();
@@ -188,10 +247,11 @@ export function buildReportFromProjectTaskDetailsSource(source: ProjectTaskDetai
     taskDetailsByTask,
     productById = new Map<number, ProductDto>(),
     equipmentById = new Map<number, EquipmentDto>(),
+    userById = new Map<number, UserDto>(),
   } = source;
   const primaryTask = tasks[0] ?? null;
   const reportNo = `PRJ-${project.projectid ?? 'UNKNOWN'}`;
-  const generatedAt = formatDateOnly(primaryTask?.completetime ?? project.createdate);
+  const generatedAt = getTodayDateOnly();
   const items = taskDetailsByTask.flatMap((entry) => entry.detail.task_items);
   const totalChecks = items.length;
   const completedItems = items.filter((item) => item.execution_status === 'completed').length;
@@ -212,21 +272,23 @@ export function buildReportFromProjectTaskDetailsSource(source: ProjectTaskDetai
     version: 'V1.0',
     generatedAt,
     serviceBasicInfo: {
-      serviceId: primaryTask?.taskNo?.trim() || reportNo,
+      serviceId: project.serviceid?.trim() || primaryTask?.taskNo?.trim() || reportNo,
       companyName: company?.companyname?.trim() || project.projectname?.trim() || '未命名项目',
-      serviceCity: '中国',
-      customerContact: primaryTask?.assigneduserid != null ? `用户#${primaryTask.assigneduserid}` : '-',
-      siemensContact: '-',
-      serviceExecutors: primaryTask?.assigneduserid != null ? [`用户#${primaryTask.assigneduserid}`] : ['-'],
-      executionDateRange: joinDateRange(project.createdate, primaryTask?.completetime),
+      serviceCity: project.city?.trim() || '-',
+      customerContact: {
+        name: project.customercontact?.trim() || '-',
+      },
+      siemensContact: resolveUserContact(project.managerid, userById),
+      serviceExecutors: [resolveUserName(project.assigneduserid, userById)],
+      executionDateRange: formatDateOnly(project.createdate),
       serviceDays: {
         days: 1,
-        persons: primaryTask?.assigneduserid != null ? 1 : 0,
-        displayText: primaryTask?.assigneduserid != null ? '1 天 × 1 人' : '-',
+        persons: project.assigneduserid != null ? 1 : 0,
+        displayText: project.assigneduserid != null ? '1 天 × 1 人' : '-',
       },
       reportGeneratedDate: generatedAt,
-      targetSystemName: [project.projectname?.trim(), `${tasks.length} 个任务`].filter(Boolean).join(' · ') || '任务执行系统',
-      serviceType: '任务执行检查报告',
+      targetSystemName: project.projectname?.trim() || '未命名项目',
+      serviceType: '预防性维护检查服务',
       executionStatistics: {
         totalChecks,
         urgentMaintenance: recheckItems,
@@ -254,8 +316,12 @@ export function buildReportFromProjectTaskDetailsSource(source: ProjectTaskDetai
     issuesAndSuggestions: {
       deviceIssues: taskDetailsByTask.flatMap((entry) =>
         entry.detail.task_items.filter((item) => isAbnormalTaskItem(item)).map((item) => ({
-          deviceModel: entry.detail.task.template_name?.trim() || entry.task.taskNo?.trim() || `任务#${entry.task.taskid}`,
-          serialNumber: entry.detail.task.serial_no?.trim() || String(entry.task.taskid ?? '-'),
+          deviceModel: isPeripheralEntry(entry)
+            ? '外围检测'
+            : entry.detail.task.template_name?.trim() || entry.task.taskNo?.trim() || `任务#${entry.task.taskid}`,
+          serialNumber: isPeripheralEntry(entry)
+            ? (entry.detail.task.download_device_name?.trim() || entry.task.downloadDeviceName?.trim() || String(entry.task.taskid ?? '-'))
+            : entry.detail.task.serial_no?.trim() || String(entry.task.taskid ?? '-'),
           severity: getSeverity(item),
           issue: item.item_name,
           suggestion: getIssueSuggestionText(item),
@@ -301,11 +367,9 @@ export function buildReportFromProjectTaskDetailsSource(source: ProjectTaskDetai
         for (const entry of taskDetailsByTask) {
           const product = getEntryProduct(entry, productById);
           const equipment = getEntryEquipment(product, equipmentById);
-          const workshopName =
-            equipment?.electricroom?.trim()
-            || equipment?.workshop?.trim()
-            || project.projectname?.trim()
-            || '未分配电气室';
+          const workshopName = isPeripheralEntry(entry)
+            ? '外围检测'
+            : resolveEntryElectricRoom(entry, equipment, project);
           const groups = Array.from(
             new Set(
               entry.detail.task_items

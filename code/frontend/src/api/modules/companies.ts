@@ -145,7 +145,7 @@ export async function searchCompanyInfo(companyName: string): Promise<CompanyInf
       dimension: normalizeCompanyInfoText(item.Dimension),
       startDate: normalizeCompanyInfoText(item.StartDate),
     });
-    if (deduped.size >= 8) break;
+    if (deduped.size >= 20) break;
   }
 
   return [...deduped.values()];

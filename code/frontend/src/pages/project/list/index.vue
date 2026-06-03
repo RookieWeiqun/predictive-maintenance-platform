@@ -55,7 +55,7 @@ import * as agGrid from 'ag-grid-community';
 import { IxContentHeader, IxButton, IxInput, IxSelect, IxSelectItem, showToast } from '@siemens/ix-vue';
 import { iconAdd } from '@siemens/ix-icons/icons';
 import statusData from '@/mockdata/common/projectStatus.json';
-import { companiesApi, projectsApi } from '@/api';
+import { companiesApi, equipmentsApi, projectsApi } from '@/api';
 import type { ProjectDto } from '@/api/modules/projects';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -78,6 +78,19 @@ const navigateToReport = (id: string) => {
   router.push(`/project/report/${id}`);
 };
 
+const handleDeleteProject = async (id: string) => {
+  if (!confirm('确定要删除这个项目吗？')) {
+    return;
+  }
+  try {
+    await projectsApi.deleteProject(Number.parseInt(id, 10));
+    await loadProjects();
+    showToast({ message: '删除成功' });
+  } catch (error) {
+    showToast({ message: error instanceof Error ? error.message : '删除失败' });
+  }
+};
+
 const searchText = ref('');
 
 const selectedStatus = ref('all');
@@ -91,7 +104,6 @@ type ProjectRow = {
   name: string;
   customer: string;
   factory: string;
-  projectManager: string;
   status: 'draft' | 'active' | 'completed' | 'closed';
 };
 
@@ -112,16 +124,32 @@ function formatProjectNo(p: ProjectDto): string {
   return `P-${String(p.projectid).padStart(4, '0')}`;
 }
 
-function mapProjectToRow(p: ProjectDto, companyName: string): ProjectRow {
+function mapProjectToRow(p: ProjectDto, companyName: string, factory: string): ProjectRow {
   return {
     id: String(p.projectid ?? ''),
     projectNo: formatProjectNo(p),
     name: p.projectname ?? '',
     customer: companyName,
-    factory: '—',
-    projectManager: p.managerid != null ? `用户#${p.managerid}` : '—',
+    factory,
     status: mapProjectStatus(p.projectstatus),
   };
+}
+
+async function resolveProjectFactory(projectId: number | undefined): Promise<string> {
+  if (projectId == null || projectId <= 0) return '—';
+  try {
+    const equipments = await equipmentsApi.listEquipmentsByProject(projectId);
+    const factories = Array.from(
+      new Set(
+        equipments
+          .map((item) => String(item.factory ?? '').trim())
+          .filter((item) => item.length > 0),
+      ),
+    );
+    return factories.join(' / ') || '—';
+  } catch {
+    return '—';
+  }
 }
 
 const getStatusText = (status: string) => {
@@ -156,8 +184,14 @@ async function loadProjects() {
       projectsApi.listProjects(),
     ]);
     const map = new Map(companies.map((c) => [c.companyid, c.companyname ?? ''] as const));
-    projects.value = projs.map((p) =>
-      mapProjectToRow(p, map.get(p.companyid) ?? `客户#${p.companyid}`),
+    projects.value = await Promise.all(
+      projs.map(async (p) =>
+        mapProjectToRow(
+          p,
+          map.get(p.companyid) ?? `客户#${p.companyid}`,
+          await resolveProjectFactory(p.projectid),
+        ),
+      ),
     );
   } catch (e) {
     showToast({ message: e instanceof Error ? e.message : '项目列表加载失败' });
@@ -208,14 +242,6 @@ onMounted(async () => {
         width: 200,
       },
       {
-        field: 'projectManager',
-        headerName: '项目经理',
-        resizable: true,
-        sortable: true,
-        filter: true,
-        width: 150,
-      },
-      {
         field: 'status',
         headerName: '状态',
         resizable: true,
@@ -235,14 +261,15 @@ onMounted(async () => {
         resizable: false,
         sortable: false,
         filter: false,
-        width: 320,
+        width: 420,
         cellRenderer: (params: any) => {
           const projectId = params.data.id;
           return `
             <div class="ag-action-buttons">
-              <button class="ag-action-btn ag-action-btn-view" data-action="view" data-id="${projectId}">查看</button>
+              <button class="ag-action-btn ag-action-btn-view" data-action="view" data-id="${projectId}" hidden aria-hidden="true" tabindex="-1">查看</button>
               <button class="ag-action-btn ag-action-btn-edit" data-action="edit" data-id="${projectId}">编辑</button>
               <button class="ag-action-btn ag-action-btn-report" data-action="report" data-id="${projectId}">查看报告</button>
+              <button class="ag-action-btn ag-action-btn-delete" data-action="delete" data-id="${projectId}">删除项目</button>
             </div>
           `;
         },
@@ -255,6 +282,7 @@ onMounted(async () => {
           if (action === 'view') navigateToDetail(id);
           if (action === 'edit') navigateToEdit(id);
           if (action === 'report') navigateToReport(id);
+          if (action === 'delete') void handleDeleteProject(id);
         },
       },
     ],

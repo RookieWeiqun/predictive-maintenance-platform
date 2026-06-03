@@ -7,6 +7,7 @@ import { nowChinaDateTime } from '../utils/dateTime';
 export type StoredTaskPhoto = {
   attachment_uuid: string;
   task_item_uuid: string;
+  filename: string;
   local_path: string;
   preview_url: string;
   mime_type: string | null;
@@ -37,6 +38,11 @@ function estimateBase64Bytes(base64: string): number {
   const normalized = base64.replace(/\s/g, '');
   const padding = normalized.endsWith('==') ? 2 : normalized.endsWith('=') ? 1 : 0;
   return Math.max(0, Math.floor((normalized.length * 3) / 4) - padding);
+}
+
+function normalizePhotoName(name: string | null | undefined): string {
+  const normalized = String(name ?? '').trim().replace(/[\\/:*?"<>|]+/g, ' ');
+  return normalized.replace(/\s+/g, ' ').trim() || '现场照片';
 }
 
 function splitDataUrl(dataUrl: string): { mimeType: string | null; base64: string } {
@@ -74,6 +80,7 @@ function readFileAsDataUrl(file: File): Promise<string> {
 async function buildStoredTaskPhoto(params: {
   taskUuid: string;
   taskItemUuid: string;
+  filename?: string;
   dataUrl: string;
   sizeBytes?: number | null;
 }): Promise<StoredTaskPhoto> {
@@ -91,6 +98,7 @@ async function buildStoredTaskPhoto(params: {
   return {
     attachment_uuid: createAttachmentUuid(),
     task_item_uuid: params.taskItemUuid,
+    filename: normalizePhotoName(params.filename),
     local_path: path,
     preview_url: previewUrl,
     mime_type: mimeType,
@@ -100,7 +108,11 @@ async function buildStoredTaskPhoto(params: {
   };
 }
 
-export async function captureTaskPhoto(taskUuid: string, taskItemUuid: string): Promise<StoredTaskPhoto> {
+export async function captureTaskPhoto(
+  taskUuid: string,
+  taskItemUuid: string,
+  filename?: string,
+): Promise<StoredTaskPhoto> {
   const photo = await Camera.getPhoto({
     source: CameraSource.Camera,
     resultType: CameraResultType.DataUrl,
@@ -114,15 +126,22 @@ export async function captureTaskPhoto(taskUuid: string, taskItemUuid: string): 
   return buildStoredTaskPhoto({
     taskUuid,
     taskItemUuid,
+    filename,
     dataUrl: photo.dataUrl,
   });
 }
 
-export async function saveTaskPhotoFromFile(taskUuid: string, taskItemUuid: string, file: File): Promise<StoredTaskPhoto> {
+export async function saveTaskPhotoFromFile(
+  taskUuid: string,
+  taskItemUuid: string,
+  file: File,
+  filename?: string,
+): Promise<StoredTaskPhoto> {
   const dataUrl = await readFileAsDataUrl(file);
   return buildStoredTaskPhoto({
     taskUuid,
     taskItemUuid,
+    filename,
     dataUrl,
     sizeBytes: file.size,
   });

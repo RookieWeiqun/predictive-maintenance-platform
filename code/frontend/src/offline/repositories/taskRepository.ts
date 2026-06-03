@@ -171,6 +171,7 @@ export class OfflineTaskRepository {
       equipmentName?: string | null;
       equipmentNumber?: string | null;
       department?: string | null;
+      downloadDeviceName?: string | null;
       assignedUserName?: string | null;
     },
   ): Promise<void> {
@@ -185,6 +186,7 @@ export class OfflineTaskRepository {
       equipment_name: meta.equipmentName ?? existing.equipment_name,
       equipment_number: meta.equipmentNumber ?? existing.equipment_number,
       department: meta.department ?? existing.department,
+      download_device_name: meta.downloadDeviceName ?? existing.download_device_name,
       assigned_user_name: meta.assignedUserName ?? existing.assigned_user_name,
       sync_status: 'pending',
     });

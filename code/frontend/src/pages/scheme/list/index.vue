@@ -182,9 +182,7 @@ const handleDelete = async (schemeId: string) => {
   }
   try {
     await inspectionTemplatesApi.deleteInspectionTemplate(Number.parseInt(schemeId, 10));
-          (s.model && s.model.toLowerCase().includes(q)) ||
-          (s.series && s.series.toLowerCase().includes(q)) ||
-          (s.size && s.size.toLowerCase().includes(q))
+    await loadSchemes();
     showToast({ message: '删除成功' });
   } catch (e) {
     showToast({ message: e instanceof Error ? e.message : '删除失败' });

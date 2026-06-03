@@ -63,58 +63,44 @@
               <div class="basic-info-card__divider" />
               <dl v-if="serviceBasicBlock" class="basic-info-card__list cover-info-card__list">
                 <div class="basic-info-row">
-                  <dt>服务单号</dt>
+                  <dt>服务ID号码</dt>
                   <dd>{{ serviceBasicBlock.serviceId }}</dd>
                 </div>
                 <div class="basic-info-row">
-                  <dt>客户与现场</dt>
-                  <dd>{{ serviceBasicBlock.companyName }} · {{ serviceBasicBlock.serviceCity }}</dd>
+                  <dt>用户公司名称</dt>
+                  <dd>{{ serviceBasicBlock.companyName }}</dd>
                 </div>
                 <div class="basic-info-row">
-                  <dt>目标系统</dt>
+                  <dt>服务发生城市</dt>
+                  <dd>{{ serviceBasicBlock.serviceCity }}</dd>
+                </div>
+                <div class="basic-info-row">
+                  <dt>用户联系人</dt>
+                  <dd>{{ formatContactPerson(serviceBasicBlock.customerContact) }}</dd>
+                </div>
+                <div class="basic-info-row">
+                  <dt>西门子联系人</dt>
+                  <dd>{{ formatContactPerson(serviceBasicBlock.siemensContact) }}</dd>
+                </div>
+                <div class="basic-info-row">
+                  <dt>服务执行人</dt>
+                  <dd>{{ serviceBasicBlock.serviceExecutors.join('、') || '-' }}</dd>
+                </div>
+                <div class="basic-info-row">
+                  <dt>服务执行日期</dt>
+                  <dd>{{ serviceBasicBlock.executionDateRange }}</dd>
+                </div>
+                <div class="basic-info-row">
+                  <dt>报告生成日期</dt>
+                  <dd>{{ serviceBasicBlock.reportGeneratedDate }}</dd>
+                </div>
+                <div class="basic-info-row">
+                  <dt>项目名称</dt>
                   <dd>{{ serviceBasicBlock.targetSystemName }}</dd>
                 </div>
                 <div class="basic-info-row">
-                  <dt>联系人</dt>
-                  <dd>{{ coverContactsDual }}</dd>
-                </div>
-                <div class="basic-info-row">
-                  <dt>现场执行</dt>
-                  <dd>{{ coverExecutionDense }}</dd>
-                </div>
-                <div class="basic-info-row">
-                  <dt>服务与备份</dt>
-                  <dd>{{ serviceBasicBlock.serviceType }} · 备份 {{ serviceBasicBlock.dataBackupStatus }}</dd>
-                </div>
-                <div
-                  v-if="basicInfo.remarks && basicInfo.remarks !== '-'"
-                  class="basic-info-row basic-info-row--block"
-                >
-                  <dt>备注</dt>
-                  <dd class="service-stats-text">{{ basicInfo.remarks }}</dd>
-                </div>
-                <div class="cover-info-meta" role="group" aria-label="报告与交付">
-                  <div class="cover-info-meta__title">报告与交付</div>
-                  <div class="basic-info-row">
-                    <dt>申请人</dt>
-                    <dd>{{ basicInfo.applicant }}</dd>
-                  </div>
-                  <div class="basic-info-row">
-                    <dt>报告生成</dt>
-                    <dd>{{ serviceBasicBlock.reportGeneratedDate }}</dd>
-                  </div>
-                  <div class="basic-info-row">
-                    <dt>交付日期</dt>
-                    <dd>{{ basicInfo.deliveryDate }}</dd>
-                  </div>
-                  <div class="basic-info-row">
-                    <dt>版本</dt>
-                    <dd>{{ basicInfo.version }}</dd>
-                  </div>
-                  <div class="basic-info-row">
-                    <dt>类型</dt>
-                    <dd>{{ shortReportType }}</dd>
-                  </div>
+                  <dt>服务类型</dt>
+                  <dd>{{ serviceBasicBlock.serviceType }}</dd>
                 </div>
               </dl>
               <dl v-else class="basic-info-card__list cover-info-card__list">
@@ -129,28 +115,6 @@
                 <div class="basic-info-row">
                   <dt>申请人</dt>
                   <dd>{{ basicInfo.applicant }}</dd>
-                </div>
-                <div
-                  v-if="basicInfo.remarks && basicInfo.remarks !== '-'"
-                  class="basic-info-row basic-info-row--block"
-                >
-                  <dt>备注</dt>
-                  <dd class="service-stats-text">{{ basicInfo.remarks }}</dd>
-                </div>
-                <div class="cover-info-meta" role="group" aria-label="报告与交付">
-                  <div class="cover-info-meta__title">报告与交付</div>
-                  <div class="basic-info-row">
-                    <dt>交付日期</dt>
-                    <dd>{{ basicInfo.deliveryDate }}</dd>
-                  </div>
-                  <div class="basic-info-row">
-                    <dt>版本</dt>
-                    <dd>{{ basicInfo.version }}</dd>
-                  </div>
-                  <div class="basic-info-row">
-                    <dt>类型</dt>
-                    <dd>{{ shortReportType }}</dd>
-                  </div>
                 </div>
               </dl>
             </div>
@@ -212,22 +176,33 @@
               <div v-for="issue in reportIssueEntries" :key="issue.key" class="report-issue-block">
                 <table class="report-issue-table">
                   <tbody>
+                    <template v-if="issue.isPeripheral">
+                      <tr>
+                        <td rowspan="4" class="report-issue-table__room">{{ issue.electricRoom }}</td>
+                        <td class="report-issue-table__number">问题 {{ issue.index }}</td>
+                        <td colspan="4" class="report-issue-table__textcell">
+                          <strong>外围检测隐患及解决措施</strong>
+                        </td>
+                      </tr>
+                    </template>
+                    <template v-else>
+                      <tr>
+                        <td rowspan="5" class="report-issue-table__room">{{ issue.electricRoom }}</td>
+                        <td rowspan="2" class="report-issue-table__number">问题 {{ issue.index }}</td>
+                        <td class="report-issue-table__label">设备名称:</td>
+                        <td>{{ issue.equipmentName }}</td>
+                        <td class="report-issue-table__label">设备型号:</td>
+                        <td>{{ issue.deviceModel }}</td>
+                      </tr>
+                      <tr>
+                        <td class="report-issue-table__label">设备编号:</td>
+                        <td>{{ issue.equipmentNumber }}</td>
+                        <td class="report-issue-table__label">序列号:</td>
+                        <td>{{ issue.serialNumber }}</td>
+                      </tr>
+                    </template>
                     <tr>
-                      <td rowspan="5" class="report-issue-table__room">{{ issue.electricRoom }}</td>
-                      <td rowspan="2" class="report-issue-table__number">问题 {{ issue.index }}</td>
-                      <td class="report-issue-table__label">设备名称:</td>
-                      <td>{{ issue.equipmentName }}</td>
-                      <td class="report-issue-table__label">设备型号:</td>
-                      <td>{{ issue.deviceModel }}</td>
-                    </tr>
-                    <tr>
-                      <td class="report-issue-table__label">设备编号:</td>
-                      <td>{{ issue.equipmentNumber }}</td>
-                      <td class="report-issue-table__label">序列号:</td>
-                      <td>{{ issue.serialNumber }}</td>
-                    </tr>
-                    <tr>
-                      <td colspan="5" class="report-issue-table__textcell">
+                      <td :colspan="issue.isPeripheral ? 5 : 5" class="report-issue-table__textcell">
                         <strong>问题描述:</strong>
                         <div v-if="issue.issueHierarchy" class="report-issue-table__hierarchy">
                           {{ issue.issueHierarchy }}
@@ -236,26 +211,27 @@
                       </td>
                     </tr>
                     <tr>
-                      <td colspan="5" class="report-issue-table__textcell">
+                      <td :colspan="issue.isPeripheral ? 5 : 5" class="report-issue-table__textcell">
                         <strong>解决措施或建议:</strong>
                         <p>{{ issue.suggestion }}</p>
                       </td>
                     </tr>
                     <tr>
-                      <td colspan="5">
+                      <td :colspan="issue.isPeripheral ? 5 : 5">
                         <div v-if="issue.images.length" class="report-photo-grid">
                           <button
                             v-for="(image, imageIndex) in issue.images"
                             :key="`${issue.key}-photo-${imageIndex + 1}`"
                             type="button"
                             class="report-photo-slot report-photo-slot__button"
-                            @click="openAppendixImagePreview(image, `${issue.equipmentName} 问题 ${issue.index} 照片 ${imageIndex + 1}`)"
+                            @click="openAppendixImagePreview(image.src, image.filename || `${issue.isPeripheral ? issue.electricRoom : issue.equipmentName} 问题 ${issue.index} 照片 ${imageIndex + 1}`)"
                           >
                             <img
-                              :src="image"
-                              :alt="`${issue.equipmentName} 问题 ${issue.index} 照片 ${imageIndex + 1}`"
+                              :src="image.src"
+                              :alt="image.filename || `${issue.isPeripheral ? issue.electricRoom : issue.equipmentName} 问题 ${issue.index} 照片 ${imageIndex + 1}`"
                               class="report-photo-slot__image"
                             />
+                            <span class="report-photo-slot__filename">{{ image.filename }}</span>
                           </button>
                         </div>
                         <div v-else class="report-photo-empty">暂无图片</div>
@@ -444,7 +420,7 @@ import {
 } from '@siemens/ix-icons/icons';
 
 import logoUrl from '../../../../image/siemens logo.svg';
-import { attachmentsApi, companiesApi, equipmentsApi, inspectionTasksApi, productsApi, projectEquipmentsApi, projectsApi, reportsApi } from '@/api';
+import { attachmentsApi, companiesApi, equipmentsApi, inspectionTasksApi, productsApi, projectEquipmentsApi, projectsApi, reportsApi, usersApi } from '@/api';
 import { getReportByProjectId, type ReportData } from '@/mockdata/report';
 import type { CompanyDto } from '@/api/modules/companies';
 import type { EquipmentDto } from '@/api/modules/equipments';
@@ -457,7 +433,6 @@ import { getIssueSuggestionText } from './reportIssueUtils';
 import {
   buildTocNodes,
   formatContactPerson,
-  formatServiceDaysText,
   getServiceBasicBlock,
 } from './reportViewUtils';
 import { useReportSummaryDraft } from './composables/useReportSummaryDraft';
@@ -495,6 +470,7 @@ type MaintenanceDeviceGroup = {
 type ReportIssueEntry = {
   key: string;
   index: number;
+  isPeripheral: boolean;
   electricRoom: string;
   equipmentName: string;
   deviceModel: string;
@@ -503,7 +479,7 @@ type ReportIssueEntry = {
   issueHierarchy: string;
   issueDescription: string;
   suggestion: string;
-  images: string[];
+  images: Array<{ src: string; filename: string }>;
 };
 
 const route = useRoute();
@@ -560,45 +536,19 @@ const presentation = computed(() => {
   };
 });
 
-/** 封面卡片：联系人一行展示 */
-const coverContactsDual = computed(() => {
-  const sb = serviceBasicBlock.value;
-  if (!sb) return '-';
-  return `用户 ${formatContactPerson(sb.customerContact)} · 西门子 ${formatContactPerson(sb.siemensContact)}`;
-});
-
-/** 封面卡片：执行人、日期、人天一行 */
-const coverExecutionDense = computed(() => {
-  const sb = serviceBasicBlock.value;
-  if (!sb) return '-';
-  return `${sb.serviceExecutors.join('、')} · ${sb.executionDateRange} · ${formatServiceDaysText(sb.serviceDays)}`;
-});
-
 const basicInfo = computed(() => {
   const r = report.value;
   const c = r?.reportDocument?.cover;
-  const m = r?.reportDocument?.meta;
   const sb = serviceBasicBlock.value;
   const pj = project.value;
   const targetFallback =
     `${sb?.companyName ?? ''}${pj?.factory ? ` · ${pj.factory}` : ''}`.trim() || '-';
   return {
     reportId: c?.reportId ?? r?.reportNo ?? '-',
-    reportType: c?.reportType ?? m?.reportType ?? '预防性维护智能诊断报告',
     customerCompany: c?.customerCompany ?? sb?.companyName ?? '-',
     targetSystem: c?.targetSystem ?? sb?.targetSystemName ?? targetFallback,
     applicant: c?.applicant ?? formatContactPerson(sb?.customerContact),
-    /** 交付日期：以封面为准，无则回退服务单报告日 */
-    deliveryDate: c?.deliveryDate ?? sb?.reportGeneratedDate ?? r?.generatedAt ?? '-',
-    remarks: c?.remarks ?? '-',
-    version: c?.version ?? r?.version ?? '-',
   };
-});
-
-/** 报告类型短展示（避免与标题重复冗长） */
-const shortReportType = computed(() => {
-  const t = basicInfo.value.reportType;
-  return t.replace(/报告$/, '').trim() || t;
 });
 
 const tocNodes = computed(() => buildTocNodes(report.value, project.value?.name ?? ''));
@@ -627,6 +577,18 @@ function resolveDepartment(product: ProductDto | null | undefined, equipment: Eq
 
 function resolveElectricRoom(equipment: EquipmentDto | null | undefined): string {
   return normalizeText(equipment?.electricroom, '');
+}
+
+function isPeripheralEntry(entry: ReportTaskDetailEntry | null | undefined): boolean {
+  return Number(entry?.detail.task.inspection_type ?? entry?.task.inspectiontype ?? 0) === 2;
+}
+
+function resolveEntryElectricRoom(entry: ReportTaskDetailEntry, equipment: EquipmentDto | null): string {
+  if (isPeripheralEntry(entry)) {
+    return normalizeText(entry.detail.task.download_device_name ?? entry.task.downloadDeviceName, '未分配电气室');
+  }
+
+  return resolveElectricRoom(equipment);
 }
 
 function getEntryProduct(entry: ReportTaskDetailEntry): ProductDto | null {
@@ -667,7 +629,21 @@ function isIssueItem(item: InspectionTaskDetailDto['task_items'][number]): boole
   return value === '异常' || value === 'abnormal';
 }
 
-function resolveAttachmentImageUrl(attachment: Record<string, unknown>): string | null {
+function resolveAttachmentFilename(attachment: Record<string, unknown>, fallback: string): string {
+  const candidates = [attachment.filename, attachment.fileName, attachment.name, attachment.title];
+  for (const candidate of candidates) {
+    const value = String(candidate ?? '').trim();
+    if (value) {
+      return value;
+    }
+  }
+  return fallback;
+}
+
+function resolveAttachmentImage(
+  attachment: Record<string, unknown>,
+  fallback: string,
+): { src: string; filename: string } | null {
   const candidates = [
     attachment.url,
     attachment.file_url,
@@ -685,9 +661,19 @@ function resolveAttachmentImageUrl(attachment: Record<string, unknown>): string 
   for (const candidate of candidates) {
     const value = String(candidate ?? '').trim();
     if (!value) continue;
-    if (/^(data:|blob:|https?:)/i.test(value) || value.startsWith('/')) return value;
+    if (/^(data:|blob:|https?:)/i.test(value) || value.startsWith('/')) {
+      return {
+        src: value,
+        filename: resolveAttachmentFilename(attachment, fallback),
+      };
+    }
     const resolved = attachmentsApi.resolveAttachmentFileUrl(value);
-    if (resolved) return resolved;
+    if (resolved) {
+      return {
+        src: resolved,
+        filename: resolveAttachmentFilename(attachment, fallback),
+      };
+    }
   }
 
   return null;
@@ -773,6 +759,7 @@ const reportIssueEntries = computed<ReportIssueEntry[]>(() => {
   for (const entry of taskDetailsEntries.value) {
     const product = getEntryProduct(entry);
     const equipment = getEntryEquipment(product);
+    const isPeripheral = isPeripheralEntry(entry);
 
     for (const item of entry.detail.task_items) {
       if (!isIssueItem(item)) continue;
@@ -780,8 +767,9 @@ const reportIssueEntries = computed<ReportIssueEntry[]>(() => {
       rows.push({
         key: `${entry.task.taskid ?? 'task'}-${item.item_id}`,
         index: rows.length + 1,
-        electricRoom: resolveElectricRoom(equipment),
-        equipmentName: resolveEquipmentName(product, equipment),
+        isPeripheral,
+        electricRoom: resolveEntryElectricRoom(entry, equipment),
+        equipmentName: isPeripheral ? '外围检测' : resolveEquipmentName(product, equipment),
         deviceModel: resolveDeviceModel(product, entry),
         serialNumber: resolveSerialNumber(product, entry),
         equipmentNumber: resolveEquipmentNumber(product, equipment),
@@ -789,8 +777,13 @@ const reportIssueEntries = computed<ReportIssueEntry[]>(() => {
         issueDescription: buildIssueDescription(item),
         suggestion: buildIssueSuggestion(item),
         images: (item.attachments ?? [])
-          .map((attachment) => resolveAttachmentImageUrl(attachment))
-          .filter((image): image is string => Boolean(image)),
+          .map((attachment, imageIndex) =>
+            resolveAttachmentImage(
+              attachment,
+              `${String(item.item_name ?? '').trim() || '现场照片'} -${imageIndex + 1}`,
+            ),
+          )
+          .filter((image): image is { src: string; filename: string } => Boolean(image)),
       });
     }
   }
@@ -1016,6 +1009,12 @@ async function loadReportData(): Promise<void> {
     const company = projectDto.companyid > 0
       ? await companiesApi.getCompany(projectDto.companyid).catch(() => null)
       : null;
+    const users = await usersApi.listUsers().catch(() => []);
+    const userById = new Map(
+      users
+        .filter((item) => item.userid > 0)
+        .map((item) => [item.userid, item] as const),
+    );
     projectCompany.value = company;
     const taskDetailsByTask = await Promise.all(
       validTasks.map(async (task) => ({
@@ -1164,6 +1163,7 @@ async function loadReportData(): Promise<void> {
       tasks: validTasks,
       productById: productMapRef.value,
       equipmentById: equipmentMapRef.value,
+      userById,
       taskDetailsByTask: hydratedTaskDetailsByTask,
     });
   } catch (error) {
@@ -1396,6 +1396,19 @@ function downloadPdf() {
   object-fit: cover;
   border-radius: 0.6rem;
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.1);
+}
+
+.report-photo-slot__filename {
+  display: block;
+  width: 100%;
+  margin-top: 0.55rem;
+  padding: 0 0.25rem;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: var(--theme-color-text-soft);
+  text-align: center;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .report-photo-slot__placeholder {

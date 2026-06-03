@@ -80,6 +80,7 @@ export type OfflineTaskUpsert = Omit<OfflineTaskRecord, 'downloaded_at' | 'local
 export interface OfflineAttachmentRecord {
   attachment_uuid: string;
   task_item_uuid: string;
+  filename: string;
   local_path: string;
   mime_type: string | null;
   size_bytes: number | null;

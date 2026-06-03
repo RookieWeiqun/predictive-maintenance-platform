@@ -9,7 +9,7 @@
           <div class="filter-section__left">
             <IxInput
               v-model="searchText"
-              placeholder="搜索客户名称、行业或联系人"
+              placeholder="搜索客户名称或信用代码"
               style="flex: 1; max-width: 360px;"
             />
             <IxButton variant="secondary" @click="handleSearch">搜索</IxButton>
@@ -60,12 +60,7 @@ ModuleRegistry.registerModules([AllCommunityModule]);
 type CustomerRow = {
   id: string;
   name: string;
-  industry: string;
-  contact: string;
-  remarks: string;
-  phone: string;
-  email: string;
-  createdAt: string;
+  creditCode: string;
 };
 
 const searchText = ref('');
@@ -74,41 +69,16 @@ const customers = ref<CustomerRow[]>([]);
 
 const emptyForm = () => ({
   name: '',
-  industry: '',
-  contact: '',
-  phone: '',
-  email: '',
-  remarks: '',
+  creditCode: '',
 });
 
 function mapCompanyToRow(c: CompanyDto): CustomerRow {
   return {
     id: String(c.companyid),
     name: c.companyname ?? '',
-    // 当前后端 Company 仅含 creditCode，这里映射到现有“行业”列，后续可改列名
-    industry: c.creditCode ?? '',
-    contact: '',
-    remarks: '',
-    phone: '',
-    email: '',
-    createdAt: '',
+    creditCode: c.creditCode ?? '',
   };
 }
-
-const formatDateTime = (iso: string) => {
-  if (!iso) return '-';
-  try {
-    return new Date(iso).toLocaleString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  } catch {
-    return iso;
-  }
-};
 
 const allRows = computed<CustomerRow[]>(() => customers.value);
 
@@ -116,7 +86,7 @@ const filteredRows = computed(() => {
   const q = searchText.value.trim().toLowerCase();
   if (!q) return allRows.value;
   return allRows.value.filter((row) => {
-    const hay = [row.name, row.industry, row.contact, row.remarks, row.phone, row.email]
+    const hay = [row.name, row.creditCode]
       .join(' ')
       .toLowerCase();
     return hay.includes(q);
@@ -144,7 +114,7 @@ function toUpsertPayload(id: string | undefined, payload: CustomerFormPayload) {
   return {
     ...(companyid ? { companyid } : {}),
     companyname: payload.name,
-    creditCode: payload.industry,
+    creditCode: payload.creditCode,
   };
 }
 
@@ -182,11 +152,7 @@ const openEditModal = (id: string) => {
         title: '编辑客户',
         initial: {
           name: row.name,
-          industry: row.industry,
-          contact: row.contact,
-          phone: row.phone,
-          email: row.email,
-          remarks: row.remarks,
+          creditCode: row.creditCode,
         },
         onSubmit: async (payload: CustomerFormPayload) => {
           try {
@@ -239,45 +205,13 @@ onMounted(async () => {
         cellStyle: { fontWeight: 500 },
       },
       {
-        field: 'industry',
-        headerName: '行业',
-        resizable: true,
-        sortable: true,
-        filter: true,
-        width: 160,
-      },
-      {
-        field: 'contact',
-        headerName: '联系人',
-        resizable: true,
-        sortable: true,
-        filter: true,
-        width: 140,
-      },
-      {
-        field: 'remarks',
-        headerName: '备注',
+        field: 'creditCode',
+        headerName: '信用代码',
         resizable: true,
         sortable: true,
         filter: true,
         flex: 1,
-        minWidth: 200,
-        cellRenderer: (params: any) => {
-          const v = params.value;
-          if (v == null || String(v).trim() === '') return '—';
-          return String(v);
-        },
-      },
-      {
-        field: 'createdAt',
-        headerName: '创建时间',
-        resizable: true,
-        sortable: true,
-        filter: true,
-        width: 190,
-        cellRenderer: (params: any) =>
-          formatDateTime(params.value ?? ''),
-        cellStyle: { fontFamily: 'inherit' },
+        minWidth: 220,
       },
       {
         field: 'actions',
