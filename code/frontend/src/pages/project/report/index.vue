@@ -290,6 +290,8 @@
                   v-for="(device, deviceIndex) in workshop.devices ?? []"
                   :key="`device-${workshopIndex}-${deviceIndex}`"
                   class="appendix-device"
+                  :id="buildAppendixAnchorId(workshopIndex, deviceIndex)"
+                  data-toc-anchor
                 >
                   <div class="appendix-device__title">{{ workshop.name }} > {{ device.model || '任务设备' }}</div>
                   <div
@@ -436,7 +438,7 @@ import {
   getServiceBasicBlock,
 } from './reportViewUtils';
 import { useReportSummaryDraft } from './composables/useReportSummaryDraft';
-import type { ReportSummaryDraft } from './types';
+import type { ReportSummaryDraft, TocNode } from './types';
 import { useReportTocSpy } from './composables/useReportTocSpy';
 
 type ReportProjectView = {
@@ -551,12 +553,57 @@ const basicInfo = computed(() => {
   };
 });
 
-const tocNodes = computed(() => buildTocNodes(report.value, project.value?.name ?? ''));
 const appendixWorkshops = computed(() => report.value?.appendixDetailedInspection?.workshops ?? []);
 const maintenanceDeviceCompanyName = computed(() =>
   report.value?.serviceBasicInfo?.companyName?.trim()
   || projectCompany.value?.companyname?.trim()
   || '客户');
+
+function normalizeAppendixText(value: unknown, fallback: string): string {
+  const text = String(value ?? '').trim();
+  return text || fallback;
+}
+
+function parseAppendixDeviceParts(model: unknown): { equipmentName: string; equipmentNumber: string } {
+  const parts = String(model ?? '')
+    .split(/\s*>\s*/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  return {
+    equipmentName: parts[0] || '未知设备名',
+    equipmentNumber: parts[1] || '未知设备号',
+  };
+}
+
+function buildAppendixAnchorId(workshopIndex: number, deviceIndex: number): string {
+  return `sec-appendix-device-${workshopIndex + 1}-${deviceIndex + 1}`;
+}
+
+function buildAppendixTocLabel(workshopName: unknown, deviceModel: unknown): string {
+  const resolvedWorkshop = normalizeAppendixText(workshopName, '未知电气室');
+  if (resolvedWorkshop === '外围检测') {
+    return `外围检测 > ${normalizeAppendixText(deviceModel, '未知电气室')}`;
+  }
+
+  const { equipmentName, equipmentNumber } = parseAppendixDeviceParts(deviceModel);
+  return `${resolvedWorkshop}>>${equipmentName}>>${equipmentNumber}`;
+}
+
+const appendixTocNodes = computed<TocNode[]>(() =>
+  appendixWorkshops.value.flatMap((workshop, workshopIndex) =>
+    (workshop.devices ?? []).map((device, deviceIndex) => ({
+      id: buildAppendixAnchorId(workshopIndex, deviceIndex),
+      label: buildAppendixTocLabel(workshop.name, device.model),
+      level: 2 as const,
+    })),
+  ),
+);
+
+const tocNodes = computed(() => [
+  ...buildTocNodes(report.value, project.value?.name ?? ''),
+  ...appendixTocNodes.value,
+]);
 
 function normalizeText(value: unknown, fallback = '-'): string {
   const text = String(value ?? '').trim();
