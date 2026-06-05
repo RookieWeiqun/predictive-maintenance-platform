@@ -29,6 +29,8 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
 
     public virtual DbSet<InspectionTemplate> InspectionTemplates { get; set; }
 
+    public virtual DbSet<Permission> Permissions { get; set; }
+
     public virtual DbSet<Product> Products { get; set; }
 
     public virtual DbSet<Project> Projects { get; set; }
@@ -36,6 +38,10 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
     public virtual DbSet<ProjectEquipment> ProjectEquipments { get; set; }
 
     public virtual DbSet<Report> Reports { get; set; }
+
+    public virtual DbSet<Role> Roles { get; set; }
+
+    public virtual DbSet<RolePermission> RolePermissions { get; set; }
 
     public virtual DbSet<Taskitem> Taskitems { get; set; }
 
@@ -273,6 +279,20 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
             entity.Property(e => e.Size).HasMaxLength(100);
         });
 
+        modelBuilder.Entity<Permission>(entity =>
+        {
+            entity.HasKey(e => e.Permissionid).HasName("permissions_pk");
+
+            entity.ToTable("permissions");
+
+            entity.HasIndex(e => e.Permission1, "permissions_unique").IsUnique();
+
+            entity.Property(e => e.Permissionid).HasColumnName("permissionid");
+            entity.Property(e => e.Permission1)
+                .HasColumnType("character varying")
+                .HasColumnName("permission");
+        });
+
         modelBuilder.Entity<Product>(entity =>
         {
             entity.HasKey(e => e.Productid).HasName("products_pkey");
@@ -371,6 +391,34 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
             entity.Property(e => e.Projectid).HasColumnName("projectid");
             entity.Property(e => e.Sparepartsrecommendation).HasColumnName("sparepartsrecommendation");
             entity.Property(e => e.Summarydescription).HasColumnName("summarydescription");
+        });
+
+        modelBuilder.Entity<Role>(entity =>
+        {
+            entity.HasKey(e => e.Roleid).HasName("roles_pk");
+
+            entity.ToTable("roles");
+
+            entity.Property(e => e.Roleid).HasColumnName("roleid");
+            entity.Property(e => e.Rolename)
+                .HasMaxLength(20)
+                .HasColumnName("rolename");
+        });
+
+        modelBuilder.Entity<RolePermission>(entity =>
+        {
+            entity.HasKey(e => e.Rpid).HasName("role_permission_pk");
+
+            entity.ToTable("role_permission");
+
+            entity.HasIndex(e => new { e.Roleid, e.Permissionid }, "role_permission_roleid_idx");
+
+            entity.Property(e => e.Rpid).HasColumnName("rpid");
+            entity.Property(e => e.Cando)
+                .HasDefaultValue(true)
+                .HasColumnName("cando");
+            entity.Property(e => e.Permissionid).HasColumnName("permissionid");
+            entity.Property(e => e.Roleid).HasColumnName("roleid");
         });
 
         modelBuilder.Entity<Taskitem>(entity =>
@@ -473,6 +521,9 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
             entity.Property(e => e.Createdate)
                 .HasDefaultValueSql("CURRENT_DATE")
                 .HasColumnName("createdate");
+            entity.Property(e => e.Gid)
+                .HasMaxLength(10)
+                .HasColumnName("gid");
             entity.Property(e => e.Industry)
                 .HasMaxLength(100)
                 .HasColumnName("industry");

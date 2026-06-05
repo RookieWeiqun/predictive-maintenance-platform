@@ -18,4 +18,6 @@ public partial class User
     public string? Mobile { get; set; }
 
     public DateOnly? Createdate { get; set; }
+
+    public string? Gid { get; set; }
 }
