@@ -288,9 +288,17 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
             entity.HasIndex(e => e.Permission1, "permissions_unique").IsUnique();
 
             entity.Property(e => e.Permissionid).HasColumnName("permissionid");
+            entity.Property(e => e.Icon)
+                .HasMaxLength(200)
+                .HasColumnName("icon");
+            entity.Property(e => e.Path)
+                .HasMaxLength(200)
+                .HasColumnName("path");
             entity.Property(e => e.Permission1)
                 .HasColumnType("character varying")
                 .HasColumnName("permission");
+            entity.Property(e => e.Sort).HasColumnName("sort");
+            entity.Property(e => e.Type).HasColumnName("type");
         });
 
         modelBuilder.Entity<Product>(entity =>
@@ -521,6 +529,9 @@ public partial class PredictiveMaintenancePlatformContext : DbContext
             entity.Property(e => e.Createdate)
                 .HasDefaultValueSql("CURRENT_DATE")
                 .HasColumnName("createdate");
+            entity.Property(e => e.Email)
+                .HasColumnType("character varying")
+                .HasColumnName("email");
             entity.Property(e => e.Gid)
                 .HasMaxLength(10)
                 .HasColumnName("gid");
