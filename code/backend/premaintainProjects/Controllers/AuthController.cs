@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using premaintainProjects.Models;
+using premaintainProjects.Services;
 using static premaintainProjects.Models.otherModels;
 
 namespace premaintainProjects.Controllers
@@ -12,21 +13,26 @@ namespace premaintainProjects.Controllers
     [ApiController]
     public class AuthController : ControllerBase
     {
+        private static readonly Regex GidRegex = new(@"^Z\d{3}[0-9A-Z]{4}", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
         private readonly IConfiguration _configuration;
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly ILogger<AuthController> _logger;
         private readonly PredictiveMaintenancePlatformContext _context;
+        private readonly ServiceTools _serviceTools;
 
         public AuthController(
             IConfiguration configuration,
             IHttpClientFactory httpClientFactory,
             ILogger<AuthController> logger,
-            PredictiveMaintenancePlatformContext context)
+            PredictiveMaintenancePlatformContext context,
+            ServiceTools serviceTools)
         {
             _configuration = configuration;
             _httpClientFactory = httpClientFactory;
             _logger = logger;
             _context = context;
+            _serviceTools = serviceTools;
         }
 
         [HttpGet("ReadOneIdCode")]
@@ -43,6 +49,68 @@ namespace premaintainProjects.Controllers
                 });
             }
 
+            var idToken = await ExchangeCodeForIdTokenAsync(code);
+            if (string.IsNullOrWhiteSpace(idToken))
+            {
+                return new JsonResult(new
+                {
+                    code = ResponseCode.操作失败,
+                    data = (object?)null,
+                    msg = "换取token失败"
+                });
+            }
+
+            var parsedUser = ParseOneIdUser(idToken);
+
+            _logger.LogInformation(
+                "OneID解析完成，Name：{Name}，PhoneNumber：{PhoneNumber}，Email：{Email}，ExternalId：{ExternalId}，NormalizedGID：{GID}，IdToken：{IdToken}",
+                parsedUser.Name,
+                parsedUser.PhoneNumber,
+                parsedUser.Email,
+                parsedUser.ExternalId,
+                parsedUser.Gid,
+                idToken);
+
+            if (string.IsNullOrWhiteSpace(parsedUser.Gid) && string.IsNullOrWhiteSpace(parsedUser.PhoneNumber))
+            {
+                return new JsonResult(new
+                {
+                    code = ResponseCode.记录不存在,
+                    data = (object?)null,
+                    msg = "未找到可匹配的本地用户标识"
+                });
+            }
+
+            var localUser = await FindLocalUserAsync(parsedUser.Gid, parsedUser.PhoneNumber);
+            if (localUser == null)
+            {
+                _logger.LogWarning(
+                    "OneID登录成功，但本地未匹配到用户，GID：{GID}，Mobile：{Mobile}",
+                    parsedUser.Gid,
+                    parsedUser.PhoneNumber);
+
+                return new JsonResult(new
+                {
+                    code = ResponseCode.记录不存在,
+                    data = (object?)null,
+                    msg = "本地用户不存在"
+                });
+            }
+
+            await SyncLocalUserContactAsync(localUser, parsedUser);
+
+            var oneIdUser = await BuildOneIdUserDtoAsync(localUser, parsedUser);
+
+            return new JsonResult(new
+            {
+                code = ResponseCode.成功,
+                data = oneIdUser,
+                msg = ""
+            });
+        }
+
+        private async Task<string?> ExchangeCodeForIdTokenAsync(string code)
+        {
             var redirectUrl = _configuration["OneId:RedirectUrl"];
             var clientId = _configuration["OneId:ClientId"];
             var clientSecret = _configuration["OneId:ClientSecret"];
@@ -68,12 +136,7 @@ namespace premaintainProjects.Controllers
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogWarning("OneID换token失败，StatusCode：{StatusCode}", response.StatusCode);
-                return new JsonResult(new
-                {
-                    code = ResponseCode.操作失败,
-                    data = (object?)null,
-                    msg = "换取token失败"
-                });
+                return null;
             }
 
             using var doc = JsonDocument.Parse(result);
@@ -89,12 +152,7 @@ namespace premaintainProjects.Controllers
                 if (!success || !root.TryGetProperty("data", out dataElement))
                 {
                     _logger.LogWarning("OneID换token返回success=false");
-                    return new JsonResult(new
-                    {
-                        code = ResponseCode.操作失败,
-                        data = (object?)null,
-                        msg = "换取token失败"
-                    });
+                    return null;
                 }
             }
             else
@@ -109,94 +167,30 @@ namespace premaintainProjects.Controllers
             if (string.IsNullOrWhiteSpace(idToken))
             {
                 _logger.LogWarning("OneID返回中缺少id_token");
-                return new JsonResult(new
-                {
-                    code = ResponseCode.操作失败,
-                    data = (object?)null,
-                    msg = "id_token为空"
-                });
+                return null;
             }
 
+            return idToken;
+        }
+
+        private OneIdParsedUser ParseOneIdUser(string idToken)
+        {
             var claims = new JwtSecurityTokenHandler().ReadJwtToken(idToken).Claims;
 
             var phoneNumber = claims.FirstOrDefault(c => c.Type == "phone_number")?.Value?.Trim() ?? "";
             var name = claims.FirstOrDefault(c => c.Type == "name")?.Value?.Trim() ?? "";
             var email = claims.FirstOrDefault(c => c.Type == "email")?.Value?.Trim() ?? "";
             var externalId = claims.FirstOrDefault(c => c.Type == "external_id")?.Value?.Trim() ?? "";
+            var gid = GidRegex.IsMatch(externalId) ? externalId.ToUpperInvariant() : "";
 
-            var reg = new Regex(@"^Z\d{3}[0-9A-Z]{4}", RegexOptions.IgnoreCase);
-            var gid = reg.IsMatch(externalId) ? externalId.ToUpper() : "";
-
-            _logger.LogWarning(
-                "OneID登录成功，但本地未匹配到用户，GID：{GID}，Mobile：{Mobile}，IdToken：{IdToken}",
-                gid,
-                phoneNumber,
-                idToken);
-
-
-            if (string.IsNullOrWhiteSpace(gid) && string.IsNullOrWhiteSpace(phoneNumber))
+            return new OneIdParsedUser
             {
-                _logger.LogWarning("OneID登录成功，但GID和手机号都为空");
-                return new JsonResult(new
-                {
-                    code = ResponseCode.记录不存在,
-                    data = (object?)null,
-                    msg = "未找到可匹配的本地用户标识"
-                });
-            }
-
-            var localUser = await FindLocalUserAsync(gid, phoneNumber);
-            if (localUser == null)
-            {
-                _logger.LogWarning("OneID登录成功，但本地未匹配到用户，GID：{GID}，Mobile：{Mobile}", gid, phoneNumber);
-                return new JsonResult(new
-                {
-                    code = ResponseCode.记录不存在,
-                    data = (object?)null,
-                    msg = "本地用户不存在"
-                });
-            }
-
-            if (!string.IsNullOrWhiteSpace(email) &&
-                !string.Equals(localUser.Email, email, StringComparison.OrdinalIgnoreCase))
-            {
-                localUser.Email = email;
-                await _context.SaveChangesAsync();
-            }
-
-            var roleName = await GetRoleNameAsync(localUser.Role);
-            var companyName = await GetCompanyNameAsync(localUser.Companyid);
-
-            var oneIdUser = new OneIdUserInfoDto
-            {
-                Userid = localUser.Userid,
-                Name = string.IsNullOrWhiteSpace(localUser.Username) ? name : localUser.Username,
-                Mobile = localUser.Mobile,
-                Email = localUser.Email,
-                GID = localUser.Gid,
-                Roleid = localUser.Role,
-                RoleName = roleName,
-                Companyid = localUser.Companyid ?? 0,
-                Companyname = companyName
+                Name = name,
+                Email = email,
+                PhoneNumber = phoneNumber,
+                ExternalId = externalId,
+                Gid = gid
             };
-
-            _logger.LogInformation(
-                "OneID登录成功，本地用户匹配成功，UserId：{UserId}，Name：{Name}，GID：{GID}，Mobile：{Mobile}，RoleId：{RoleId}，RoleName：{RoleName}，CompanyId：{CompanyId}，CompanyName：{CompanyName}",
-                oneIdUser.Userid,
-                oneIdUser.Name,
-                oneIdUser.GID,
-                oneIdUser.Mobile,
-                oneIdUser.Roleid,
-                oneIdUser.RoleName,
-                oneIdUser.Companyid,
-                oneIdUser.Companyname);
-
-            return new JsonResult(new
-            {
-                code = ResponseCode.成功,
-                data = oneIdUser,
-                msg = ""
-            });
         }
 
         private async Task<User?> FindLocalUserAsync(string gid, string phoneNumber)
@@ -211,6 +205,67 @@ namespace premaintainProjects.Controllers
 
             return await _context.Users
                 .FirstOrDefaultAsync(x => x.Mobile == phoneNumber);
+        }
+
+        private async Task SyncLocalUserContactAsync(User localUser, OneIdParsedUser parsedUser)
+        {
+            var hasUserChanged = false;
+
+            if (_serviceTools.TryNormalizeMobile(parsedUser.PhoneNumber, out var normalizedMobile))
+            {
+                if (!string.Equals(localUser.Mobile, normalizedMobile, StringComparison.Ordinal))
+                {
+                    localUser.Mobile = normalizedMobile;
+                    hasUserChanged = true;
+                }
+            }
+            else if (!string.IsNullOrWhiteSpace(parsedUser.PhoneNumber))
+            {
+                _logger.LogWarning(
+                    "OneID返回的手机号格式不正确，PhoneNumber：{PhoneNumber}，UserId：{UserId}",
+                    parsedUser.PhoneNumber,
+                    localUser.Userid);
+            }
+
+            if (_serviceTools.IsValidEmail(parsedUser.Email))
+            {
+                if (!string.Equals(localUser.Email, parsedUser.Email, StringComparison.OrdinalIgnoreCase))
+                {
+                    localUser.Email = parsedUser.Email;
+                    hasUserChanged = true;
+                }
+            }
+            else if (!string.IsNullOrWhiteSpace(parsedUser.Email))
+            {
+                _logger.LogWarning(
+                    "OneID返回的邮箱格式不正确，Email：{Email}，UserId：{UserId}",
+                    parsedUser.Email,
+                    localUser.Userid);
+            }
+
+            if (hasUserChanged)
+            {
+                await _context.SaveChangesAsync();
+            }
+        }
+
+        private async Task<OneIdUserInfoDto> BuildOneIdUserDtoAsync(User localUser, OneIdParsedUser parsedUser)
+        {
+            var roleName = await GetRoleNameAsync(localUser.Role);
+            var companyName = await GetCompanyNameAsync(localUser.Companyid);
+
+            return new OneIdUserInfoDto
+            {
+                Userid = localUser.Userid,
+                Name = string.IsNullOrWhiteSpace(localUser.Username) ? parsedUser.Name : localUser.Username,
+                Mobile = localUser.Mobile,
+                Email = localUser.Email,
+                GID = localUser.Gid,
+                Roleid = localUser.Role,
+                RoleName = roleName,
+                Companyid = localUser.Companyid ?? 0,
+                Companyname = companyName
+            };
         }
 
         private async Task<string?> GetRoleNameAsync(int? roleId)
@@ -235,6 +290,15 @@ namespace premaintainProjects.Controllers
                 .Where(x => x.Companyid == companyId.Value)
                 .Select(x => x.Companyname)
                 .FirstOrDefaultAsync();
+        }
+
+        private sealed class OneIdParsedUser
+        {
+            public string Name { get; set; } = string.Empty;
+            public string Email { get; set; } = string.Empty;
+            public string PhoneNumber { get; set; } = string.Empty;
+            public string ExternalId { get; set; } = string.Empty;
+            public string Gid { get; set; } = string.Empty;
         }
     }
 
