@@ -127,6 +127,13 @@ namespace premaintainProjects.Controllers
             var reg = new Regex(@"^Z\d{3}[0-9A-Z]{4}", RegexOptions.IgnoreCase);
             var gid = reg.IsMatch(externalId) ? externalId.ToUpper() : "";
 
+            _logger.LogWarning(
+                "OneID登录成功，但本地未匹配到用户，GID：{GID}，Mobile：{Mobile}，IdToken：{IdToken}",
+                gid,
+                phoneNumber,
+                idToken);
+
+
             if (string.IsNullOrWhiteSpace(gid) && string.IsNullOrWhiteSpace(phoneNumber))
             {
                 _logger.LogWarning("OneID登录成功，但GID和手机号都为空");
@@ -196,8 +203,10 @@ namespace premaintainProjects.Controllers
         {
             if (!string.IsNullOrWhiteSpace(gid))
             {
+                var normalizedGid = gid.ToUpperInvariant();
+
                 return await _context.Users
-                    .FirstOrDefaultAsync(x => x.Gid == gid);
+                    .FirstOrDefaultAsync(x => x.Gid != null && x.Gid.ToUpper() == normalizedGid);
             }
 
             return await _context.Users

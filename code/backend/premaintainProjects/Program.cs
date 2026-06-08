@@ -3,8 +3,37 @@ using Microsoft.Extensions.FileProviders;
 using premaintainProjects.Dtos;
 using premaintainProjects.Models;
 using premaintainProjects.Services;
+using Serilog;
+
 
 var builder = WebApplication.CreateBuilder(args);
+
+
+var logPath = Path.Combine(AppContext.BaseDirectory, "Logs");
+Directory.CreateDirectory(logPath);
+
+
+/*
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Debug()
+    .WriteTo.File(Path.Combine(logPath, "log-.txt"), rollingInterval: RollingInterval.Day)
+    .CreateLogger();
+*/
+
+// Serilog 落文件
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Information()
+    .MinimumLevel.Override("Microsoft", Serilog.Events.LogEventLevel.Warning)
+    .MinimumLevel.Override("Microsoft.EntityFrameworkCore", Serilog.Events.LogEventLevel.Warning)
+    .WriteTo.File(
+        Path.Combine(logPath, "log-.txt"),
+        rollingInterval: RollingInterval.Day,
+        retainedFileCountLimit: 30,
+        shared: true,
+        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {SourceContext} {Message:lj}{NewLine}{Exception}")
+    .CreateLogger();
+
+builder.Host.UseSerilog();
 
 builder.Services.AddControllers();
 builder.Services.AddCors(options =>
