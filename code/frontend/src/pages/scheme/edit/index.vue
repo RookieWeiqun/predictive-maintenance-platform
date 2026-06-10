@@ -56,32 +56,34 @@
                 :value="subCategory.id"
               />
             </IxSelect>
-            <IxSelect
-              v-model="schemeForm.series"
-              label="系列"
-              placeholder="请选择系列"
-              style="flex: 1;"
-            >
-              <IxSelectItem
-                v-for="option in seriesOptions"
-                :key="option"
-                :label="option"
-                :value="option"
-              />
-            </IxSelect>
-            <IxSelect
-              v-model="schemeForm.size"
-              label="尺寸"
-              placeholder="请选择尺寸"
-              style="flex: 1;"
-            >
-              <IxSelectItem
-                v-for="option in sizeOptions"
-                :key="option"
-                :label="option"
-                :value="option"
-              />
-            </IxSelect>
+            <template v-if="schemeForm.atomicType === 'equipment'">
+              <IxSelect
+                v-model="schemeForm.series"
+                label="系列"
+                placeholder="请选择系列"
+                style="flex: 1;"
+              >
+                <IxSelectItem
+                  v-for="option in seriesOptions"
+                  :key="option"
+                  :label="option"
+                  :value="option"
+                />
+              </IxSelect>
+              <IxSelect
+                v-model="schemeForm.size"
+                label="尺寸"
+                placeholder="请选择尺寸"
+                style="flex: 1;"
+              >
+                <IxSelectItem
+                  v-for="option in sizeOptions"
+                  :key="option"
+                  :label="option"
+                  :value="option"
+                />
+              </IxSelect>
+            </template>
           </template>
         </div>
 
@@ -203,13 +205,9 @@ const subCategories = computed(() => {
   return category?.subCategories || [];
 });
 
-const productCategoryLabel = computed(() =>
-  schemeForm.value.atomicType === 'peripheral' ? '产品类别' : '产品分类',
-);
+const productCategoryLabel = computed(() => '产品类型');
 
-const productSeriesLabel = computed(() =>
-  schemeForm.value.atomicType === 'peripheral' ? '产品系列' : '子分类',
-);
+const productSeriesLabel = computed(() => '产品系列');
 
 function withCurrentOption(options: string[], currentValue: string): string[] {
   const value = currentValue.trim();
@@ -354,10 +352,23 @@ const handleExcelSelected = async (event: Event) => {
 const canSave = computed(() => {
   if (!schemeForm.value.atomicType || !schemeForm.value.name) return false;
   if (!schemeForm.value.categoryId || !schemeForm.value.subCategoryId) return false;
-  if (!schemeForm.value.series.trim() || !schemeForm.value.size.trim()) return false;
+  if (schemeForm.value.atomicType === 'equipment' && (!schemeForm.value.series.trim() || !schemeForm.value.size.trim())) {
+    return false;
+  }
   if (!currentAtomicScheme.value?.items?.length) return false;
   return true;
 });
+
+watch(
+  () => schemeForm.value.atomicType,
+  (type) => {
+    if (type === 'peripheral') {
+      schemeForm.value.series = '';
+      schemeForm.value.size = '';
+    }
+  },
+  { immediate: true },
+);
 
 const findParentAndSiblings = (itemId: string): { parent: SchemeItem | null; siblings: SchemeItem[]; isRoot: boolean } => {
   if (!currentAtomicScheme.value) {
@@ -726,11 +737,15 @@ onMounted(() => {
   })();
 });
 
-watch(() => schemeForm.value.categoryId, () => {
-  if (schemeForm.value.categoryId) {
+watch(
+  () => schemeForm.value.categoryId,
+  (nextCategoryId, previousCategoryId) => {
+    if (!nextCategoryId || !previousCategoryId || nextCategoryId === previousCategoryId) {
+      return;
+    }
     schemeForm.value.subCategoryId = '';
-  }
-});
+  },
+);
 </script>
 
 <style scoped>

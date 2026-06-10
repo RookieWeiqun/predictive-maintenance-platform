@@ -475,7 +475,7 @@ const route = useRoute();
 
 const routeTaskId = computed(() => String(route.params.taskId ?? ''));
 const taskListRoute = computed(() => route.query.source === 'offline' ? '/task/list-offline' : '/task/list-online');
-const MAX_TASK_PHOTOS = 3;
+const MAX_TASK_PHOTOS = 4;
 
 type SidebarModuleNode = {
   id: string;

@@ -17,6 +17,18 @@ interface ImportMetaEnv {
   readonly VITE_API_BASE_URL?: string;
   /** 报告文件下载基地址；不填时默认使用当前前端页面的 origin。 */
   readonly VITE_REPORT_DOWNLOAD_BASE_URL?: string;
+  /** OneID code 换 token 的后端接口根地址；不填时沿用 `VITE_API_BASE_URL` 或同源 `/api`。 */
+  readonly VITE_ONEID_API_BASE_URL?: string;
+  /** OneID issuer，默认使用项目当前 QA 配置。 */
+  readonly VITE_ONEID_ISSUER?: string;
+  /** OneID 授权端点；不填时使用项目当前 QA 配置。 */
+  readonly VITE_ONEID_AUTHORIZATION_ENDPOINT?: string;
+  /** OneID client id；不填时尝试从 issuer 最后一段推导。 */
+  readonly VITE_ONEID_CLIENT_ID?: string;
+  /** OneID scope；默认 `openid profile`。 */
+  readonly VITE_ONEID_SCOPE?: string;
+  /** OneID 登录完成后的回调地址；默认 `${location.origin}/callback`。 */
+  readonly VITE_ONEID_REDIRECT_URI?: string;
   /**
    * 仅用于 `vite.config.ts` 开发/预览代理：`/api` 转发目标（默认开发后端）。
    * 会打入前端 bundle，请勿在此存放密钥。

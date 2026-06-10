@@ -49,13 +49,12 @@
           <DeviceSelectionStep
             v-if="currentStep === 1"
             :customer-id="formData.customerId"
+            :customer-name="getCustomerName(formData.customerId)"
             :factory="formData.factory"
             :project-devices="deviceList"
             :get-category-name="getCategoryName"
             :get-sub-category-name="getSubCategoryName"
             @add-devices="handleAddDevices"
-            @show-add-modal="showAddDeviceModal = true"
-            @edit-device="editDevice"
             @remove-device="removeDevice"
             @clear-devices="clearDeviceList"
           />
@@ -132,13 +131,6 @@
       </div>
     </section>
     
-    <!-- 手动创建设备模态框 -->
-    <AddDeviceModal
-      v-model="showAddDeviceModal"
-      :editing-device="editingDevice"
-      @submit="handleDeviceSubmit"
-    />
-
     <div v-if="submitProgress.visible" class="submit-progress-mask">
       <div class="submit-progress-card">
         <div class="submit-progress-title">正在{{ isEditMode ? '保存修改' : '创建项目' }}</div>
@@ -183,6 +175,7 @@ import { loadTemplateItemsByTemplateId } from '@/pages/scheme/utils/loadTemplate
 import {
   searchTemplatesForProjectDevices,
   searchEquipmentTemplatesWithDiagnostics,
+  INSPECTION_TYPE_EQUIPMENT,
   INSPECTION_TYPE_PERIPHERAL,
 } from './utils/matchInspectionTemplates';
 import { mapEquipmentToSelectable } from './utils/equipmentSelection';
@@ -202,7 +195,6 @@ import DeviceSelectionStep from './components/DeviceSelectionStep.vue';
 import SchemeMatchingStep from './components/SchemeMatchingStep.vue';
 import SchemeAdjustmentStep from './components/SchemeAdjustmentStep.vue';
 import SchemeConfirmationStep from './components/SchemeConfirmationStepV3.vue';
-import AddDeviceModal from './components/AddDeviceModal.vue';
 import productCategoriesData from '@/mockdata/common/productCategories.json';
 import maintenanceSchemesData from '@/mockdata/common/maintenanceSchemes.json';
 
@@ -292,6 +284,7 @@ const formData = ref({
 // 设备列表
 interface Device {
   id: string;
+  customerId?: string;
   categoryId: string;
   subCategoryId: string;
   model: string;
@@ -304,11 +297,54 @@ interface Device {
 }
 
 const deviceList = ref<Device[]>([]);
-const showAddDeviceModal = ref(false);
-const editingDeviceIndex = ref<number | null>(null);
 const matchedPeripheralTemplates = ref<InspectionTemplateDto[]>([]);
+const allEquipmentTemplates = ref<InspectionTemplateDto[]>([]);
+const allPeripheralTemplates = ref<InspectionTemplateDto[]>([]);
 const peripheralSchemeId = ref('');
 const peripheralElectricRoomCount = ref<string>(PERIPHERAL_ELECTRIC_ROOM_UNKNOWN);
+let templateCatalogPromise: Promise<void> | null = null;
+
+function getEffectiveEquipmentTemplates(options: InspectionTemplateDto[]): InspectionTemplateDto[] {
+  return options.length > 0 ? options : allEquipmentTemplates.value;
+}
+
+function getEffectivePeripheralTemplates(options: InspectionTemplateDto[]): InspectionTemplateDto[] {
+  return options.length > 0 ? options : allPeripheralTemplates.value;
+}
+
+function hasAnySelectedEquipmentScheme(): boolean {
+  return Object.values(equipmentSchemeIdByModel.value).some((templateId) => String(templateId ?? '').trim());
+}
+
+function syncPrimarySchemeFromCurrentSelections() {
+  if (hasAnySelectedEquipmentScheme()) {
+    syncPrimarySchemeFromEquipmentRows();
+    return;
+  }
+  syncPrimarySchemeFromPeripheralOnly();
+}
+
+async function ensureTemplateCatalogLoaded() {
+  if (allEquipmentTemplates.value.length > 0 || allPeripheralTemplates.value.length > 0) {
+    return;
+  }
+  if (!templateCatalogPromise) {
+    templateCatalogPromise = inspectionTemplatesApi
+      .listInspectionTemplates()
+      .then((templates) => {
+        allEquipmentTemplates.value = templates.filter(
+          (template) => template.inspectiontype === INSPECTION_TYPE_EQUIPMENT,
+        );
+        allPeripheralTemplates.value = templates.filter(
+          (template) => template.inspectiontype === INSPECTION_TYPE_PERIPHERAL,
+        );
+      })
+      .finally(() => {
+        templateCatalogPromise = null;
+      });
+  }
+  await templateCatalogPromise;
+}
 
 async function loadProjectDevicesForWizard(projectId: number, companyid: number) {
   try {
@@ -318,6 +354,7 @@ async function loadProjectDevicesForWizard(projectId: number, companyid: number)
       const s = mapEquipmentToSelectable(e, cid);
       return {
         id: s.id,
+        customerId: s.customerId,
         categoryId: s.categoryId,
         subCategoryId: s.subCategoryId,
         model: s.model,
@@ -443,7 +480,7 @@ const equipmentSchemeRows = computed(() => {
     modelMap.set(key, {
       label: equipmentModelLabel(d),
       deviceCount: d.quantity || 0,
-      options: equipmentTemplatesByModel.value[key] ?? [],
+      options: getEffectiveEquipmentTemplates(equipmentTemplatesByModel.value[key] ?? []),
       selectedId: equipmentSchemeIdByModel.value[key] ?? '',
     });
   }
@@ -468,7 +505,7 @@ const equipmentSchemeRows = computed(() => {
 });
 
 const peripheralTemplateOptions = computed(() =>
-  matchedPeripheralTemplates.value
+  getEffectivePeripheralTemplates(matchedPeripheralTemplates.value)
     .map((template) => ({
       id: String(template.templateid),
       name: template.name?.trim() ? (template.name as string) : `模板 #${template.templateid}`,
@@ -511,10 +548,10 @@ let refreshMatchedSeq = 0;
  * 无设备检测模板候选时，用已选外围方案作为向导「主方案」id（树预览、调整、确认共用）。
  */
 function syncPrimarySchemeFromPeripheralOnly() {
-  if (matchedEquipmentTemplates.value.length > 0) return;
+  if (hasAnySelectedEquipmentScheme()) return;
 
   const pickedId = String(peripheralSchemeId.value ?? '').trim();
-  const isValid = matchedPeripheralTemplates.value.some(
+  const isValid = getEffectivePeripheralTemplates(matchedPeripheralTemplates.value).some(
     (template) => String(template.templateid) === pickedId,
   );
   if (!pickedId || !isValid) {
@@ -565,6 +602,7 @@ async function refreshMatchedTemplates() {
 
   loadingMatchedTemplates.value = true;
   try {
+    await ensureTemplateCatalogLoaded();
     const modelGroups = new Map<string, Device[]>();
     for (const d of deviceList.value) {
       const key = equipmentModelKey(d);
@@ -584,7 +622,7 @@ async function refreshMatchedTemplates() {
     if (seq !== refreshMatchedSeq) return;
 
     equipmentTemplatesByModel.value = Object.fromEntries(
-      equipByModelEntries.map(([key, result]) => [key, result.options]),
+      equipByModelEntries.map(([key, result]) => [key, getEffectiveEquipmentTemplates(result.options)]),
     );
     equipmentMatchDiagnosticsByModel.value = Object.fromEntries(
       equipByModelEntries.map(([key, result]) => [
@@ -607,7 +645,7 @@ async function refreshMatchedTemplates() {
     const persistedEquipment = { ...persistedEquipmentSchemeIdByModel.value };
     const nextEquipment: Record<string, string> = {};
     for (const [key, result] of equipByModelEntries) {
-      const opts = result.options;
+      const opts = getEffectiveEquipmentTemplates(result.options);
       if (!opts || opts.length === 0) continue;
       const prev = prevEquipment[key];
       const prevValid = prev && opts.some((t) => String(t.templateid) === prev);
@@ -626,7 +664,8 @@ async function refreshMatchedTemplates() {
     equipmentSchemeIdByModel.value = nextEquipment;
 
     const currentPeripheralId = String(peripheralSchemeId.value ?? '').trim();
-    const currentPeripheralValid = currentPeripheralId && peripheralTemplates.some(
+    const effectivePeripheralTemplates = getEffectivePeripheralTemplates(peripheralTemplates);
+    const currentPeripheralValid = currentPeripheralId && effectivePeripheralTemplates.some(
       (template) => String(template.templateid) === currentPeripheralId,
     );
     let nextPeripheralId = '';
@@ -642,7 +681,7 @@ async function refreshMatchedTemplates() {
       if (
         !nextPeripheralId
         && storedPeripheralId
-        && peripheralTemplates.some((template) => String(template.templateid) === storedPeripheralId)
+        && effectivePeripheralTemplates.some((template) => String(template.templateid) === storedPeripheralId)
       ) {
         nextPeripheralId = storedPeripheralId;
       }
@@ -671,11 +710,7 @@ async function refreshMatchedTemplates() {
       peripheralElectricRoomCount.value = PERIPHERAL_ELECTRIC_ROOM_UNKNOWN;
     }
 
-    if (matchedEquipmentTemplates.value.length === 0) {
-      syncPrimarySchemeFromPeripheralOnly();
-    } else {
-      syncPrimarySchemeFromEquipmentRows();
-    }
+    syncPrimarySchemeFromCurrentSelections();
   } catch (e) {
     if (seq !== refreshMatchedSeq) return;
     showToast({ message: e instanceof Error ? e.message : '方案匹配失败' });
@@ -705,6 +740,11 @@ const getSubCategoryName = (categoryId: string, subCategoryId: string) => {
   return subCategory?.name || '-';
 };
 
+const getCustomerName = (customerId: string) => {
+  const hit = customerOptions.value.find((item) => item.value === customerId);
+  return hit?.label || customerId || '';
+};
+
 // 设备管理
 const handleAddDevices = (devices: Device[]) => {
   devices.forEach(device => {
@@ -719,15 +759,12 @@ const handleAddDevices = (devices: Device[]) => {
   });
 };
 
-const editDevice = (index: number) => {
-  editingDeviceIndex.value = index;
-  showAddDeviceModal.value = true;
-};
-
 const removeDevice = (index: number) => {
-  if (confirm('确定要删除这台设备吗？')) {
-    deviceList.value.splice(index, 1);
+  if (!confirm('确定要删除这台设备吗？')) {
+    return;
   }
+  deviceList.value.splice(index, 1);
+  showToast({ message: '已从当前项目选择中移除' });
 };
 
 const clearDeviceList = () => {
@@ -735,37 +772,6 @@ const clearDeviceList = () => {
     deviceList.value = [];
   }
 };
-
-const handleDeviceSubmit = (deviceData: {
-  categoryId: string;
-  subCategoryId: string;
-  model: string;
-  serialNumber?: string;
-  quantity: number;
-}) => {
-  const keepId =
-    editingDeviceIndex.value !== null
-      ? deviceList.value[editingDeviceIndex.value]?.id
-      : undefined;
-  const device: Device = {
-    id: keepId && String(keepId).trim() ? String(keepId) : `device-${Date.now()}`,
-    ...deviceData,
-  };
-
-  if (editingDeviceIndex.value !== null) {
-    deviceList.value[editingDeviceIndex.value] = device;
-    editingDeviceIndex.value = null;
-  } else {
-    deviceList.value.push(device);
-  }
-  
-  showAddDeviceModal.value = false;
-};
-
-const editingDevice = computed(() => {
-  if (editingDeviceIndex.value === null) return null;
-  return deviceList.value[editingDeviceIndex.value];
-});
 
 // 方案管理
 const handleSelectScheme = (schemeId: string) => {
@@ -793,12 +799,12 @@ function handleUpdateEquipmentScheme(modelKey: string, templateId: string) {
     ...equipmentSchemeIdByModel.value,
     [modelKey]: templateId,
   };
-  syncPrimarySchemeFromEquipmentRows();
+  syncPrimarySchemeFromCurrentSelections();
 }
 
 function handleUpdatePeripheralScheme(templateId: string) {
   peripheralSchemeId.value = String(templateId ?? '').trim();
-  syncPrimarySchemeFromPeripheralOnly();
+  syncPrimarySchemeFromCurrentSelections();
 }
 
 const resetScheme = () => {
@@ -1023,7 +1029,7 @@ const handleNext = () => {
       return;
     }
   } else if (currentStep.value === 2) {
-    syncPrimarySchemeFromPeripheralOnly();
+    syncPrimarySchemeFromCurrentSelections();
     if (!formData.value.maintenanceSchemeId?.trim()) {
       if (matchedEquipmentTemplates.value.length > 0) {
         alert('请单击上方卡片选择「设备检测」维护方案。');
@@ -1146,6 +1152,7 @@ async function resolvePersistedEquipmentBindings(): Promise<PersistedEquipmentBi
       companyid,
       factory: (d.factoryName ?? formData.value.factory ?? '').trim() || null,
       workshop: (d.workshopName ?? '').trim() || null,
+      electricroom: (d.electricRoom ?? '').trim() || null,
       mlfb: d.model || null,
       equipmentname: null,
       productcategory: cat?.name ?? null,
@@ -1162,11 +1169,6 @@ async function resolvePersistedEquipmentBindings(): Promise<PersistedEquipmentBi
   return result;
 }
 
-function clipProjectText(text: string): string {
-  const normalized = text.trim();
-  return normalized.length <= 100 ? normalized : normalized.slice(0, 100);
-}
-
 async function ensureProductsForEquipment(binding: PersistedEquipmentBinding): Promise<void> {
   const { equipmentId, device } = binding;
   const existing = await productsApi.searchProducts({ equipmentid: equipmentId });
@@ -1180,15 +1182,11 @@ async function ensureProductsForEquipment(binding: PersistedEquipmentBinding): P
 
   let createdCount = existingIds.length;
   while (createdCount < requiredCount) {
-    const serial =
-      createdCount === 0 && device.serialNumber?.trim()
-        ? device.serialNumber.trim()
-        : `EQ${equipmentId}-U${createdCount + 1}`;
     await productsApi.createProduct({
       productid: 0,
       equipid: equipmentId,
       mlfb: device.model?.trim() ? device.model.trim() : null,
-      serialno: clipProjectText(serial),
+      serialno: null,
     });
     createdCount += 1;
   }
@@ -1199,12 +1197,14 @@ function buildProjectEquipmentTemplateBindings(
 ): Array<{ equipmentid: number; templateid: number }> {
   const bindings: Array<{ equipmentid: number; templateid: number }> = [];
   const maintenanceTemplateId = Number.parseInt(formData.value.maintenanceSchemeId ?? '', 10);
-  const matchedEquipmentTemplateIds = new Set(
-    matchedEquipmentTemplates.value.map((template) => template.templateid),
-  );
 
   for (const binding of persistedBindings) {
     const modelKey = equipmentModelKey(binding.device);
+    const availableTemplateIds = new Set(
+      getEffectiveEquipmentTemplates(equipmentTemplatesByModel.value[modelKey] ?? []).map(
+        (template) => template.templateid,
+      ),
+    );
     const selectedTemplateId = Number.parseInt(
       String(equipmentSchemeIdByModel.value[modelKey] ?? '').trim(),
       10,
@@ -1216,7 +1216,7 @@ function buildProjectEquipmentTemplateBindings(
     if (!Number.isFinite(resolvedTemplateId) || resolvedTemplateId <= 0) {
       continue;
     }
-    if (!matchedEquipmentTemplateIds.has(resolvedTemplateId)) {
+    if (!availableTemplateIds.has(resolvedTemplateId)) {
       continue;
     }
     bindings.push({

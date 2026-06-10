@@ -5,6 +5,9 @@
       <IxModalContent>
         <AddDeviceModalContent
           ref="contentRef"
+          :customer-id="data?.customerId"
+          :customer-name="data?.customerName"
+          :factory="data?.factory"
           :editing-device="data?.editingDevice"
           @submit="(device) => handleSubmit(device, closeModal)"
         />
@@ -24,18 +27,27 @@ import AddDeviceModalContent from './AddDeviceModalContent.vue';
 
 interface Props {
   data?: {
+    customerId?: string;
+    customerName?: string;
+    factory?: string;
     editingDevice?: {
+      customerId?: string;
+      factoryName?: string;
+      workshopName?: string;
+      electricRoom?: string;
       categoryId: string;
       subCategoryId: string;
       model: string;
-      serialNumber?: string;
       quantity: number;
     } | null;
     onSubmit: (device: {
+      customerId: string;
+      factoryName: string;
+      workshopName: string;
+      electricRoom: string;
       categoryId: string;
       subCategoryId: string;
       model: string;
-      serialNumber?: string;
       quantity: number;
     }) => void;
   };
@@ -46,10 +58,13 @@ const props = defineProps<Props>();
 const contentRef = ref<InstanceType<typeof AddDeviceModalContent> | null>(null);
 
 const handleSubmit = (device: {
+  customerId: string;
+  factoryName: string;
+  workshopName: string;
+  electricRoom: string;
   categoryId: string;
   subCategoryId: string;
   model: string;
-  serialNumber?: string;
   quantity: number;
 }, closeModal: () => void) => {
   if (props.data?.onSubmit) {

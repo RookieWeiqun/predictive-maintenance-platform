@@ -14,3 +14,7 @@ export * as productsApi from './modules/products';
 export * as taskitemsApi from './modules/taskitems';
 export * as reportsApi from './modules/reports';
 export * as usersApi from './modules/users';
+export * as rolesApi from './modules/roles';
+export * as permissionsApi from './modules/permissions';
+export * as rolePermissionsApi from './modules/rolePermissions';
+export * as authApi from './modules/auth';

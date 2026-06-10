@@ -67,6 +67,12 @@ function parseProductCategoryAsSubCategoryOnly(
 ): { categoryId: string; subCategoryId: string } {
   const s = (productcategory ?? '').trim();
   if (!s) return { categoryId: '', subCategoryId: '' };
+
+  const slashParsed = parseProductCategoryField(s);
+  if (slashParsed.categoryId || slashParsed.subCategoryId) {
+    return slashParsed;
+  }
+
   const cats = productCategoriesData.categories;
   for (const cat of cats) {
     const sub = cat.subCategories.find((sc) => sc.name === s);
@@ -91,6 +97,13 @@ export function buildProductCategoryField(
   if (cat && sub) return `${cat.name}/${sub.name}`;
   if (cat) return cat.name;
   return '';
+}
+
+function buildPersistedProductCategoryField(
+  categoryId: string,
+  subCategoryId: string,
+): string {
+  return buildProductCategoryField(categoryId, subCategoryId, 'equipment');
 }
 
 function normalizeDateOnly(createdate?: string | null): string | undefined {
@@ -273,17 +286,19 @@ export function buildTemplateDtoForSave(
   const plainDescription = schemeForm.description ?? '';
   const inspectiontype = resolvedType === 'equipment' ? 1 : 2;
   const productcategory =
-    buildProductCategoryField(schemeForm.categoryId, schemeForm.subCategoryId, resolvedType) || '';
+    buildPersistedProductCategoryField(mergedAtomic.categoryId, mergedAtomic.subCategoryId) || '';
+  const resolvedSeries = resolvedType === 'equipment' ? schemeForm.series || '' : '';
+  const resolvedSize = resolvedType === 'equipment' ? schemeForm.size || '' : '';
   const payload: InspectionTemplateDto = {
     templateid: templateId,
     name: schemeForm.name,
     description: plainDescription,
     inspectiontype,
     productcategory,
-    mlfb: resolvedType === 'equipment' ? schemeForm.model || '' : '',
+    mlfb: '',
     createdate: normalizeDateOnly(createdate) ?? todayDateOnly(),
-    series: schemeForm.series || '',
-    size: schemeForm.size || '',
+    series: resolvedSeries,
+    size: resolvedSize,
   };
   validateTemplatePayloadLengths(payload);
   return payload;

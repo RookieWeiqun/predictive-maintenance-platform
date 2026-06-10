@@ -22,7 +22,7 @@
             </IxSelect>
             <IxButton variant="secondary" @click="handleFilter">筛选</IxButton>
           </div>
-          <IxButton variant="primary" :icon="iconAdd" @click="navigateTo('/project/create')">
+          <IxButton v-if="canCreateProject" variant="primary" :icon="iconAdd" @click="navigateTo('/project/create')">
             新建项目
           </IxButton>
         </div>
@@ -56,11 +56,17 @@ import { IxContentHeader, IxButton, IxInput, IxSelect, IxSelectItem, showToast }
 import { iconAdd } from '@siemens/ix-icons/icons';
 import statusData from '@/mockdata/common/projectStatus.json';
 import { companiesApi, equipmentsApi, projectsApi } from '@/api';
+import { hasAnyButtonPermission } from '@/auth/store';
 import type { ProjectDto } from '@/api/modules/projects';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
 const router = useRouter();
+
+const canCreateProject = computed(() => hasAnyButtonPermission(['project:create', '/project/create']));
+const canEditProject = computed(() => hasAnyButtonPermission(['project:update', '/project/update']));
+const canDeleteProject = computed(() => hasAnyButtonPermission(['project:delete', '/project/delete']));
+const canViewProjectReport = computed(() => hasAnyButtonPermission(['project:report:view', '/project/report']));
 
 const navigateTo = (path: string) => {
   router.push(path);
@@ -264,12 +270,22 @@ onMounted(async () => {
         width: 420,
         cellRenderer: (params: any) => {
           const projectId = params.data.id;
+          const actions: string[] = [];
+          if (canEditProject.value) {
+            actions.push(`<button class="ag-action-btn ag-action-btn-edit" data-action="edit" data-id="${projectId}">编辑</button>`);
+          }
+          if (canViewProjectReport.value) {
+            actions.push(`<button class="ag-action-btn ag-action-btn-report" data-action="report" data-id="${projectId}">查看报告</button>`);
+          }
+          if (canDeleteProject.value) {
+            actions.push(`<button class="ag-action-btn ag-action-btn-delete" data-action="delete" data-id="${projectId}">删除项目</button>`);
+          }
+          if (actions.length === 0) {
+            return '<span class="ag-action-empty">无可用操作</span>';
+          }
           return `
             <div class="ag-action-buttons">
-              <button class="ag-action-btn ag-action-btn-view" data-action="view" data-id="${projectId}" hidden aria-hidden="true" tabindex="-1">查看</button>
-              <button class="ag-action-btn ag-action-btn-edit" data-action="edit" data-id="${projectId}">编辑</button>
-              <button class="ag-action-btn ag-action-btn-report" data-action="report" data-id="${projectId}">查看报告</button>
-              <button class="ag-action-btn ag-action-btn-delete" data-action="delete" data-id="${projectId}">删除项目</button>
+              ${actions.join('')}
             </div>
           `;
         },
@@ -354,6 +370,14 @@ onMounted(async () => {
 .status-closed {
   background-color: var(--theme-color-success-soft, rgba(0, 176, 79, 0.12));
   color: var(--theme-color-success);
+}
+
+.ag-action-empty {
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+  color: #8a939b;
+  font-size: 0.875rem;
 }
 </style>
 

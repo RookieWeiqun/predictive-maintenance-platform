@@ -14,6 +14,8 @@ import { createApp } from "vue";
 import App from "./App.vue";
 import router from "./router";
 import { initializeAndroidRuntime } from "./android";
+import { normalizeOneIdCallbackLocation } from "./config/oneid";
+import { initializeAuth } from "./auth/store";
 import "./index.css";
 import "./styles/theme-mapping.css";
 
@@ -43,11 +45,15 @@ function optionalTheme() {
 optionalTheme();
 
 async function bootstrap() {
+  normalizeOneIdCallbackLocation();
+
   try {
     await initializeAndroidRuntime();
   } catch (error) {
     console.error('离线数据库初始化失败:', error);
   }
+
+  await initializeAuth();
 
   const app = createApp(App);
   app.use(router);

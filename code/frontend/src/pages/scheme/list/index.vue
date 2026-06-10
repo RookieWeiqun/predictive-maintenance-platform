@@ -11,7 +11,7 @@
         <div class="filter-section">
           <IxInput 
             v-model="searchText" 
-            placeholder="搜索方案名称、描述、产品类型或型号" 
+            placeholder="搜索方案名称、描述、产品类型或产品系列" 
             style="flex: 1; max-width: 300px;" 
           />
           <IxSelect v-model="selectedCategory" placeholder="全部分类" style="min-width: 150px;">
@@ -107,17 +107,27 @@ const getSchemeTypeLabel = (type: string) => {
     'peripheral': '外围检测',
     'equipment': '设备检测',
   };
-  return typeMap[type] || type;
+  return typeMap[type] || '未知类型';
 };
 
-// 获取产品类型（合并分类和子分类）
+// 获取产品类型
 const getProductType = (scheme: SchemeListRow) => {
   const categoryName = getCategoryName(scheme.categoryId);
-  const subCategoryName = getSubCategoryName(scheme.subCategoryId);
-  if (categoryName && subCategoryName && categoryName !== '-' && subCategoryName !== '-') {
-    return `${categoryName}/${subCategoryName}`;
-  } else if (categoryName && categoryName !== '-') {
+  if (categoryName && categoryName !== '-') {
     return categoryName;
+  }
+  return '-';
+};
+
+// 获取产品系列
+const getProductSeries = (scheme: SchemeListRow) => {
+  const categoryName = getCategoryName(scheme.categoryId);
+  const subCategoryName = getSubCategoryName(scheme.subCategoryId);
+  if (subCategoryName && subCategoryName !== '-') {
+    return subCategoryName;
+  }
+  if (categoryName && categoryName !== '-') {
+    return '-';
   }
   return '-';
 };
@@ -156,11 +166,12 @@ const filteredSchemes = computed(() => {
     schemes = schemes.filter(
       (s) => {
         const productType = getProductType(s).toLowerCase();
+        const productSeries = getProductSeries(s).toLowerCase();
         return (
           s.name.toLowerCase().includes(q) ||
           (s.description && s.description.toLowerCase().includes(q)) ||
           productType.includes(q) ||
-          (s.model && s.model.toLowerCase().includes(q))
+          productSeries.includes(q)
         );
       },
     );
@@ -245,25 +256,24 @@ onMounted(async () => {
         resizable: true,
         sortable: true,
         filter: true,
-        width: 200,
+        width: 150,
         valueGetter: (params: any) => {
           return params.data ? getProductType(params.data) : '-';
         },
       },
       {
-        field: 'model',
-        headerName: '型号',
+        headerName: '产品系列',
         resizable: true,
         sortable: true,
         filter: true,
         width: 150,
         valueGetter: (params: any) => {
-          return params.data.model || '-';
+          return params.data ? getProductSeries(params.data) : '-';
         },
       },
       {
         field: 'series',
-        headerName: 'Series',
+        headerName: '系列',
         resizable: true,
         sortable: true,
         filter: true,
@@ -274,7 +284,7 @@ onMounted(async () => {
       },
       {
         field: 'size',
-        headerName: 'Size',
+        headerName: '尺寸',
         resizable: true,
         sortable: true,
         filter: true,

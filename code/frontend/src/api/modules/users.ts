@@ -9,6 +9,8 @@ export type UserDto = {
   role?: number | null;
   mobile?: string | null;
   createdate?: string | null;
+  gid?: string | null;
+  email?: string | null;
 };
 
 function unwrap<T>(res: ApiEnvelope<T>): T {
@@ -39,6 +41,8 @@ function mapUserRaw(raw: unknown): UserDto {
     })(),
     mobile: (getValue('mobile', 'Mobile') as string | null | undefined) ?? null,
     createdate: (getValue('createdate', 'Createdate') as string | null | undefined) ?? null,
+    gid: (getValue('gid', 'Gid') as string | null | undefined) ?? null,
+    email: (getValue('email', 'Email') as string | null | undefined) ?? null,
   };
 }
 
@@ -50,4 +54,27 @@ export async function listUsers(): Promise<UserDto[]> {
 export async function getUser(id: number): Promise<UserDto> {
   const res = await requestJson<ApiEnvelope<unknown>>(`/api/Users/${id}`);
   return mapUserRaw(unwrap(res));
+}
+
+export async function createUser(payload: Partial<UserDto>): Promise<number> {
+  const res = await requestJson<ApiEnvelope<number>>('/api/Users', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  return unwrap(res);
+}
+
+export async function updateUser(payload: Partial<UserDto> & { userid: number }): Promise<number> {
+  const res = await requestJson<ApiEnvelope<number>>('/api/Users', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+  return unwrap(res);
+}
+
+export async function deleteUser(id: number): Promise<number> {
+  const res = await requestJson<ApiEnvelope<number>>(`/api/Users/${id}`, {
+    method: 'DELETE',
+  });
+  return unwrap(res);
 }

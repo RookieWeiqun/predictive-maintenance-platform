@@ -1,6 +1,41 @@
 import { getTypeLabel, mapRequiredToPriority, type FlatRow } from './schemeUtils';
 import { Ref } from 'vue';
 
+function normalizeDataTypeLabel(value: unknown): string {
+  const text = String(value ?? '').trim().toLowerCase();
+  if (!text) return '';
+  if (['数值', 'numeric', 'number'].includes(text)) return 'number';
+  if (['布尔', 'bool', 'boolean'].includes(text)) return 'boolean';
+  if (['文本', 'text', 'string'].includes(text)) return 'text';
+  if (['枚举', 'select', 'enum'].includes(text)) return 'enum';
+  return text;
+}
+
+function resolveRuleTypeForDataType(dataType: string): string {
+  const normalized = normalizeDataTypeLabel(dataType);
+  if (normalized === 'boolean') return 'boolean_equal';
+  if (normalized === 'text') return 'text_pattern';
+  if (normalized === 'enum') return 'enum';
+  return 'number_range';
+}
+
+function resolveDisplayedDataType(data: FlatRow): string {
+  const explicit = normalizeDataTypeLabel(data.dataType);
+  if (explicit) return explicit;
+
+  const ruleType = String(data.ruleType ?? '').trim().toLowerCase();
+  if (ruleType === 'boolean_equal') return 'boolean';
+  if (ruleType === 'text_pattern') return 'text';
+  if (ruleType === 'enum') return 'enum';
+  if (ruleType === 'number_range') return 'number';
+
+  if (data.type === 'electrical') return 'number';
+  if (data.type === 'functional') return 'enum';
+  if (data.type === 'visual' || data.type === 'environment') return 'text';
+
+  return data.type ? normalizeDataTypeLabel(getTypeLabel(data.type)) : '';
+}
+
 /**
  * 创建基础列定义
  */
@@ -90,7 +125,7 @@ export function createBaseColumnDefs(
       valueGetter: (params: any) => {
         const data = params.data as FlatRow;
         if (!data.isDetectionItem) return '-';
-        return data.dataType || (data.type ? getTypeLabel(data.type) : '-');
+        return resolveDisplayedDataType(data) || '-';
       },
       valueFormatter: (params: any) => {
         if (params.value === undefined || params.value === null) return '-';
@@ -283,19 +318,23 @@ export function configureColumnEditing(
     } else if (field === 'dataType') {
       colDef.editable = (params: any) => !!params.data.isDetectionItem;
       colDef.cellEditor = 'agSelectCellEditor';
-      colDef.cellEditorParams = { values: ['数值', '布尔', '枚举'] };
+      colDef.cellEditorParams = { values: ['boolean', 'number', 'text', 'enum'] };
       colDef.valueGetter = (params: any) => {
         const data = params.data as FlatRow;
         if (!data.isDetectionItem) return '-';
-        return data.dataType || '-';
+        return resolveDisplayedDataType(data) || '-';
       };
       colDef.valueSetter = (params: any) => {
         const rowData = params.data as FlatRow;
         if (rowData.isDetectionItem) {
           const item = findItemByRowId(rowData.id);
           if (item) {
-            item.dataType = params.newValue || undefined;
-            rowData.dataType = params.newValue || undefined;
+            const normalizedType = normalizeDataTypeLabel(params.newValue);
+            item.dataType = normalizedType || undefined;
+            rowData.dataType = normalizedType || undefined;
+            item.ruleType = normalizedType ? resolveRuleTypeForDataType(normalizedType) : undefined;
+            rowData.ruleType = item.ruleType;
+            updateGridData();
             return true;
           }
         }

@@ -99,20 +99,36 @@ export async function listEquipmentsByCompany(companyid: number): Promise<Equipm
   return unwrap(res).map(mapEquipmentRow);
 }
 
+function mapEquipmentMutationResult(raw: unknown, fallback: EquipmentDto): EquipmentDto {
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    return { ...fallback, equipid: raw };
+  }
+  if (typeof raw === 'string') {
+    const parsed = Number(raw);
+    if (Number.isFinite(parsed)) {
+      return { ...fallback, equipid: parsed };
+    }
+  }
+  if (raw && typeof raw === 'object') {
+    return mapEquipmentRow(raw);
+  }
+  return { ...fallback };
+}
+
 export async function createEquipment(payload: EquipmentDto): Promise<EquipmentDto> {
-  const res = await requestJson<ApiEnvelope<EquipmentDto>>('/api/Equipments', {
+  const res = await requestJson<ApiEnvelope<unknown>>('/api/Equipments', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
-  return unwrap(res);
+  return mapEquipmentMutationResult(unwrap(res), payload);
 }
 
 export async function updateEquipment(payload: EquipmentDto): Promise<EquipmentDto> {
-  const res = await requestJson<ApiEnvelope<EquipmentDto>>('/api/Equipments', {
+  const res = await requestJson<ApiEnvelope<unknown>>('/api/Equipments', {
     method: 'PUT',
     body: JSON.stringify(payload),
   });
-  return unwrap(res);
+  return mapEquipmentMutationResult(unwrap(res), payload);
 }
 
 export async function deleteEquipment(id: number): Promise<void> {

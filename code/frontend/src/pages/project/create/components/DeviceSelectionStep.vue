@@ -13,7 +13,7 @@
         {{ loadingDevices ? '加载设备…' : '选择设备' }}
       </IxButton>
       <IxButton variant="secondary" @click="handleShowAddModal">手动创建设备</IxButton>
-      <IxButton variant="secondary" @click="handleShowUploadModal">批量导入设备</IxButton>
+      <!-- <IxButton variant="secondary" @click="handleShowUploadModal">批量导入设备</IxButton> -->
     </div>
     <p v-if="!canSelectFromLibrary && (customerId || factory)" class="helper-text">
       请先在「基本信息」中填写客户与工厂，系统将加载该工厂下全部设备供选择。
@@ -28,7 +28,6 @@
       :devices="projectDevices"
       :get-category-name="getCategoryName"
       :get-sub-category-name="getSubCategoryName"
-      @edit="(index) => $emit('edit-device', index)"
       @remove="(index) => $emit('remove-device', index)"
       @clear="() => $emit('clear-devices')"
     />
@@ -49,6 +48,7 @@ import ProjectDeviceList from './ProjectDeviceList.vue';
 import DeviceSelectionModal from './DeviceSelectionModal.vue';
 import UploadDeviceModal from './UploadDeviceModal.vue';
 import AddDeviceModalWrapper from './AddDeviceModalWrapper.vue';
+import { equipmentsApi } from '@/api';
 import {
   loadDevicesForProjectSelection,
   type SelectableProjectDevice,
@@ -58,6 +58,7 @@ ModuleRegistry.registerModules([AllCommunityModule]);
 
 interface Device {
   id: string;
+  customerId?: string;
   categoryId: string;
   subCategoryId: string;
   model: string;
@@ -70,6 +71,7 @@ interface Device {
 
 interface Props {
   customerId: string;
+  customerName: string;
   /** 与基本信息中的工厂一致，用于筛选设备档案 */
   factory: string;
   projectDevices: Device[];
@@ -81,8 +83,6 @@ const props = defineProps<Props>();
 
 const emit = defineEmits<{
   'add-devices': [devices: Device[]];
-  'show-add-modal': [];
-  'edit-device': [index: number];
   'remove-device': [index: number];
   'clear-devices': [];
 }>();
@@ -237,18 +237,63 @@ const handleShowAddModal = () => {
     size: '600',
     content: h(AddDeviceModalWrapper, {
       data: {
+        customerId: props.customerId,
+        customerName: props.customerName,
+        factory: props.factory.trim(),
+        editingDevice: {
+          customerId: props.customerId,
+          factoryName: props.factory.trim(),
+          workshopName: '',
+          electricRoom: '',
+          categoryId: '',
+          subCategoryId: '',
+          model: '',
+          quantity: 1,
+        },
         onSubmit: (device: {
+          customerId: string;
+          factoryName: string;
+          workshopName: string;
+          electricRoom: string;
           categoryId: string;
           subCategoryId: string;
           model: string;
-          serialNumber?: string;
           quantity: number;
         }) => {
-          const projectDevice: Device = {
-            id: `device-${Date.now()}`,
-            ...device,
-          };
-          emit('add-devices', [projectDevice]);
+          void (async () => {
+            try {
+              const companyid = Number.parseInt(device.customerId, 10);
+              if (Number.isNaN(companyid) || companyid <= 0) {
+                throw new Error('请先在基本信息中选择有效客户');
+              }
+              const categoryName = props.getCategoryName(device.categoryId);
+              const subCategoryName = props.getSubCategoryName(device.categoryId, device.subCategoryId);
+              const created = await equipmentsApi.createEquipment({
+                companyid,
+                factory: device.factoryName.trim() || null,
+                workshop: device.workshopName.trim() || null,
+                electricroom: device.electricRoom.trim() || null,
+                mlfb: device.model.trim() || null,
+                equipmentname: null,
+                productcategory: categoryName && categoryName !== '-' ? categoryName : null,
+                productgroup: subCategoryName && subCategoryName !== '-' ? subCategoryName : null,
+                number: device.quantity,
+              });
+              const equipId = Number(created.equipid);
+              if (!Number.isFinite(equipId) || equipId <= 0) {
+                throw new Error('新建设备档案失败：未返回有效 equipid');
+              }
+              const projectDevice: Device = {
+                id: String(equipId),
+                ...device,
+              };
+              emit('add-devices', [projectDevice]);
+              await refreshSelectableDevices();
+              showToast({ message: '新增成功' });
+            } catch (e) {
+              showToast({ message: e instanceof Error ? e.message : '新增失败' });
+            }
+          })();
         },
       },
     }),
@@ -277,6 +322,7 @@ const handleAddSelectedDevices = (deviceIds: string[]) => {
       const projectDevice: Device = {
         /** 必须与设备档案 `equipid` 一致，否则提交时无法写入 ProjectEquipments */
         id: device.id,
+        customerId: device.customerId,
         categoryId: device.categoryId,
         subCategoryId: device.subCategoryId,
         model: device.model,

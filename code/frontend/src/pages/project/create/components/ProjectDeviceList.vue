@@ -49,7 +49,6 @@ interface Props {
 const props = defineProps<Props>();
 
 const emit = defineEmits<{
-  edit: [index: number];
   remove: [index: number];
   clear: [];
 }>();
@@ -139,27 +138,26 @@ onMounted(() => {
         resizable: false,
         sortable: false,
         filter: false,
-        width: 180,
+        width: 120,
         cellRenderer: (params: any) => {
-          return `
-            <div class="ag-action-buttons">
-              <button class="ag-action-btn ag-action-btn-edit" data-action="edit">编辑</button>
-              <button class="ag-action-btn ag-action-btn-remove" data-action="remove">删除</button>
-            </div>
-          `;
-        },
-        onCellClicked: (params: any) => {
-          if (params.event?.target?.classList.contains('ag-action-btn')) {
-            const action = params.event.target.getAttribute('data-action');
-            // 使用存储在行数据中的原始索引
-            const originalIndex = params.data.originalIndex;
-            
-            if (action === 'edit') {
-              emit('edit', originalIndex);
-            } else if (action === 'remove') {
+          const originalIndex = params.data?.originalIndex;
+          const container = document.createElement('div');
+          container.className = 'ag-action-buttons';
+
+          const removeButton = document.createElement('button');
+          removeButton.type = 'button';
+          removeButton.className = 'ag-action-btn ag-action-btn-remove';
+          removeButton.textContent = '删除';
+          removeButton.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            if (typeof originalIndex === 'number') {
               emit('remove', originalIndex);
             }
-          }
+          });
+
+          container.append(removeButton);
+          return container;
         },
       },
     ],

@@ -116,6 +116,8 @@ ModuleRegistry.registerModules([AllCommunityModule]);
 type SchemeOption = { id: string; name: string; model?: string };
 type EquipmentSchemeRow = { key: string; label: string; deviceCount: number; selectedId: string; options: SchemeOption[] };
 type Device = {
+  categoryId?: string;
+  subCategoryId?: string;
   model: string;
   serialNumber?: string;
   quantity: number;
@@ -184,6 +186,16 @@ const getUserName = (userId: string) => {
 const resolveEquipmentSelected = (row: EquipmentSchemeRow) =>
   row.options.find((o) => o.id === row.selectedId) ?? null;
 
+function equipmentModelKey(device: Device): string {
+  return `${device.categoryId ?? ''}\t${device.subCategoryId ?? ''}\t${(device.model ?? '').trim()}`;
+}
+
+function resolveEquipmentTemplateForDevice(device: Device): SchemeOption | null {
+  const row = equipmentSchemeRows.value.find((item) => item.key === equipmentModelKey(device));
+  if (!row) return null;
+  return resolveEquipmentSelected(row);
+}
+
 const taskGridOptions = ref<GridOptions | null>(null);
 const taskGridApi = ref<any>(null);
 const taskRows = ref<TaskRow[]>([]);
@@ -249,11 +261,11 @@ function engineerNameById(engineerId: string | undefined): string {
 
 function buildTaskRows(): TaskRow[] {
   const itemCount = flattenSchemeToTaskitemRows(props.adjustedSchemeItems ?? [], props.checkedItems ?? []).length;
-  const templateName = getSelectedTemplateName();
   const rows: TaskRow[] = [];
   let seq = 0;
 
   for (const d of props.devices ?? []) {
+    const selectedTemplateName = resolveEquipmentTemplateForDevice(d)?.name ?? getSelectedTemplateName();
     const qty = Math.max(1, Number(d.quantity) || 1);
     for (let i = 0; i < qty; i++) {
       seq += 1;
@@ -267,7 +279,7 @@ function buildTaskRows(): TaskRow[] {
         taskNo: `预览任务-${seq}`,
         productModel: (d.model ?? '').trim() || '-',
         serialno,
-        templateName,
+        templateName: selectedTemplateName,
         statusText: '未开始',
         itemCount,
         engineerName: engineerNameById(d.assignedEngineerId),

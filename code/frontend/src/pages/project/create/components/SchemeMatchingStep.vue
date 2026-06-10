@@ -67,7 +67,7 @@
                   <span v-else class="muted">未匹配</span>
                 </td>
                 <td>
-                  <div v-if="row.options.length > 1" class="row-actions">
+                  <div v-if="!resolveRowSelected(row) || row.options.length > 1" class="row-actions">
                     <IxSelect
                       :model-value="row.selectedId"
                       placeholder="选择方案"
@@ -144,7 +144,7 @@
                     <span v-else class="muted">未匹配</span>
                   </td>
                   <td>
-                    <div v-if="peripheralTemplateOptions.length > 1" class="row-actions">
+                    <div v-if="!selectedPeripheralTemplate || peripheralTemplateOptions.length > 1" class="row-actions">
                       <IxSelect
                         :model-value="selectedPeripheralTemplateId"
                         placeholder="选择外围方案"
