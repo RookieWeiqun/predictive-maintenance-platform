@@ -148,7 +148,11 @@ namespace premaintainProjects.Controllers
                     rp.Roleid,
                     RoleName = r.Rolename,
                     rp.Permissionid,
-                    PermissionName = p.Permission1
+                    PermissionName = p.Permission1,
+                    p.Path,
+                    p.Type,
+                    p.Icon,
+                    p.Sort
                 })
                 .ToListAsync();
 

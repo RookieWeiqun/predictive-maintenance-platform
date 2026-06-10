@@ -64,7 +64,6 @@ namespace premaintainProjects.Controllers
         [HttpPut]
         public async Task<IActionResult> PutUser(User user)
         {
-
             _context.Entry(user).State = EntityState.Modified;
 
             try

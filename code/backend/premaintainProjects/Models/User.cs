@@ -20,4 +20,6 @@ public partial class User
     public DateOnly? Createdate { get; set; }
 
     public string? Gid { get; set; }
+
+    public string? Email { get; set; }
 }

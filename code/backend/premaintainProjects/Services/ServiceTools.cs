@@ -1,8 +1,10 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using premaintainProjects.Models;
+using System.Net.Mail;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 
 namespace premaintainProjects.Services
 {
@@ -103,6 +105,47 @@ namespace premaintainProjects.Services
                 TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, ChinaTimeZone),
                 DateTimeKind.Unspecified);
 
+
+        public bool IsValidEmail(string? email)
+        {
+            if (string.IsNullOrWhiteSpace(email))
+                return false;
+
+            try
+            {
+                var addr = new MailAddress(email);
+                return string.Equals(addr.Address, email, StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public bool TryNormalizeMobile(string? mobile, out string normalizedMobile)
+        {
+            normalizedMobile = string.Empty;
+
+            if (string.IsNullOrWhiteSpace(mobile))
+                return false;
+
+            var cleaned = Regex.Replace(mobile, @"[\s\-\(\)]", "");
+
+            if (cleaned.StartsWith("+86", StringComparison.Ordinal))
+            {
+                cleaned = cleaned[3..];
+            }
+            else if (cleaned.StartsWith("86", StringComparison.Ordinal) && cleaned.Length == 13)
+            {
+                cleaned = cleaned[2..];
+            }
+
+            if (!Regex.IsMatch(cleaned, @"^1[3-9]\d{9}$"))
+                return false;
+
+            normalizedMobile = cleaned;
+            return true;
+        }
 
     }
 }
